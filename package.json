@@ -1,0 +1,16 @@
+{
+  "name": "world-order",
+  "version": "1.0.0",
+  "description": "WORLD ORDER - Geopolitical Grand Strategy",
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^34.5.8"
+  },
+  "type": "commonjs"
+}

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WORLD ORDER - Comando Global</title>
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- STARTUP OVERLAY -->
+        <div id="startup-overlay" class="startup-overlay">
+            <!-- Animated background grid -->
+            <div class="startup-grid"></div>
+            <div class="startup-scanline-h"></div>
+
+            <div class="startup-panel">
+                <!-- Top scanline -->
+                <div class="startup-topscan"></div>
+
+                <!-- Logo -->
+                <div class="startup-logo-area">
+                    <div class="startup-logo-sub">COMANDO ESTRATÉGICO GLOBAL</div>
+                    <h1 class="startup-logo">WORLD<span>ORDER</span></h1>
+                    <div class="startup-logo-ver">VERSÃO 2.4.1 // CLASSIFICADO TS/SCI</div>
+                </div>
+
+                <!-- Status Briefing -->
+                <div class="startup-briefing">
+                    <div class="startup-brief-line">
+                        <span class="sbr-key">STATUS DO SISTEMA</span>
+                        <span class="sbr-val ok">OPERACIONAL</span>
+                    </div>
+                    <div class="startup-brief-line">
+                        <span class="sbr-key">PONTO DE INSERÇÃO</span>
+                        <span class="sbr-val warn">Q4 · 2024</span>
+                    </div>
+                    <div class="startup-brief-line">
+                        <span class="sbr-key">NAÇÕES MONITORADAS</span>
+                        <span class="sbr-val">CARREGANDO...</span>
+                    </div>
+                    <div class="startup-brief-line">
+                        <span class="sbr-key">AMEAÇA GLOBAL</span>
+                        <span class="sbr-val">DEFCON 5 — ESTÁVEL</span>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="startup-divider"></div>
+
+                <!-- Save Info -->
+                <div id="startup-save-info" class="startup-save-info" style="display:none"></div>
+
+                <!-- Menu Buttons -->
+                <div class="startup-menu">
+                    <button class="startup-btn primary" id="btn-new-game" onclick="engine.startGame()">
+                        <span class="sbtn-icon">▶</span>
+                        <span class="sbtn-label">NOVA PARTIDA</span>
+                        <span class="sbtn-hint">Selecionar nação e iniciar em 2024</span>
+                    </button>
+                    <button class="startup-btn" id="btn-continue" disabled onclick="engine.loadSavedGame()">
+                        <span class="sbtn-icon">↺</span>
+                        <span class="sbtn-label">CONTINUAR</span>
+                        <span class="sbtn-hint" id="btn-continue-hint">Nenhum progresso salvo</span>
+                    </button>
+                    <button class="startup-btn danger" onclick="engine.quitGame()">
+                        <span class="sbtn-icon">✕</span>
+                        <span class="sbtn-label">SAIR</span>
+                        <span class="sbtn-hint">Encerrar sessão de comando</span>
+                    </button>
+                </div>
+
+                <!-- Footer -->
+                <div class="startup-footer">
+                    WORLD ORDER // SIMULADOR GEOPOLÍTICO // USO INTERNO — NÃO DISTRIBUIR
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: Menu de Opções / Pausa -->
+        <div id="options-modal" class="options-overlay" style="display:none">
+            <div class="options-box">
+                <div class="options-scanline"></div>
+
+                <!-- Header -->
+                <div class="options-header">
+                    <span class="options-title">⚙ MENU DE PAUSA</span>
+                    <button class="options-close-btn" onclick="engine.closeOptions()">×</button>
+                </div>
+
+                <!-- Session info -->
+                <div class="options-session" id="options-session-info">
+                    <span id="opt-nation">—</span>
+                    <span class="options-sep">·</span>
+                    <span id="opt-date">—</span>
+                    <span class="options-sep">·</span>
+                    <span id="opt-turn">Turno 0</span>
+                    <span class="options-sep">·</span>
+                    <span id="opt-defcon">DEFCON 5</span>
+                </div>
+
+                <!-- Save status bar -->
+                <div class="options-save-status" id="opt-save-status">
+                    <span class="oss-dot" id="opt-save-dot"></span>
+                    <span id="opt-save-text">Nenhum save detectado</span>
+                </div>
+
+                <!-- Menu items -->
+                <div class="options-menu">
+                    <button class="opt-btn primary" onclick="engine.saveGame(); engine.closeOptions()">
+                        <span class="opt-icon">💾</span>
+                        <div class="opt-label-group">
+                            <span class="opt-label">SALVAR PROGRESSO</span>
+                            <span class="opt-hint">Grava o estado atual da partida</span>
+                        </div>
+                    </button>
+
+                    <button class="opt-btn" id="opt-load-btn" onclick="engine.optionsLoadGame()">
+                        <span class="opt-icon">📂</span>
+                        <div class="opt-label-group">
+                            <span class="opt-label">CARREGAR SAVE</span>
+                            <span class="opt-hint" id="opt-load-hint">Restaurar sessão anterior</span>
+                        </div>
+                    </button>
+
+                    <button class="opt-btn" onclick="engine.returnToMainMenu()">
+                        <span class="opt-icon">🏠</span>
+                        <div class="opt-label-group">
+                            <span class="opt-label">MENU PRINCIPAL</span>
+                            <span class="opt-hint">Voltar à tela inicial (salvar antes!)</span>
+                        </div>
+                    </button>
+
+                    <button class="opt-btn" onclick="engine.openOptions_settings()" disabled>
+                        <span class="opt-icon">🔊</span>
+                        <div class="opt-label-group">
+                            <span class="opt-label">CONFIGURAÇÕES</span>
+                            <span class="opt-hint">Em breve — volume, idioma, atalhos</span>
+                        </div>
+                    </button>
+
+                    <div class="options-divider"></div>
+
+                    <button class="opt-btn danger" onclick="engine.quitGame()">
+                        <span class="opt-icon">⏻</span>
+                        <div class="opt-label-group">
+                            <span class="opt-label">ENCERRAR SESSÃO</span>
+                            <span class="opt-hint">Sair do jogo (sessão não salva é perdida)</span>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="options-footer">WORLD ORDER // VERSÃO 2.4.1 // SESSÃO ATIVA</div>
+            </div>
+        </div>
+
+        <!-- MODAL: Ações de Governo / Militar / Economia / Diplomacia -->
+        <div id="gov-modal" class="game-modal-overlay">
+            <div class="game-modal-box">
+                <div class="game-modal-scanline"></div>
+                <button id="gov-modal-close" class="game-modal-close">×</button>
+                <h3 id="gov-modal-title" class="game-modal-title">Ação de Governo</h3>
+                <div id="gov-modal-content">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </div>
+
+        <!-- TOP BAR: Status Global -->
+        <header id="top-bar">
+            <div id="logo">
+                <span style="color: var(--accent-primary); font-weight: 800; letter-spacing: 2px;">WORLD</span>
+                <span style="color: white; font-weight: 300; letter-spacing: 2px;">ORDER</span>
+            </div>
+
+            <div id="game-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Data Atual</span>
+                    <span id="current-date" class="stat-value">OUT 2024</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Tesouro Nacional</span>
+                    <span id="global-treasury" class="stat-value economy">$ 14.2T</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Status DEFCON</span>
+                    <span id="defcon-level" class="stat-value threat">DEFCON 5</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Pontuação</span>
+                    <span id="global-score" class="stat-value">0000</span>
+                </div>
+            </div>
+
+            <div id="turn-control">
+                <button id="end-turn-btn" class="action-btn" style="width: 150px; margin: 0; background: rgba(0,210,255,0.1);" onclick="engine.endTurn()">PRÓXIMO TURNO</button>
+                <button id="options-btn" class="action-btn options-btn" onclick="engine.openOptions()">⚙ OPÇÕES</button>
+            </div>
+        </header>
+
+        <!-- MAIN VIEW: Interactive Area -->
+        <main id="main-view">
+            <!-- SIDE NAVIGATION -->
+            <nav id="side-menu">
+                <button class="nav-btn active" data-panel="history">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-label">Histórico</span>
+                </button>
+                <button class="nav-btn" data-panel="situation">
+                    <span class="nav-icon">🌐</span>
+                    <span class="nav-label">Situação</span>
+                </button>
+                <button class="nav-btn" data-panel="government">
+                    <span class="nav-icon">🏛</span>
+                    <span class="nav-label">Governo</span>
+                </button>
+                <button class="nav-btn" data-panel="military">
+                    <span class="nav-icon">⚔️</span>
+                    <span class="nav-label">Militar</span>
+                </button>
+                <button class="nav-btn" data-panel="economy">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Economia</span>
+                </button>
+                <button class="nav-btn" data-panel="tech">
+                    <span class="nav-icon">🔬</span>
+                    <span class="nav-label">Tecnologia</span>
+                </button>
+                <button class="nav-btn" data-panel="diplomacy">
+                    <span class="nav-icon">🤝</span>
+                    <span class="nav-label">Diplomacia</span>
+                </button>
+                <button class="nav-btn" data-panel="espionagem">
+                    <span class="nav-icon">🕵️</span>
+                    <span class="nav-label">Intel</span>
+                </button>
+                <div class="nav-divider"></div>
+                <button class="nav-btn" data-panel="news">
+                    <span class="nav-icon">📡</span>
+                    <span class="nav-label">Notícias</span>
+                </button>
+            </nav>
+
+            <!-- MAP CONTAINER -->
+            <section id="map-container">
+                <div class="radar-sweep"></div>
+                
+                <div id="map-controls" style="position: absolute; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 10;">
+                    <button class="nav-btn active" data-mode="normal" style="width: auto; padding: 0 10px;">POLÍTICO</button>
+                    <button class="nav-btn" data-mode="economy" style="width: auto; padding: 0 10px;">ECONOMIA</button>
+                    <button class="nav-btn" data-mode="military" style="width: auto; padding: 0 10px;">MILITAR</button>
+                    <button class="nav-btn" data-mode="stability" style="width: auto; padding: 0 10px;">ESTABILIDADE</button>
+                    <button class="nav-btn" data-mode="resources" style="width: auto; padding: 0 10px;">RECURSOS</button>
+                    <button class="nav-btn" data-mode="satellite" style="width: auto; padding: 0 10px;">SAT</button>
+                    <div style="border-left: 1px solid var(--glass-border); margin: 0 5px;"></div>
+                    <button class="nav-btn" title="Zoom In" onclick="window.engine.map.zoomIn()" style="width: auto; padding: 0 10px;">+</button>
+                    <button class="nav-btn" title="Zoom Out" onclick="window.engine.map.zoomOut()" style="width: auto; padding: 0 10px;">-</button>
+                    <button class="nav-btn" title="Reset View" onclick="window.engine.map.resetView()" style="width: auto; padding: 0 10px;">↺</button>
+                </div>
+
+                <!-- O SVG será injetado/manipulado via MapRenderer -->
+                <svg id="world-map" viewBox="0 0 2000 1000"></svg>
+            </section>
+
+            <!-- INFO PANEL: Dynamic Content -->
+            <aside id="info-panel">
+                <div id="nation-details">
+                    <div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">
+                        <p>AGUARDANDO SELEÇÃO DE ALVO...</p>
+                        <small>Selecione uma nação no mapa para iniciar o comando.</small>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- FOOTER: Intelligence Feed -->
+        <footer id="news-ticker">
+            <span class="ticker-label">INTEL</span>
+            <div id="news-ticker-track">
+                <div id="news-ticker-inner">
+                    <span class="ticker-item">
+                        <span class="t-cat" style="background:rgba(0,210,255,0.12);color:#00d2ff">🔬 Sistema</span>
+                        <span class="t-text">Sistemas online. Bem-vindo, Comandante. Mundo em estabilidade relativa. Avance o turno para iniciar o feed de inteligência global.</span>
+                    </span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ENDGAME OVERLAY: Game Over / Victory -->
+    <div id="endgame-overlay" class="endgame-overlay" style="display:none">
+        <div class="endgame-box">
+            <div class="endgame-scanline"></div>
+            <div id="endgame-icon" class="endgame-icon">💀</div>
+            <div id="endgame-title" class="endgame-title">DERROTA</div>
+            <div id="endgame-subtitle" class="endgame-subtitle">REVOLUÇÃO</div>
+            <p id="endgame-message" class="endgame-message">Mensagem de fim de jogo.</p>
+            <div id="endgame-stats" class="endgame-stats"></div>
+            <div class="endgame-actions">
+                <button class="eg-btn primary" onclick="location.reload()">↺ NOVO JOGO</button>
+                <button class="eg-btn" onclick="engine._deleteSave(); location.reload()">🗑 APAGAR SAVE E RECOMEÇAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="js/utils.js"></script>
+    <script src="js/news-manager.js"></script>
+    <script src="js/economy-manager.js"></script>
+    <script src="js/nation.js"></script>
+    <script src="js/map-renderer.js"></script>
+    <script src="js/ui-manager.js"></script>
+    <script src="js/ai-manager.js"></script>
+    <script src="js/alliance-manager.js"></script>
+    <script src="js/treaty.js"></script>
+    <script src="js/diplomacy-manager.js"></script>
+    <script src="js/game-engine.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

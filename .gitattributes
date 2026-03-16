@@ -1,0 +1,15 @@
+# Normaliza line endings para LF em todos os arquivos de texto
+* text=auto eol=lf
+
+# Forçar LF em arquivos específicos
+*.js    text eol=lf
+*.json  text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.md    text eol=lf
+
+# Binários — sem conversão
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.exe   binary

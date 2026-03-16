@@ -1,0 +1,64 @@
+{
+  "conflitos": [
+    {
+      "id": "RUS_UKR",
+      "nome": "Guerra da Ucrânia",
+      "beligerantes": {
+        "atacante": ["RU"],
+        "defensor": ["UA"]
+      },
+      "tipo": "GUERRA_TOTAL",
+      "data_inicio": "2022-02-24",
+      "situacao": "Frente de 1.200km no leste/sul. Rússia ocupa Crimeia e partes do Donbass. Ucrânia recebe apoio da OTAN.",
+      "gravidade": 90
+    },
+    {
+      "id": "ISR_HAM",
+      "nome": "Conflito Israel-Hamas-Gaza",
+      "beligerantes": {
+        "atacante": ["IL"],
+        "defensor": ["HAMAS"]
+      },
+      "tipo": "OPERAÇÃO_ESPECIAL",
+      "data_inicio": "2023-10-07",
+      "situacao": "Operação terrestre em Gaza. Alta tensão com Hezbollah (Líbano) e Houthis (Iêmen). Envolvimento indireto do Irã.",
+      "gravidade": 85
+    },
+    {
+      "id": "SUD_CIV",
+      "nome": "Guerra Civil no Sudão",
+      "beligerantes": {
+        "atacante": ["SAF"],
+        "defensor": ["RSF"]
+      },
+      "tipo": "GUERRA_CIVIL",
+      "data_inicio": "2023-04-15",
+      "situacao": "Conflito interno por controle governamental. Crise humanitária massiva.",
+      "gravidade": 70
+    },
+    {
+      "id": "SEA_CHI",
+      "nome": "Disputa no Mar do Sul da China",
+      "beligerantes": {
+        "atacante": ["CN"],
+        "defensor": ["PH", "VN", "MY"]
+      },
+      "tipo": "TENSÃO",
+      "data_inicio": "2010-01-01",
+      "situacao": "Disputas territoriais marítimas. China constrói ilhas artificiais militarizadas.",
+      "gravidade": 60
+    },
+    {
+      "id": "TAI_CHI",
+      "nome": "Tensão em Taiwan",
+      "beligerantes": {
+        "atacante": ["CN"],
+        "defensor": ["TW"]
+      },
+      "tipo": "TENSÃO",
+      "data_inicio": "1949-01-01",
+      "situacao": "China considera Taiwan parte de seu território. EUA apoiam defesa de Taiwan.",
+      "gravidade": 95
+    }
+  ]
+}

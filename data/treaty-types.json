@@ -1,0 +1,96 @@
+{
+  "tiposTratado": [
+    {
+      "id": "alianca_militar",
+      "nome": "Aliança Militar",
+      "descricao": "Pacto de defesa mútua. Um ataque a qualquer signatário gera entrada automática no conflito.",
+      "efeitos": {
+        "modificador_pib": 0,
+        "modificador_estabilidade": 0,
+        "bonus_forca_militar": 0.1,
+        "penalidade_relacao_quebra": -50,
+        "compartilhamento_inteligencia": true
+      },
+      "duracao_min": 20,
+      "duracao_max": 40,
+      "custo_ruptura": "Grande penalidade de relação (–50), perda de credibilidade."
+    },
+    {
+      "id": "pacto_nao_agressao",
+      "nome": "Pacto de Não‑Agressão",
+      "descricao": "Garante que nenhum signatário atacará o outro diretamente durante a vigência. Relações mínimas garantidas.",
+      "efeitos": {
+        "modificador_pib": 0.02,
+        "modificador_estabilidade": 0.05,
+        "bonus_forca_militar": 0,
+        "penalidade_relacao_quebra": -30,
+        "compartilhamento_inteligencia": false
+      },
+      "duracao_min": 10,
+      "duracao_max": 30,
+      "custo_ruptura": "Penalidade moderada (–30)."
+    },
+    {
+      "id": "bloco_economico",
+      "nome": "Bloco Econômico",
+      "descricao": "Cooperação econômica preferencial, com redução de tarifas e barreiras comerciais.",
+      "efeitos": {
+        "modificador_pib": 0.1,
+        "modificador_estabilidade": 0,
+        "bonus_forca_militar": 0,
+        "penalidade_relacao_quebra": -15,
+        "compartilhamento_inteligencia": false
+      },
+      "duracao_min": 0,
+      "duracao_max": 0,
+      "custo_ruptura": "Penalidade econômica (–15% PIB por 5 turnos).",
+      "indefinido": true
+    },
+    {
+      "id": "parceria_pesquisa",
+      "nome": "Parceria de Pesquisa",
+      "descricao": "Cooperação tecnológica, dividindo custos e acelerando pesquisas.",
+      "efeitos": {
+        "modificador_pib": 0,
+        "modificador_estabilidade": 0,
+        "bonus_forca_militar": 0,
+        "penalidade_relacao_quebra": 0,
+        "velocidade_pesquisa": 0.25
+      },
+      "duracao_min": 0,
+      "duracao_max": 0,
+      "custo_ruptura": "Nenhuma penalidade direta, apenas perda de benefício.",
+      "ate_conclusao": true
+    },
+    {
+      "id": "livre_comercio",
+      "nome": "Acordo de Livre Comércio",
+      "descricao": "Eliminação de barreiras alfandegárias, aumentando fluxo comercial e tesouro.",
+      "efeitos": {
+        "modificador_pib": 0.05,
+        "modificador_estabilidade": 0,
+        "bonus_forca_militar": 0,
+        "penalidade_relacao_quebra": -10,
+        "bonus_tesouro": 0.02
+      },
+      "duracao_min": 15,
+      "duracao_max": 25,
+      "custo_ruptura": "Penalidade leve (–10)."
+    },
+    {
+      "id": "desarmamento",
+      "nome": "Tratado de Desarmamento",
+      "descricao": "Redução mútua de unidades militares, promovendo estabilidade regional.",
+      "efeitos": {
+        "modificador_pib": 0,
+        "modificador_estabilidade": 0.1,
+        "bonus_forca_militar": -0.2,
+        "penalidade_relacao_quebra": -20,
+        "reducao_unidades": 0.15
+      },
+      "duracao_min": 10,
+      "duracao_max": 20,
+      "custo_ruptura": "Penalidade moderada (–20)."
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "eventos": [
+    {
+      "id": "crise_financeira_global",
+      "nome": "Crise Financeira Global",
+      "descricao": "Uma bolha no setor imobiliário estourou, causando instabilidade nos mercados mundiais.",
+      "chance": 0.05,
+      "condicao": { "ano_min": 2025 },
+      "efeitos": {
+        "pib_fator": 0.95,
+        "estabilidade_fator": -10,
+        "global": true
+      }
+    },
+    {
+      "id": "descoberta_fusao_nuclear",
+      "nome": "Avanço na Fusão Nuclear",
+      "descricao": "Cientistas alcançaram a ignição estável, prometendo energia limpa e barata.",
+      "chance": 0.02,
+      "condicao": { "ano_min": 2040 },
+      "efeitos": {
+        "pib_fator": 1.15,
+        "estabilidade_fator": 5,
+        "global": true
+      }
+    },
+    {
+      "id": "protestos_democracia",
+      "nome": "Onda de Protestos Pró-Democracia",
+      "descricao": "Movimentos populares exigem reformas e maior transparência governamental.",
+      "chance": 0.1,
+      "condicao": { "regime": "AUTORITARISMO", "estabilidade_max": 60 },
+      "efeitos": {
+        "estabilidade_fator": -20,
+        "global": false
+      }
+    },
+    {
+      "id": "boom_tecnologico",
+      "nome": "Revolução da IA Quântica",
+      "descricao": "A integração de computação quântica com IA acelerou drasticamente a produtividade.",
+      "chance": 0.03,
+      "condicao": { "ano_min": 2030 },
+      "efeitos": {
+        "pib_fator": 1.1,
+        "estabilidade_fator": 0,
+        "global": true
+      }
+    },
+    {
+      "id": "colonizacao_marte",
+      "nome": "Base Permanente em Marte",
+      "descricao": "A humanidade estabeleceu sua primeira colônia autossustentável em Marte.",
+      "chance": 0.01,
+      "condicao": { "ano_min": 2050 },
+      "efeitos": { "pib_fator": 1.08, "estabilidade_fator": 15, "global": true }
+    },
+    {
+      "id": "crise_climatica_extrema",
+      "nome": "Super-Tempestades Globais",
+      "descricao": "O clima atingiu um ponto de não retorno, causando desastres naturais frequentes.",
+      "chance": 0.04,
+      "condicao": { "ano_min": 2035 },
+      "efeitos": { "pib_fator": 0.90, "estabilidade_fator": -15, "global": true }
+    },
+    {
+      "id": "primeiro_contato_radio",
+      "nome": "Sinal Inteligente de Proxima Centauri",
+      "descricao": "SETI detectou um sinal de rádio artificial e complexo, mudando a filosofia humana.",
+      "chance": 0.005,
+      "condicao": { "ano_min": 2085 },
+      "efeitos": { "estabilidade_fator": 20, "global": true }
+    },
+    {
+      "id": "guerra_cibernetica_total",
+      "nome": "O Grande Blecaute Digital",
+      "descricao": "Um vírus de IA paralisou as infraestruturas críticas globais por semanas.",
+      "chance": 0.02,
+      "condicao": { "ano_min": 2030 },
+      "efeitos": { "pib_fator": 0.85, "estabilidade_fator": -25, "global": true }
+    }
+  ]
+}
