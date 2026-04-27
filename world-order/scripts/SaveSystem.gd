@@ -21,6 +21,9 @@ static func save_game(engine) -> bool:
 		"news_history": _serialize_news(engine.news_history),
 		"fired_event_ids": engine.timeline.fired_event_ids if engine.timeline else [],
 		"decision_log": engine.timeline.decision_log if engine.timeline else [],
+		"player_actions_remaining": engine.player_actions_remaining,
+		"active_sanctions": engine.active_sanctions,
+		"active_trades": engine.active_trades,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
@@ -65,6 +68,12 @@ static func load_game(engine) -> bool:
 	if engine.timeline:
 		engine.timeline.fired_event_ids = data.get("fired_event_ids", [])
 		engine.timeline.decision_log = data.get("decision_log", [])
+	# Restaura ações restantes do turno (se save foi feito mid-turno)
+	engine.player_actions_remaining = int(data.get("player_actions_remaining", engine.PLAYER_ACTIONS_PER_TURN))
+	# Restaura sanções ativas
+	engine.active_sanctions = data.get("active_sanctions", [])
+	# Restaura acordos comerciais ativos
+	engine.active_trades = data.get("active_trades", [])
 	print("[LOAD] Jogo carregado: turno %d, jogador %s" % [engine.current_turn, player_code])
 	return true
 

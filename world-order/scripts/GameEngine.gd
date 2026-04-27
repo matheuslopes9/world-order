@@ -46,6 +46,19 @@ var recent_events: Array = []
 var news_history: Array = []
 const NEWS_HISTORY_MAX: int = 500
 
+# Sanções ativas — lista de { from, to, turns_remaining, intensity }
+# Aplicadas a cada turno em _process_active_sanctions()
+var active_sanctions: Array = []
+const SANCTION_DURATION: int = 5  # turnos de duração padrão
+const SANCTION_PIB_PENALTY: float = 0.985  # -1.5% PIB/turno no alvo
+const SANCTION_COST: int = 30  # $30B custo pro impositor (logística, perdas comerciais)
+
+# Acordos comerciais ativos — lista de { exporter, importer, resource, value_per_turn, turns_remaining }
+# Cada turno: importer paga $value/turn ao exporter, exporter ganha receita
+var active_trades: Array = []
+const TRADE_DURATION: int = 8  # turnos por contrato
+const TRADE_BASE_VALUE: float = 8.0  # $8B/turno por nível 100 do recurso (escala linear)
+
 # Helper: adiciona evento ao recent_events E ao news_history persistente com metadados
 # involves: array de códigos ISO de nações envolvidas no evento (vazio = global)
 # region: continente do evento (vazio = sem região específica)
@@ -233,6 +246,10 @@ func end_turn() -> void:
 	_run_ai_turn()
 	# Custos contínuos de guerra
 	_process_war_costs()
+	# Sanções ativas: aplica penalidade nos alvos e decrementa duração
+	_process_active_sanctions()
+	# Comércio bilateral: transfere $ entre exportador/importador
+	_process_active_trades()
 	# Eventos aleatórios
 	_roll_events()
 	# Diplomacia: aplica tratados, processa propostas
@@ -544,8 +561,14 @@ func player_propose_peace(target_code: String) -> bool:
 # Diplomacia: player propõe tratado
 func player_propose_treaty(target_code: String, treaty_type: String) -> Dictionary:
 	if diplomacy == null or player_nation == null:
-		return {}
-	if not _consume_action(): return {"ok": false, "reason": "Sem ações restantes neste turno"}
+		return {"ok": false, "reason": "Sistema não inicializado"}
+	# Valida ANTES de consumir (não desperdiça ação se não pode propor)
+	if not nations.has(target_code):
+		return {"ok": false, "reason": "Nação alvo inválida"}
+	if target_code == player_nation.codigo_iso:
+		return {"ok": false, "reason": "Não pode propor a si próprio"}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno"}
 	return diplomacy.propose(player_nation.codigo_iso, target_code, treaty_type)
 
 # Diplomacia: player aceita/rejeita proposta dirigida a ele
@@ -562,10 +585,13 @@ func player_reject_proposal(proposal_id: String) -> bool:
 func player_start_research(tech_id: String) -> Dictionary:
 	if tech == null or player_nation == null:
 		return {"ok": false, "reason": "Sistema não inicializado"}
+	# Valida ANTES de consumir ação (evita perder ação por pré-req faltando)
+	var check: Dictionary = tech.can_research(player_nation, tech_id)
+	if not check.get("ok", false):
+		return check  # devolve {"ok": false, "reason": "..."} sem consumir ação
 	if not _consume_action():
 		return {"ok": false, "reason": "Sem ações restantes neste turno"}
-	if not tech.start_research(player_nation, tech_id):
-		return tech.can_research(player_nation, tech_id)
+	tech.start_research(player_nation, tech_id)
 	return {"ok": true}
 
 # Cancelar pesquisa NÃO consome ação (correção/reversão)
@@ -573,10 +599,145 @@ func player_cancel_research() -> void:
 	if tech and player_nation:
 		tech.cancel_research(player_nation)
 
+# Sanções: jogador impõe sanção a uma nação alvo
+# Custa $30B + 1 ação. Aplica -1.5% PIB/turno no alvo por 5 turnos.
+# Relação despenca -30 imediatamente. Se já houver sanção ativa, refresca duração.
+func player_impose_sanctions(target_code: String) -> Dictionary:
+	if player_nation == null:
+		return {"ok": false, "reason": "Sem nação"}
+	if not nations.has(target_code) or target_code == player_nation.codigo_iso:
+		return {"ok": false, "reason": "Alvo inválido"}
+	if player_nation.tesouro < SANCTION_COST:
+		return {"ok": false, "reason": "Tesouro insuficiente: $%dB" % SANCTION_COST}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno"}
+	# Custo logístico
+	player_nation.tesouro -= SANCTION_COST
+	# Refresca ou cria sanção
+	var existing: Dictionary = _find_sanction(player_nation.codigo_iso, target_code)
+	if existing.size() > 0:
+		existing["turns_remaining"] = SANCTION_DURATION
+	else:
+		active_sanctions.append({
+			"from": player_nation.codigo_iso,
+			"to": target_code,
+			"turns_remaining": SANCTION_DURATION,
+			"started_turn": current_turn,
+		})
+	# Penalidades imediatas de relação
+	var t = nations[target_code]
+	player_nation.relacoes[target_code] = clamp(float(player_nation.relacoes.get(target_code, 0)) - 30, -100, 100)
+	t.relacoes[player_nation.codigo_iso] = clamp(float(t.relacoes.get(player_nation.codigo_iso, 0)) - 30, -100, 100)
+	_log_news({
+		"type": "sanctions",
+		"headline": "🚫 %s impõe sanções contra %s" % [player_nation.nome, t.nome],
+		"body": "Custo $%dB. -1.5%% PIB/turno por %d turnos. Relações em queda." % [SANCTION_COST, SANCTION_DURATION],
+		"involves_player": true,
+	}, [player_nation.codigo_iso, target_code], t.continente)
+	return {"ok": true}
+
+func _find_sanction(from: String, to: String) -> Dictionary:
+	for s in active_sanctions:
+		if s.get("from", "") == from and s.get("to", "") == to:
+			return s
+	return {}
+
+# Comércio: jogador (exportador) propõe acordo de exportação a target (importador)
+# Custa 1 ação. Validações: alvo válido, não-self, recurso disponível >= 30, sem
+# sanção bilateral, sem guerra mútua. Cria acordo de 8 turnos.
+# Receita por turno = (resource_value / 100) * TRADE_BASE_VALUE * (1 + relação_normalizada)
+func player_export_resource(target_code: String, resource_id: String) -> Dictionary:
+	if player_nation == null:
+		return {"ok": false, "reason": "Sem nação"}
+	if not nations.has(target_code) or target_code == player_nation.codigo_iso:
+		return {"ok": false, "reason": "Alvo inválido"}
+	# Recurso precisa existir e ter valor mínimo
+	if not player_nation.recursos.has(resource_id):
+		return {"ok": false, "reason": "Recurso não disponível"}
+	var res_value: float = float(player_nation.recursos[resource_id])
+	if res_value < 30:
+		return {"ok": false, "reason": "Recurso muito escasso (<30/100) pra exportar"}
+	# Conflitos bloqueiam
+	if target_code in player_nation.em_guerra:
+		return {"ok": false, "reason": "Não há comércio com inimigos em guerra"}
+	if _find_sanction(player_nation.codigo_iso, target_code).size() > 0 or _find_sanction(target_code, player_nation.codigo_iso).size() > 0:
+		return {"ok": false, "reason": "Sanções ativas bloqueiam comércio"}
+	# Já existe acordo do mesmo recurso?
+	for t in active_trades:
+		if t.get("exporter", "") == player_nation.codigo_iso and t.get("importer", "") == target_code and t.get("resource", "") == resource_id:
+			return {"ok": false, "reason": "Já existe acordo do mesmo recurso"}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno"}
+	# Calcula valor por turno
+	var rel_norm: float = clamp(float(player_nation.relacoes.get(target_code, 0)) / 100.0, -0.3, 0.3)
+	var value_per_turn: float = (res_value / 100.0) * TRADE_BASE_VALUE * (1.0 + rel_norm)
+	active_trades.append({
+		"exporter": player_nation.codigo_iso,
+		"importer": target_code,
+		"resource": resource_id,
+		"value_per_turn": value_per_turn,
+		"turns_remaining": TRADE_DURATION,
+	})
+	# Bônus de relação por cooperação econômica
+	player_nation.relacoes[target_code] = clamp(float(player_nation.relacoes.get(target_code, 0)) + 8, -100, 100)
+	var t_nat = nations[target_code]
+	t_nat.relacoes[player_nation.codigo_iso] = clamp(float(t_nat.relacoes.get(player_nation.codigo_iso, 0)) + 8, -100, 100)
+	_log_news({
+		"type": "trade",
+		"headline": "🤝 %s exporta %s para %s" % [player_nation.nome, resource_id.capitalize(), t_nat.nome],
+		"body": "Receita: $%.1fB/turno por %d turnos" % [value_per_turn, TRADE_DURATION],
+		"involves_player": true,
+	}, [player_nation.codigo_iso, target_code], t_nat.continente)
+	return {"ok": true, "value_per_turn": value_per_turn}
+
+func _process_active_trades() -> void:
+	var still_active: Array = []
+	for t in active_trades:
+		var entry: Dictionary = t
+		var exporter: String = entry.get("exporter", "")
+		var importer: String = entry.get("importer", "")
+		var value: float = float(entry.get("value_per_turn", 0))
+		# Importer só paga se tiver tesouro
+		if nations.has(importer) and nations.has(exporter):
+			var imp_nation = nations[importer]
+			var exp_nation = nations[exporter]
+			if imp_nation.tesouro >= value:
+				imp_nation.tesouro -= value
+				exp_nation.tesouro += value
+			else:
+				# Quebra contrato — sem dinheiro, sem comércio
+				continue
+		entry["turns_remaining"] = int(entry.get("turns_remaining", 0)) - 1
+		if entry["turns_remaining"] > 0:
+			still_active.append(entry)
+	active_trades = still_active
+
+# Processa sanções ativas todo turno: aplica penalidade no alvo, decrementa duração
+func _process_active_sanctions() -> void:
+	var still_active: Array = []
+	for s in active_sanctions:
+		var entry: Dictionary = s
+		var to_code: String = entry.get("to", "")
+		if nations.has(to_code):
+			nations[to_code].apply_pib_multiplier(SANCTION_PIB_PENALTY)
+		entry["turns_remaining"] = int(entry.get("turns_remaining", 0)) - 1
+		if entry["turns_remaining"] > 0:
+			still_active.append(entry)
+	active_sanctions = still_active
+
 # Espionagem: player executa op
 func player_execute_spy(op_id: String, target_code: String) -> Dictionary:
 	if espionage == null or player_nation == null:
 		return {"ok": false, "msg": "Sistema não inicializado"}
+	# Valida operação e alvo ANTES de consumir
+	if not espionage.OPS.has(op_id):
+		return {"ok": false, "msg": "Operação inválida"}
+	if not nations.has(target_code) or target_code == player_nation.codigo_iso:
+		return {"ok": false, "msg": "Alvo inválido"}
+	var op: Dictionary = espionage.OPS[op_id]
+	var cost: float = float(op.get("custo", 0))
+	if player_nation.tesouro < cost:
+		return {"ok": false, "msg": "Tesouro insuficiente: $%dB" % int(cost)}
 	if not _consume_action():
 		return {"ok": false, "msg": "Sem ações restantes neste turno"}
 	return espionage.execute(player_nation.codigo_iso, op_id, target_code)

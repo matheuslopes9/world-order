@@ -78,6 +78,7 @@ var propose_peace_button: Button = null
 var embassy_button: Button = null
 var sanctions_button: Button = null
 var propose_treaty_button: Button = null
+var trade_button: Button = null
 var espionage_button: Button = null
 var next_turn_floater: Control = null
 var game_overlay: Control = null
@@ -341,6 +342,8 @@ func _build_legacy_nodes() -> void:
 	rv.add_child(sanctions_button)
 	propose_treaty_button = _create_action_btn("ProposeTreatyButton", "📜 PROPOR TRATADO")
 	rv.add_child(propose_treaty_button)
+	trade_button = _create_action_btn("TradeButton", "💰 EXPORTAR RECURSO")
+	rv.add_child(trade_button)
 	espionage_button = _create_action_btn("EspionageButton", "🕵 OPERAÇÃO DE ESPIONAGEM")
 	rv.add_child(espionage_button)
 
@@ -1414,6 +1417,8 @@ func _setup_ui_bindings() -> void:
 		sanctions_button.pressed.connect(_on_sanctions_pressed)
 	if propose_treaty_button:
 		propose_treaty_button.pressed.connect(_on_propose_treaty_pressed)
+	if trade_button:
+		trade_button.pressed.connect(_on_trade_pressed)
 	if espionage_button:
 		espionage_button.pressed.connect(_on_espionage_pressed)
 	if nations_list:
@@ -1950,6 +1955,7 @@ func _fill_preview_panel(code: String) -> void:
 		sanctions_button.visible = false
 		propose_treaty_button.visible = false
 		espionage_button.visible = false
+		if trade_button: trade_button.visible = false
 	else:
 		# Modo jogo
 		confirm_button.visible = false
@@ -1960,6 +1966,7 @@ func _fill_preview_panel(code: String) -> void:
 			sanctions_button.visible = false
 			propose_treaty_button.visible = false
 			espionage_button.visible = false
+			if trade_button: trade_button.visible = false
 		elif code in GameEngine.player_nation.em_guerra:
 			declare_war_button.visible = false
 			propose_peace_button.visible = true
@@ -1967,6 +1974,7 @@ func _fill_preview_panel(code: String) -> void:
 			sanctions_button.visible = true
 			propose_treaty_button.visible = false
 			espionage_button.visible = true
+			if trade_button: trade_button.visible = false
 		else:
 			declare_war_button.visible = true
 			propose_peace_button.visible = false
@@ -1974,6 +1982,7 @@ func _fill_preview_panel(code: String) -> void:
 			sanctions_button.visible = true
 			propose_treaty_button.visible = true
 			espionage_button.visible = true
+			if trade_button: trade_button.visible = true
 
 # ─────────────────────────────────────────────────────────────────
 # BANDEIRA EMOJI A PARTIR DO ISO-2
@@ -2385,13 +2394,88 @@ func _on_embassy_pressed() -> void:
 
 func _on_sanctions_pressed() -> void:
 	if preview_code == "" or preview_code == player_code: return
+	var res: Dictionary = GameEngine.player_impose_sanctions(preview_code)
+	if res.get("ok", false):
+		var t = GameEngine.nations[preview_code]
+		_log_ticker("🚫 SANÇÕES", "Sanções contra %s — duração %d turnos" % [t.nome, GameEngine.SANCTION_DURATION], Color(1, 0.7, 0))
+		_show_preview(preview_code)
+	else:
+		_log_ticker("⚠ SANÇÕES", res.get("reason", "Falha ao impor sanções"), Color(1, 0.4, 0.4))
+
+func _on_trade_pressed() -> void:
+	if preview_code == "" or preview_code == player_code: return
+	if GameEngine.player_nation == null: return
+	# Abre modal listando recursos do jogador, jogador escolhe um pra exportar
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 10)
+	content.mouse_filter = Control.MOUSE_FILTER_PASS
 	var p = GameEngine.player_nation
 	var t = GameEngine.nations[preview_code]
-	t.pib_bilhoes_usd *= 0.98
-	p.relacoes[preview_code] = clamp(float(p.relacoes.get(preview_code, 0)) - 25, -100, 100)
-	t.relacoes[player_code] = clamp(float(t.relacoes.get(player_code, 0)) - 25, -100, 100)
-	_log_ticker("🚫 SANÇÕES", "Sanções contra %s • PIB alvo -2%%" % t.nome, Color(1, 0.7, 0))
-	_show_preview(preview_code)
+	var info := Label.new()
+	info.text = "Exportar de %s para %s\nValor base: $8B/turno × (recurso/100) × bônus de relação\nDuração: %d turnos" % [p.nome, t.nome, GameEngine.TRADE_DURATION]
+	info.add_theme_color_override("font_color", Color(0.8, 0.85, 0.95))
+	info.add_theme_font_size_override("font_size", 11)
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(info)
+	var deco := ColorRect.new()
+	deco.color = Color(0, 0.823, 1, 0.5)
+	deco.custom_minimum_size = Vector2(60, 2)
+	deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(deco)
+	var modal_ref: Array = [null]
+	# Lista os recursos do jogador com valor >= 30
+	var sorted_resources: Array = []
+	for k in p.recursos.keys():
+		var v: float = float(p.recursos[k])
+		if v >= 30:
+			sorted_resources.append({"id": k, "value": v})
+	sorted_resources.sort_custom(func(a, b): return float(a["value"]) > float(b["value"]))
+	if sorted_resources.is_empty():
+		var none := Label.new()
+		none.text = "Sua nação não tem recursos suficientes (mínimo 30/100) pra exportar."
+		none.add_theme_color_override("font_color", Color(1, 0.6, 0.5))
+		none.add_theme_font_size_override("font_size", 11)
+		none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		content.add_child(none)
+	else:
+		for entry in sorted_resources:
+			var res_id: String = String(entry["id"])
+			var res_val: float = float(entry["value"])
+			var btn := Button.new()
+			# Calcula receita estimada
+			var rel_norm: float = clamp(float(p.relacoes.get(preview_code, 0)) / 100.0, -0.3, 0.3)
+			var est_value: float = (res_val / 100.0) * GameEngine.TRADE_BASE_VALUE * (1.0 + rel_norm)
+			var icon: String = "📦"
+			if WorldMap_RESOURCE_ICONS.has(res_id):
+				icon = WorldMap_RESOURCE_ICONS[res_id]
+			btn.text = "%s  %s  (%.0f/100)   →   $%.1fB/turno" % [icon, res_id.capitalize().replace("_", " "), res_val, est_value]
+			btn.custom_minimum_size = Vector2(0, 44)
+			btn.add_theme_font_size_override("font_size", 12)
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			btn.pressed.connect(func():
+				var r: Dictionary = GameEngine.player_export_resource(preview_code, res_id)
+				if r.get("ok", false):
+					_log_ticker("💰 COMÉRCIO", "Exportando %s p/ %s — $%.1fB/turno" % [res_id, t.nome, float(r.get("value_per_turn", 0))], Color(0.4, 1, 0.6))
+				else:
+					_log_ticker("⚠ COMÉRCIO", r.get("reason", "Falha"), Color(1, 0.4, 0.4))
+				_close_modal(modal_ref[0])
+				_show_preview(preview_code))
+			content.add_child(btn)
+	# Cancelar
+	var cancel := _make_modal_button("✖ CANCELAR", false)
+	cancel.custom_minimum_size = Vector2(0, 36)
+	cancel.pressed.connect(func(): _close_modal(modal_ref[0]))
+	content.add_child(cancel)
+	modal_ref[0] = _open_modal(content, "💰 EXPORTAR RECURSOS — %s" % t.nome, Vector2(560, 540))
+
+# Mapa rápido de ícones de recursos (pra reuso fora da função RESOURCE_META local)
+const WorldMap_RESOURCE_ICONS := {
+	"petroleo": "🛢", "gas_natural": "🔥", "minerios_raros": "💎",
+	"uranio": "☢", "ferro": "⚙", "terras_araveis": "🌾",
+	"agua_doce": "💧", "madeira": "🌲", "peixes": "🐟",
+	"carvao": "⬛", "cobre": "🟫", "ouro": "🟡",
+}
 
 func _on_propose_treaty_pressed() -> void:
 	if preview_code == "" or preview_code == player_code: return

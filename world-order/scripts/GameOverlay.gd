@@ -12,6 +12,7 @@ var panel_content: VBoxContainer = null
 
 var activated: bool = false
 var current_panel: String = "governo"
+var endgame_triggered: bool = false  # trava múltiplos modais de fim
 
 const PANELS := [
 	{"id": "governo",    "icon": "🏛", "label": "Governo"},
@@ -1065,8 +1066,10 @@ func _check_endgame() -> void:
 		_show_endgame("🏆 HEGEMONIA GLOBAL", "20 turnos com indicadores ótimos. Você dominou o mundo.", true)
 
 func _show_endgame(title: String, msg: String, victory: bool) -> void:
+	if endgame_triggered: return
 	if get_node_or_null("/root/EndgameOverlay") != null:
 		return
+	endgame_triggered = true
 	var modal := ColorRect.new()
 	modal.name = "EndgameOverlay"
 	modal.color = Color(0, 0, 0, 0.92)
