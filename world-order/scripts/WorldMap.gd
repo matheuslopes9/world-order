@@ -22,6 +22,12 @@ const COUNTRY_ALLY    := Color(0.0, 1.0, 0.5, 0.6)
 @onready var camera: Camera2D = $MapCamera
 @onready var countries_root: Node2D = $Countries
 
+# Layer pra markers de eventos sobre os países (criado em runtime)
+var event_markers_layer: Node2D = null
+# Markers ativos: cada item = { node: Node2D, ttl_turns: int, country: String, ev_id: String }
+var active_markers: Array = []
+const MARKER_TTL_DEFAULT: int = 4  # turnos que o marker fica visível
+
 # Top bar (existem na scene)
 @onready var date_label: Label = %DateLabel
 @onready var turn_label: Label = %TurnLabel
@@ -136,6 +142,14 @@ func _ready() -> void:
 	# Signal de eventos históricos com decisão (FASE 4)
 	if GameEngine and GameEngine.timeline and GameEngine.timeline.has_signal("historic_event_decision"):
 		GameEngine.timeline.historic_event_decision.connect(_open_historic_decision_modal)
+	# Signal pra MARKERS de eventos no mapa (FASE 8 - integração visual)
+	if GameEngine and GameEngine.timeline and GameEngine.timeline.has_signal("event_fired"):
+		GameEngine.timeline.event_fired.connect(_on_event_fired_marker)
+	# Cria layer pra markers
+	event_markers_layer = Node2D.new()
+	event_markers_layer.name = "EventMarkers"
+	event_markers_layer.z_index = 5
+	add_child(event_markers_layer)
 	# Contador de ações por turno (FASE 7)
 	if GameEngine and GameEngine.has_signal("player_actions_changed"):
 		GameEngine.player_actions_changed.connect(_refresh_actions_label)
@@ -1259,7 +1273,7 @@ func _create_country(feature: Dictionary) -> void:
 				bounds = bounds.expand(pt)
 
 	countries_root.add_child(country_node)
-	countries[code] = {"node": country_node, "name": name, "bounds": bounds}
+	countries[code] = {"node": country_node, "name": country_name, "bounds": bounds}
 
 func _ring_to_packed(ring: Array) -> PackedVector2Array:
 	var arr := PackedVector2Array()
@@ -2642,6 +2656,107 @@ func _on_turn_advanced(_t: int) -> void:
 	_refresh_resource_bar()
 	_update_news_ticker()
 	_notify_upcoming_decisions()
+	_decay_event_markers()
+
+# ─────────────────────────────────────────────────────────────────
+# MARKERS DE EVENTOS NO MAPA — visual sobre países afetados
+# ─────────────────────────────────────────────────────────────────
+
+# Quando um evento dispara, cria markers nos países envolvidos.
+func _on_event_fired_marker(ev: Dictionary) -> void:
+	if event_markers_layer == null: return
+	var trig: Dictionary = ev.get("trigger", {})
+	var primary: String = trig.get("primary_country", "")
+	var involves: Array = trig.get("involves", [])
+	if involves.is_empty() and primary != "":
+		involves = [primary]
+	var cats: Array = ev.get("categories", [])
+	# Cor + ícone por categoria
+	var icon: String = "📰"
+	var color: Color = Color(0.5, 0.7, 1)
+	if cats.has("guerra") or cats.has("terrorismo"):
+		icon = "⚔"; color = Color(1, 0.35, 0.35)
+	elif cats.has("paz"):
+		icon = "🕊"; color = Color(0.4, 1, 0.6)
+	elif cats.has("crise") or cats.has("economia"):
+		icon = "📉"; color = Color(1, 0.78, 0.30)
+	elif cats.has("pandemia") or cats.has("desastre_natural"):
+		icon = "💢"; color = Color(0.85, 0.45, 1)
+	elif cats.has("clima"):
+		icon = "🌍"; color = Color(0.4, 1, 0.6)
+	elif cats.has("revolucao") or cats.has("politica"):
+		icon = "🏛"; color = Color(0.4, 0.85, 1)
+	elif cats.has("nuclear"):
+		icon = "☢"; color = Color(1, 1, 0.35)
+	elif cats.has("tecnologia") or cats.has("ai"):
+		icon = "💡"; color = Color(0.6, 0.85, 1)
+	elif cats.has("espacial"):
+		icon = "🚀"; color = Color(0.85, 0.7, 1)
+	# Cria um marker em cada país envolvido
+	for code in involves:
+		if not (code is String) or not countries.has(code): continue
+		_spawn_marker(code, icon, color, ev.get("headline", ""))
+
+func _spawn_marker(code: String, icon: String, color: Color, tooltip: String) -> void:
+	var entry: Dictionary = countries[code]
+	var bounds: Rect2 = entry.get("bounds", Rect2())
+	if bounds.size.length_squared() <= 0: return
+	var center: Vector2 = bounds.position + bounds.size / 2.0
+	# Container do marker (fica num Node2D pra acompanhar pan/zoom do mapa)
+	var marker := Node2D.new()
+	marker.position = center
+	marker.z_index = 5
+	event_markers_layer.add_child(marker)
+	# Círculo pulsante de fundo (Polygon2D)
+	var halo := Polygon2D.new()
+	var halo_pts := PackedVector2Array()
+	var radius: float = 14.0
+	for i in 24:
+		var a: float = TAU * i / 24.0
+		halo_pts.append(Vector2(cos(a) * radius, sin(a) * radius))
+	halo.polygon = halo_pts
+	halo.color = Color(color.r, color.g, color.b, 0.4)
+	marker.add_child(halo)
+	# Círculo interno sólido
+	var core := Polygon2D.new()
+	var core_pts := PackedVector2Array()
+	var core_r: float = 8.0
+	for i in 16:
+		var a: float = TAU * i / 16.0
+		core_pts.append(Vector2(cos(a) * core_r, sin(a) * core_r))
+	core.polygon = core_pts
+	core.color = color
+	marker.add_child(core)
+	# Label com emoji
+	var lbl := Label.new()
+	lbl.text = icon
+	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.position = Vector2(-7, -10)
+	lbl.tooltip_text = tooltip
+	marker.add_child(lbl)
+	# Anima halo (pulse)
+	var tw := create_tween().set_loops(MARKER_TTL_DEFAULT * 2)
+	tw.tween_property(halo, "scale", Vector2(1.4, 1.4), 0.6).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(halo, "scale", Vector2(1.0, 1.0), 0.6).set_trans(Tween.TRANS_SINE)
+	# Registra
+	active_markers.append({"node": marker, "ttl": MARKER_TTL_DEFAULT, "country": code, "tooltip": tooltip})
+
+# Decai TTL e remove markers expirados
+func _decay_event_markers() -> void:
+	var still_alive: Array = []
+	for m in active_markers:
+		var entry: Dictionary = m
+		entry["ttl"] = int(entry.get("ttl", 0)) - 1
+		if entry["ttl"] <= 0:
+			# Fade out + remove
+			var node: Node2D = entry.get("node")
+			if node and is_instance_valid(node):
+				var tw := create_tween()
+				tw.tween_property(node, "modulate:a", 0.0, 0.5)
+				tw.tween_callback(func(): if is_instance_valid(node): node.queue_free())
+		else:
+			still_alive.append(entry)
+	active_markers = still_alive
 
 # Avisa via ticker quando há evento histórico de decisão a 1-2 turnos de distância
 func _notify_upcoming_decisions() -> void:

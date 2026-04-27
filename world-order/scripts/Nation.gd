@@ -140,13 +140,22 @@ func get_action_multiplier() -> float:
 	# Calibrado via playtest massivo (3 rodadas):
 	# NORMAL recebe bônus maior pra não ficar atrás de DIFICIL.
 	# Curva monotônica: quanto mais difícil o tier, maior o multiplicador de ação.
+	var base: float
 	match tier_dificuldade:
-		"QUASE_IMPOSSIVEL": return 1.80
-		"MUITO_DIFICIL":    return 1.50
-		"DIFICIL":          return 1.10
-		"NORMAL":           return 1.20
-		"FACIL":            return 0.95
-		_:                   return 1.0
+		"QUASE_IMPOSSIVEL": base = 1.80
+		"MUITO_DIFICIL":    base = 1.50
+		"DIFICIL":          base = 1.10
+		"NORMAL":           base = 1.20
+		"FACIL":            base = 0.95
+		_:                  base = 1.0
+	# Penalidade de guerra: cada frente reduz eficiência em 12%, máximo 50% (3 frentes ou +)
+	# Nações em guerra simultânea com 3+ inimigos são DRAMATICAMENTE menos eficientes
+	# em ações domésticas (saúde, educação, propaganda) — guerra absorve recursos/atenção.
+	var wars: int = em_guerra.size()
+	if wars > 0:
+		var penalty: float = clamp(1.0 - wars * 0.12, 0.5, 1.0)
+		base *= penalty
+	return base
 
 # ─────────────────────────────────────────────────────────────────
 # ECONOMIA

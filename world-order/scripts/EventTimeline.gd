@@ -14,6 +14,7 @@ extends RefCounted
 ##   4) Loga em news_history via _log_news
 
 signal historic_event_decision(event: Dictionary)  # UI escuta pra abrir modal
+signal event_fired(event: Dictionary)              # disparado pra TODO evento (markers no mapa)
 
 var engine = null  # GameEngine — referência fraca pra estado global
 
@@ -241,6 +242,10 @@ func _fire_event(ev: Dictionary) -> void:
 	if global_eff.size() > 0:
 		_apply_global_effects(global_eff)
 
+	# 1.5) Side-effects por categoria — popula em_guerra, relacoes, etc.
+	# (antes esses estados ficavam isolados do resto do jogo — bug crítico de integração)
+	_apply_categorical_side_effects(ev)
+
 	# 2) Decisão? Se sim e jogador é primary, abre modal
 	var primary: String = ev.get("trigger", {}).get("primary_country", "")
 	var is_player: bool = (engine.player_nation != null and engine.player_nation.codigo_iso == primary)
@@ -268,6 +273,9 @@ func _fire_event(ev: Dictionary) -> void:
 			"color": color,
 			"historic_id": eid,
 		}, involves, region)
+
+	# 4) Notifica UI (markers no mapa, etc.)
+	emit_signal("event_fired", ev)
 
 # Aplica os effects do choice escolhido (público pra modal chamar depois)
 func apply_choice_by_id(event_id: String, choice_id: String) -> void:
@@ -335,6 +343,73 @@ func _apply_global_effects(eff: Dictionary) -> void:
 			engine.nations[code].apply_pib_multiplier(f)
 	if eff.has("defcon_delta"):
 		engine.defcon = clamp(engine.defcon + int(eff["defcon_delta"]), 1, 5)
+
+# Aplica side-effects por categoria — conecta timeline ao resto do jogo:
+# - "guerra"/"terrorismo": popula em_guerra entre país agressor e alvo
+# - "paz": remove em_guerra
+# - todas categorias: ajusta `relacoes` entre `involves[]` (negativo se conflito, positivo se cooperação)
+func _apply_categorical_side_effects(ev: Dictionary) -> void:
+	if engine == null: return
+	var cats: Array = ev.get("categories", [])
+	var trig: Dictionary = ev.get("trigger", {})
+	var primary: String = trig.get("primary_country", "")
+	var involves: Array = trig.get("involves", [])
+	if involves.is_empty() and primary != "":
+		involves = [primary]
+	if involves.size() < 2:
+		return  # eventos de 1 país só (eleição, escândalo, desastre) não geram side-effects relacionais
+
+	# 1) Eventos de GUERRA / TERRORISMO → todos os involves entram em guerra entre si
+	var is_war: bool = cats.has("guerra") or cats.has("terrorismo")
+	var is_peace: bool = cats.has("paz")
+	if is_war:
+		# Quem for o "primary" é o atacante; outros viram inimigos dele
+		var atk: String = primary if primary != "" else String(involves[0])
+		if engine.nations.has(atk):
+			var atk_nation = engine.nations[atk]
+			for tgt_code in involves:
+				if tgt_code == atk: continue
+				if not engine.nations.has(tgt_code): continue
+				var tgt_nation = engine.nations[tgt_code]
+				if not (tgt_code in atk_nation.em_guerra):
+					atk_nation.em_guerra.append(tgt_code)
+				if not (atk in tgt_nation.em_guerra):
+					tgt_nation.em_guerra.append(atk)
+				# Relações despencam pra inimigo
+				atk_nation.relacoes[tgt_code] = -80
+				tgt_nation.relacoes[atk] = -80
+
+	# 2) Eventos de PAZ → remove em_guerra entre todos os involves
+	if is_peace:
+		for a_code in involves:
+			if not engine.nations.has(a_code): continue
+			var a_nat = engine.nations[a_code]
+			for b_code in involves:
+				if a_code == b_code: continue
+				a_nat.em_guerra.erase(b_code)
+				# Relações neutralizam parcialmente (ressaca)
+				a_nat.relacoes[b_code] = -30
+
+	# 3) Para QUALQUER evento envolvendo múltiplas nações — ajusta relacoes contextualmente
+	# (mesmo eventos não-bélicos como acordos, crises regionais, etc.)
+	if not is_war and not is_peace and involves.size() >= 2:
+		# Categoria define direção: clima/diplomacia/economia → bônus pequeno
+		# crise/desastre → relações neutras (compartilham trauma)
+		var rel_delta: int = 0
+		if cats.has("clima") or cats.has("diplomacia") or cats.has("ai"):
+			rel_delta = 8  # cooperação implícita
+		elif cats.has("crise") or cats.has("pandemia") or cats.has("desastre_natural"):
+			rel_delta = 3  # solidariedade leve
+		elif cats.has("geopolitica"):
+			rel_delta = -5  # tensão sutil
+		if rel_delta != 0:
+			for a_code in involves:
+				if not engine.nations.has(a_code): continue
+				var a_nat = engine.nations[a_code]
+				for b_code in involves:
+					if a_code == b_code: continue
+					var current: float = float(a_nat.relacoes.get(b_code, 0))
+					a_nat.relacoes[b_code] = clamp(current + rel_delta, -100, 100)
 
 # Retorna eventos âncora (modal_decision=true) que devem disparar nos próximos N turnos.
 # Usado pra avisar o jogador "evento histórico próximo" antes da hora.
