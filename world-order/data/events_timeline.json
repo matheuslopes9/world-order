@@ -1,0 +1,632 @@
+{
+  "_meta": {
+    "description": "30 eventos âncora 2000-2024 baseados em fatos históricos. Disparam em year+quarter (modo inspirado) ou janela alargada (modo livre).",
+    "version": "1.0.0",
+    "schema": "events_timeline_v1"
+  },
+  "events": [
+    {
+      "id": "y2k",
+      "year": 2000,
+      "quarter": 1,
+      "year_window": [2000, 2000],
+      "scope": "global",
+      "categories": ["tecnologia", "economia"],
+      "trigger": {"primary_country": "", "involves": [], "region": ""},
+      "headline": "💻 Bug do Milênio (Y2K) — gasto global em TI massivo",
+      "body": "Empresas correm pra atualizar sistemas antes do dia 1º de janeiro. Bilhões em gastos preventivos.",
+      "effects_global": {"pib_fator": 1.005},
+      "modal_decision": false
+    },
+    {
+      "id": "putin_eleito",
+      "year": 2000,
+      "quarter": 2,
+      "year_window": [2000, 2000],
+      "scope": "national",
+      "categories": ["politica"],
+      "trigger": {"primary_country": "RU", "involves": ["RU"], "region": "Europa"},
+      "headline": "🇷🇺 Vladimir Putin assume presidência da Rússia",
+      "body": "Após Yeltsin, Putin consolida poder. Foco em reerguer economia pós-1998.",
+      "effects": {"RU": {"estabilidade_fator": 8.0, "apoio_popular": 10}},
+      "modal_decision": false
+    },
+    {
+      "id": "dotcom_crash",
+      "year": 2000,
+      "quarter": 4,
+      "year_window": [2000, 2001],
+      "scope": "global",
+      "categories": ["economia", "tecnologia"],
+      "trigger": {"primary_country": "US", "involves": ["US"], "region": ""},
+      "headline": "📉 Estouro da bolha .com — Nasdaq desaba 50%",
+      "body": "Empresas de internet sem lucro evaporam. Vale do Silício em recessão setorial.",
+      "effects_global": {"pib_fator": 0.985},
+      "effects": {"US": {"pib_fator": 0.97, "estabilidade_fator": -3.0}},
+      "modal_decision": false
+    },
+    {
+      "id": "intifada_2",
+      "year": 2000,
+      "quarter": 4,
+      "year_window": [2000, 2001],
+      "scope": "regional",
+      "categories": ["geopolitica", "guerra"],
+      "trigger": {"primary_country": "IL", "involves": ["IL"], "region": "Ásia"},
+      "headline": "✡️ Segunda Intifada Palestina explode",
+      "body": "Visita de Sharon ao Monte do Templo desencadeia onda de violência.",
+      "effects": {"IL": {"estabilidade_fator": -8.0, "apoio_popular": -10}},
+      "modal_decision": false
+    },
+    {
+      "id": "china_omc",
+      "year": 2001,
+      "quarter": 1,
+      "year_window": [2001, 2001],
+      "scope": "global",
+      "categories": ["economia", "geopolitica"],
+      "trigger": {"primary_country": "CN", "involves": ["CN"], "region": "Ásia"},
+      "headline": "🇨🇳 China entra na OMC — abertura comercial massiva",
+      "body": "Maior integração do século. Manufatura migra pra China em escala global.",
+      "effects": {"CN": {"pib_fator": 1.08, "estabilidade_fator": 5.0}},
+      "effects_global": {"pib_fator": 1.005},
+      "modal_decision": false
+    },
+    {
+      "id": "ataques_911",
+      "year": 2001,
+      "quarter": 3,
+      "year_window": [2001, 2001],
+      "scope": "global",
+      "categories": ["terrorismo", "geopolitica"],
+      "trigger": {"primary_country": "US", "involves": ["US"], "region": ""},
+      "headline": "💥 Ataques de 11 de setembro — Torres Gêmeas destruídas",
+      "body": "Aviões sequestrados atingem WTC e Pentágono. ~3000 mortos. Mundo em DEFCON elevado.",
+      "effects": {"US": {"estabilidade_fator": -8.0, "apoio_popular": 15, "felicidade": -15}},
+      "effects_global": {"defcon_delta": -2},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "war_terror",
+          "label": "⚔️ Declarar Guerra ao Terror (invadir Afeganistão)",
+          "effects": {"US": {"tesouro": -200, "estabilidade_fator": 5.0}, "AF": {"estabilidade_fator": -30.0}}
+        },
+        {
+          "id": "diplomatic",
+          "label": "🤝 Pressão diplomática multilateral via ONU",
+          "effects": {"US": {"apoio_popular": -5, "estabilidade_fator": 3.0}}
+        },
+        {
+          "id": "isolacionismo",
+          "label": "🏠 Isolacionismo + reforço de fronteiras",
+          "effects": {"US": {"pib_fator": 0.97, "felicidade": -5}}
+        }
+      ]
+    },
+    {
+      "id": "argentina_default",
+      "year": 2001,
+      "quarter": 4,
+      "year_window": [2001, 2002],
+      "scope": "national",
+      "categories": ["economia", "crise"],
+      "trigger": {"primary_country": "AR", "involves": ["AR"], "region": "América"},
+      "headline": "🇦🇷 Argentina: corralito e default da dívida — pior crise econômica",
+      "body": "Banco fechado, peso desvalorizado 75%. Cinco presidentes em uma semana. PIB despenca 11%.",
+      "effects": {"AR": {"pib_fator": 0.89, "estabilidade_fator": -25.0, "tesouro": -40, "apoio_popular": -30}},
+      "modal_decision": false
+    },
+    {
+      "id": "euro_fisico",
+      "year": 2002,
+      "quarter": 1,
+      "year_window": [2002, 2002],
+      "scope": "regional",
+      "categories": ["economia"],
+      "trigger": {"primary_country": "DE", "involves": ["DE","FR","IT","ES","NL","BE","AT","FI","IE","PT","GR"], "region": "Europa"},
+      "headline": "💶 Euro entra em circulação física em 12 países",
+      "body": "Maior troca monetária da história. Marcos, francos, liras viram peças de museu.",
+      "effects_global": {"pib_fator": 1.003},
+      "modal_decision": false
+    },
+    {
+      "id": "lula_eleito",
+      "year": 2002,
+      "quarter": 4,
+      "year_window": [2002, 2002],
+      "scope": "national",
+      "categories": ["politica"],
+      "trigger": {"primary_country": "BR", "involves": ["BR"], "region": "América"},
+      "headline": "🇧🇷 Lula eleito presidente do Brasil — primeira esquerda no século",
+      "body": "Operário ganha por margem ampla. Mercados nervosos, mas estabilidade fiscal mantida.",
+      "effects": {"BR": {"estabilidade_fator": 5.0, "apoio_popular": 15, "felicidade": 8}},
+      "modal_decision": false
+    },
+    {
+      "id": "invasao_iraque",
+      "year": 2003,
+      "quarter": 1,
+      "year_window": [2003, 2003],
+      "scope": "global",
+      "categories": ["guerra", "geopolitica"],
+      "trigger": {"primary_country": "US", "involves": ["US","GB","IQ"], "region": ""},
+      "headline": "🛢 Coalizão lidera invasão do Iraque — Saddam será deposto",
+      "body": "Bush e Blair derrubam regime alegando armas de destruição em massa. Maior protesto anti-guerra da história.",
+      "effects": {"US": {"tesouro": -150, "estabilidade_fator": -3.0}, "GB": {"tesouro": -40, "estabilidade_fator": -3.0}, "IQ": {"estabilidade_fator": -15.0, "pib_fator": 0.88}},
+      "effects_global": {"defcon_delta": -1},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "support_invasion",
+          "label": "🤝 Apoiar a coalizão (envia tropas ou logística)",
+          "effects": {"US": {"apoio_popular": 5}}
+        },
+        {
+          "id": "condemn",
+          "label": "🛑 Condenar publicamente — buscar consenso ONU",
+          "effects": {"US": {"apoio_popular": -3}}
+        },
+        {
+          "id": "neutral",
+          "label": "🤐 Neutralidade",
+          "effects": {}
+        }
+      ]
+    },
+    {
+      "id": "tsunami_indico",
+      "year": 2004,
+      "quarter": 4,
+      "year_window": [2004, 2004],
+      "scope": "global",
+      "categories": ["desastre_natural"],
+      "trigger": {"primary_country": "ID", "involves": ["ID","TH","LK","IN"], "region": "Ásia"},
+      "headline": "🌊 Tsunami do Oceano Índico — 230 mil mortos em 14 países",
+      "body": "Maior tsunami da história moderna. Onda de solidariedade global, $14B em ajuda humanitária.",
+      "effects": {"ID": {"pib_fator": 0.95, "estabilidade_fator": -10.0}, "TH": {"pib_fator": 0.97, "estabilidade_fator": -7.0}, "LK": {"pib_fator": 0.95, "estabilidade_fator": -10.0}, "IN": {"estabilidade_fator": -3.0}},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "help_big",
+          "label": "❤️ Ajuda humanitária massiva ($1B+)",
+          "effects": {"_player": {"tesouro": -50, "felicidade": 8, "apoio_popular": 5}}
+        },
+        {
+          "id": "help_small",
+          "label": "🤲 Ajuda simbólica ($100M)",
+          "effects": {"_player": {"tesouro": -10, "felicidade": 3}}
+        },
+        {
+          "id": "help_none",
+          "label": "🚫 Sem ajuda — foco doméstico",
+          "effects": {"_player": {"felicidade": -3, "apoio_popular": -3}}
+        }
+      ]
+    },
+    {
+      "id": "katrina",
+      "year": 2005,
+      "quarter": 3,
+      "year_window": [2005, 2005],
+      "scope": "national",
+      "categories": ["desastre_natural"],
+      "trigger": {"primary_country": "US", "involves": ["US"], "region": ""},
+      "headline": "🌀 Furacão Katrina devasta Nova Orleans",
+      "body": "Resposta federal lenta vira escândalo nacional. ~1800 mortos, $125B em prejuízo.",
+      "effects": {"US": {"pib_fator": 0.99, "estabilidade_fator": -5.0, "apoio_popular": -8, "tesouro": -120}},
+      "modal_decision": false
+    },
+    {
+      "id": "merkel_chanceler",
+      "year": 2005,
+      "quarter": 4,
+      "year_window": [2005, 2005],
+      "scope": "national",
+      "categories": ["politica"],
+      "trigger": {"primary_country": "DE", "involves": ["DE"], "region": "Europa"},
+      "headline": "🇩🇪 Angela Merkel torna-se primeira chanceler da Alemanha",
+      "body": "Líder da CDU consolida coalizão. Era de estabilidade alemã começa.",
+      "effects": {"DE": {"estabilidade_fator": 5.0}},
+      "modal_decision": false
+    },
+    {
+      "id": "kp_nuclear_1",
+      "year": 2006,
+      "quarter": 4,
+      "year_window": [2006, 2006],
+      "scope": "global",
+      "categories": ["nuclear", "geopolitica"],
+      "trigger": {"primary_country": "KP", "involves": ["KP"], "region": "Ásia"},
+      "headline": "☢️ Coreia do Norte testa primeira arma nuclear",
+      "body": "Pyongyang entra no clube nuclear. Sanções ONU. Tensão regional dispara.",
+      "effects": {"KP": {"estabilidade_fator": 3.0, "tesouro": -30}},
+      "effects_global": {"defcon_delta": -1},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "sanctions",
+          "label": "🚫 Sanções multilaterais via ONU",
+          "effects": {"KP": {"pib_fator": 0.92}}
+        },
+        {
+          "id": "diplomatic_engage",
+          "label": "🤝 Engajamento diplomático (six-party talks)",
+          "effects": {"KP": {"estabilidade_fator": 3.0}}
+        },
+        {
+          "id": "military_buildup",
+          "label": "⚔️ Reforço militar regional preventivo",
+          "effects": {"_player": {"tesouro": -40, "estabilidade_fator": 3.0}}
+        }
+      ]
+    },
+    {
+      "id": "lehman_crash",
+      "year": 2008,
+      "quarter": 3,
+      "year_window": [2008, 2008],
+      "scope": "global",
+      "categories": ["economia", "crise"],
+      "trigger": {"primary_country": "US", "involves": ["US"], "region": ""},
+      "headline": "💀 Quebra do Lehman Brothers — Crise Financeira Global",
+      "body": "Maior crise desde 1929. Bancos colapsam, desemprego dispara, governos socorrem com trilhões.",
+      "effects": {"US": {"pib_fator": 0.92, "tesouro": -300, "estabilidade_fator": -10.0, "apoio_popular": -15}},
+      "effects_global": {"pib_fator": 0.96},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "bailout",
+          "label": "💰 Bailout — socorro a bancos e indústria",
+          "effects": {"_player": {"tesouro": -200, "estabilidade_fator": 5.0, "pib_fator": 1.02}}
+        },
+        {
+          "id": "austerity",
+          "label": "✂️ Austeridade — cortar gastos públicos",
+          "effects": {"_player": {"apoio_popular": -10, "estabilidade_fator": -5.0, "pib_fator": 0.97}}
+        },
+        {
+          "id": "intervention",
+          "label": "🏛 Intervenção pesada — nacionalizar bancos",
+          "effects": {"_player": {"tesouro": -100, "felicidade": 5, "apoio_popular": 5}}
+        }
+      ]
+    },
+    {
+      "id": "russia_georgia",
+      "year": 2008,
+      "quarter": 3,
+      "year_window": [2008, 2008],
+      "scope": "regional",
+      "categories": ["guerra", "geopolitica"],
+      "trigger": {"primary_country": "RU", "involves": ["RU","GE"], "region": "Europa"},
+      "headline": "🪖 Guerra Rússia-Geórgia — Ossétia do Sul",
+      "body": "Moscou intervém militarmente. 5 dias de conflito, fronteiras de facto redesenhadas.",
+      "effects": {"RU": {"tesouro": -30, "apoio_popular": 8}, "GE": {"estabilidade_fator": -15.0, "pib_fator": 0.92}},
+      "effects_global": {"defcon_delta": -1},
+      "modal_decision": false
+    },
+    {
+      "id": "obama_eleito",
+      "year": 2008,
+      "quarter": 4,
+      "year_window": [2008, 2008],
+      "scope": "global",
+      "categories": ["politica"],
+      "trigger": {"primary_country": "US", "involves": ["US"], "region": ""},
+      "headline": "🇺🇸 Obama eleito — primeiro presidente afro-americano",
+      "body": "Vitória esmagadora sob promessa de mudança. Marco histórico da política americana.",
+      "effects": {"US": {"estabilidade_fator": 8.0, "apoio_popular": 15, "felicidade": 10}},
+      "modal_decision": false
+    },
+    {
+      "id": "primavera_arabe",
+      "year": 2010,
+      "quarter": 4,
+      "year_window": [2010, 2011],
+      "scope": "regional",
+      "categories": ["politica", "revolucao"],
+      "trigger": {"primary_country": "TN", "involves": ["TN","EG","LY","SY","YE"], "region": "África"},
+      "headline": "🌹 Primavera Árabe — Tunísia derruba Ben Ali, ondas de protesto",
+      "body": "Auto-imolação de Bouazizi acende revolta. Mubarak, Gaddafi, Saleh cairão em sequência.",
+      "effects": {"TN": {"estabilidade_fator": -15.0}, "EG": {"estabilidade_fator": -12.0}, "LY": {"estabilidade_fator": -18.0}, "SY": {"estabilidade_fator": -15.0}, "YE": {"estabilidade_fator": -12.0}},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "support_revolutions",
+          "label": "✊ Apoiar movimentos democráticos publicamente",
+          "effects": {"_player": {"apoio_popular": 5, "felicidade": 3}}
+        },
+        {
+          "id": "neutral_arab",
+          "label": "🤐 Neutralidade — esperar pra reconhecer governos",
+          "effects": {}
+        },
+        {
+          "id": "support_regimes",
+          "label": "🛡 Apoiar regimes vigentes (estabilidade > democracia)",
+          "effects": {"_player": {"apoio_popular": -5}}
+        }
+      ]
+    },
+    {
+      "id": "fukushima",
+      "year": 2011,
+      "quarter": 1,
+      "year_window": [2011, 2011],
+      "scope": "national",
+      "categories": ["desastre_natural", "nuclear"],
+      "trigger": {"primary_country": "JP", "involves": ["JP"], "region": "Ásia"},
+      "headline": "☢️ Fukushima — terremoto+tsunami+desastre nuclear no Japão",
+      "body": "9.0 magnitude. ~20mil mortos. Reator derrete. Política nuclear global é repensada.",
+      "effects": {"JP": {"pib_fator": 0.95, "estabilidade_fator": -10.0, "tesouro": -200, "felicidade": -15}},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "nuclear_phase_out",
+          "label": "🌱 Acelerar saída da energia nuclear",
+          "effects": {"_player": {"tesouro": -60, "felicidade": 5}}
+        },
+        {
+          "id": "nuclear_safe",
+          "label": "🔧 Reforçar segurança e manter nuclear",
+          "effects": {"_player": {"tesouro": -30, "estabilidade_fator": 3.0}}
+        },
+        {
+          "id": "nuclear_status",
+          "label": "📋 Sem mudança — esperar análise",
+          "effects": {}
+        }
+      ]
+    },
+    {
+      "id": "snowden_leaks",
+      "year": 2013,
+      "quarter": 2,
+      "year_window": [2013, 2013],
+      "scope": "global",
+      "categories": ["geopolitica", "tecnologia"],
+      "trigger": {"primary_country": "US", "involves": ["US","RU"], "region": ""},
+      "headline": "🕵️ Vazamentos Snowden — espionagem da NSA exposta",
+      "body": "Programa PRISM revelado. Aliados europeus indignados. Snowden foge para Hong Kong, depois Moscou.",
+      "effects": {"US": {"estabilidade_fator": -5.0, "apoio_popular": -8}, "RU": {"apoio_popular": 5}},
+      "modal_decision": false
+    },
+    {
+      "id": "crimea_anexada",
+      "year": 2014,
+      "quarter": 1,
+      "year_window": [2014, 2014],
+      "scope": "global",
+      "categories": ["guerra", "geopolitica"],
+      "trigger": {"primary_country": "RU", "involves": ["RU","UA"], "region": "Europa"},
+      "headline": "🚩 Rússia anexa Crimeia — pior crise EUA-Rússia desde Guerra Fria",
+      "body": "Após Maidan, Putin envia tropas. Referendo contestado. UE/EUA aplicam sanções massivas.",
+      "effects": {"RU": {"pib_fator": 0.93, "apoio_popular": 15, "estabilidade_fator": 5.0}, "UA": {"pib_fator": 0.88, "estabilidade_fator": -20.0}},
+      "effects_global": {"defcon_delta": -1},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "heavy_sanctions",
+          "label": "🚫 Sanções pesadas contra Rússia",
+          "effects": {"_player": {"apoio_popular": 3}, "RU": {"pib_fator": 0.95}}
+        },
+        {
+          "id": "light_sanctions",
+          "label": "📋 Sanções simbólicas",
+          "effects": {"RU": {"pib_fator": 0.99}}
+        },
+        {
+          "id": "neutral_crimea",
+          "label": "🤐 Neutralidade — aceitar status quo",
+          "effects": {"_player": {"apoio_popular": -3}}
+        }
+      ]
+    },
+    {
+      "id": "isis_califado",
+      "year": 2014,
+      "quarter": 3,
+      "year_window": [2014, 2014],
+      "scope": "regional",
+      "categories": ["terrorismo", "guerra"],
+      "trigger": {"primary_country": "IQ", "involves": ["IQ","SY"], "region": "Ásia"},
+      "headline": "🏴 Estado Islâmico declara califado — toma Mossul e Raqqa",
+      "body": "Grupo extremista controla território do tamanho da Inglaterra. Coalizão internacional bombardeia.",
+      "effects": {"IQ": {"estabilidade_fator": -12.0, "pib_fator": 0.94}, "SY": {"estabilidade_fator": -15.0}},
+      "effects_global": {"defcon_delta": -1},
+      "modal_decision": false
+    },
+    {
+      "id": "acordo_paris",
+      "year": 2015,
+      "quarter": 4,
+      "year_window": [2015, 2015],
+      "scope": "global",
+      "categories": ["clima", "diplomacia"],
+      "trigger": {"primary_country": "FR", "involves": [], "region": ""},
+      "headline": "🌍 Acordo de Paris sobre Clima — 195 países assinam",
+      "body": "Meta: limitar aquecimento a 1.5°C. Maior acordo climático da história.",
+      "effects_global": {"pib_fator": 0.998},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "sign_full",
+          "label": "✍️ Assinar com metas ambiciosas",
+          "effects": {"_player": {"tesouro": -40, "felicidade": 8, "estabilidade_fator": 3.0}}
+        },
+        {
+          "id": "sign_partial",
+          "label": "✍️ Assinar com metas mínimas",
+          "effects": {"_player": {"tesouro": -10, "felicidade": 3}}
+        },
+        {
+          "id": "no_sign",
+          "label": "🚫 Não assinar — interesses econômicos",
+          "effects": {"_player": {"apoio_popular": -5, "felicidade": -3}}
+        }
+      ]
+    },
+    {
+      "id": "crise_migratoria_eu",
+      "year": 2015,
+      "quarter": 3,
+      "year_window": [2015, 2016],
+      "scope": "regional",
+      "categories": ["migracao", "humanitario"],
+      "trigger": {"primary_country": "DE", "involves": ["DE","SY"], "region": "Europa"},
+      "headline": "🚶 Crise migratória europeia — 1 milhão de refugiados sírios",
+      "body": "Merkel adota 'Wir schaffen das'. UE racha sobre cotas. Imagem de Aylan choca o mundo.",
+      "effects": {"DE": {"tesouro": -80, "estabilidade_fator": -5.0, "apoio_popular": -8}, "SY": {"estabilidade_fator": -10.0}},
+      "modal_decision": false
+    },
+    {
+      "id": "brexit_voto",
+      "year": 2016,
+      "quarter": 2,
+      "year_window": [2016, 2016],
+      "scope": "global",
+      "categories": ["politica", "economia"],
+      "trigger": {"primary_country": "GB", "involves": ["GB"], "region": "Europa"},
+      "headline": "🇬🇧 Brexit — Reino Unido vota sair da UE (52%-48%)",
+      "body": "Cameron renuncia. Libra desaba. Maior trauma da UE desde sua fundação.",
+      "effects": {"GB": {"pib_fator": 0.96, "estabilidade_fator": -10.0, "apoio_popular": -5}},
+      "effects_global": {"pib_fator": 0.997},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "approach_uk",
+          "label": "🤝 Aproximação bilateral com UK",
+          "effects": {"_player": {}}
+        },
+        {
+          "id": "punish_uk",
+          "label": "🚫 Punir UK — sinalizar à UE",
+          "effects": {"GB": {"pib_fator": 0.99}}
+        },
+        {
+          "id": "neutral_brexit",
+          "label": "🤐 Neutralidade",
+          "effects": {}
+        }
+      ]
+    },
+    {
+      "id": "trump_eleito",
+      "year": 2016,
+      "quarter": 4,
+      "year_window": [2016, 2016],
+      "scope": "global",
+      "categories": ["politica"],
+      "trigger": {"primary_country": "US", "involves": ["US"], "region": ""},
+      "headline": "🇺🇸 Donald Trump eleito presidente dos EUA — choque global",
+      "body": "Bilionário populista derrota Hillary. Mercados oscilam. Aliados em alerta.",
+      "effects": {"US": {"estabilidade_fator": -8.0, "apoio_popular": -3}},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "align_trump",
+          "label": "🤝 Alinhar com nova era americana",
+          "effects": {"_player": {"apoio_popular": -3}}
+        },
+        {
+          "id": "distance_trump",
+          "label": "🚪 Distanciar — fortalecer multilateralismo",
+          "effects": {"_player": {"felicidade": 3}}
+        },
+        {
+          "id": "neutral_trump",
+          "label": "🤐 Wait and see",
+          "effects": {}
+        }
+      ]
+    },
+    {
+      "id": "covid_19",
+      "year": 2020,
+      "quarter": 1,
+      "year_window": [2020, 2020],
+      "scope": "global",
+      "categories": ["pandemia", "saude"],
+      "trigger": {"primary_country": "CN", "involves": ["CN"], "region": ""},
+      "headline": "🦠 COVID-19 declarada pandemia — mundo entra em lockdown",
+      "body": "Wuhan vira epicentro. OMS declara pandemia. Bolsas mundiais despencam 30%.",
+      "effects_global": {"pib_fator": 0.92, "defcon_delta": -1},
+      "effects": {"CN": {"estabilidade_fator": -8.0, "apoio_popular": -5}},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "lockdown_hard",
+          "label": "🔒 Lockdown duro nacional",
+          "effects": {"_player": {"pib_fator": 0.92, "felicidade": -10, "estabilidade_fator": 3.0}}
+        },
+        {
+          "id": "lockdown_soft",
+          "label": "🚦 Restrições parciais e máscaras",
+          "effects": {"_player": {"pib_fator": 0.96, "felicidade": -5}}
+        },
+        {
+          "id": "no_lockdown",
+          "label": "🌐 Sem lockdown — economia em primeiro",
+          "effects": {"_player": {"pib_fator": 0.99, "felicidade": -15, "apoio_popular": -10}}
+        }
+      ]
+    },
+    {
+      "id": "blm_floyd",
+      "year": 2020,
+      "quarter": 2,
+      "year_window": [2020, 2020],
+      "scope": "global",
+      "categories": ["social", "protesto"],
+      "trigger": {"primary_country": "US", "involves": ["US"], "region": ""},
+      "headline": "✊🏿 George Floyd assassinado — protestos BLM globais",
+      "body": "Vídeo de execução por policial inflama protestos em 60 países. Maior movimento racial em décadas.",
+      "effects": {"US": {"estabilidade_fator": -7.0, "felicidade": -5}},
+      "modal_decision": false
+    },
+    {
+      "id": "afeganistao_taleban",
+      "year": 2021,
+      "quarter": 3,
+      "year_window": [2021, 2021],
+      "scope": "global",
+      "categories": ["guerra", "geopolitica"],
+      "trigger": {"primary_country": "AF", "involves": ["AF","US"], "region": "Ásia"},
+      "headline": "🇦🇫 Talibãs retomam Afeganistão em 11 dias — saída caótica dos EUA",
+      "body": "Após 20 anos de guerra, governo afegão colapsa em horas. Cenas dramáticas em Cabul.",
+      "effects": {"AF": {"estabilidade_fator": -18.0, "pib_fator": 0.82}, "US": {"apoio_popular": -10, "estabilidade_fator": -5.0}},
+      "modal_decision": false
+    },
+    {
+      "id": "russia_ucrania",
+      "year": 2022,
+      "quarter": 1,
+      "year_window": [2022, 2022],
+      "scope": "global",
+      "categories": ["guerra", "geopolitica"],
+      "trigger": {"primary_country": "RU", "involves": ["RU","UA"], "region": "Europa"},
+      "headline": "💥 Rússia invade Ucrânia — maior guerra na Europa desde 1945",
+      "body": "Putin lança ofensiva. Maiores sanções da história. Crise energética e alimentar global.",
+      "effects": {"RU": {"pib_fator": 0.88, "tesouro": -150, "apoio_popular": 12, "estabilidade_fator": -4.0}, "UA": {"pib_fator": 0.85, "estabilidade_fator": -12.0, "apoio_popular": 25}},
+      "effects_global": {"pib_fator": 0.97, "defcon_delta": -2},
+      "modal_decision": true,
+      "choices": [
+        {
+          "id": "heavy_sanctions_ru",
+          "label": "🚫 Sanções massivas + apoio militar à Ucrânia",
+          "effects": {"_player": {"tesouro": -100, "apoio_popular": 5}, "RU": {"pib_fator": 0.95}, "UA": {"tesouro": 50}}
+        },
+        {
+          "id": "light_sanctions_ru",
+          "label": "📋 Sanções simbólicas + ajuda humanitária",
+          "effects": {"_player": {"tesouro": -30}, "UA": {"tesouro": 10}}
+        },
+        {
+          "id": "neutral_ru",
+          "label": "🤐 Neutralidade — não escolher lado",
+          "effects": {"_player": {"apoio_popular": -8, "felicidade": -3}}
+        }
+      ]
+    }
+  ]
+}

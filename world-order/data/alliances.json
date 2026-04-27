@@ -1,0 +1,363 @@
+{
+  "alliances": [
+    {
+      "id": "NATO",
+      "nome": "OTAN",
+      "nome_completo": "Organização do Tratado do Atlântico Norte",
+      "descricao": "Artigo 5: um ataque a qualquer membro é um ataque a todos. A aliança de defesa coletiva mais poderosa da história.",
+      "tipo": "defesa_coletiva",
+      "artigo_defesa": true,
+      "fundacao_ano": 1949,
+      "sede": "Bruxelas, Bélgica",
+      "membros": ["US","GB","DE","FR","IT","ES","PL","TR","CA","NO","SE","FI","NL","BE","PT","GR","HU","CZ","RO","BG","HR","AL","MK","ME","LT","LV","EE","DK","LU","SI","SK","IS"],
+      "reacao_agressao": {
+        "tipo": "defesa_coletiva",
+        "chance_intervencao": 0.82,
+        "sancoes_automaticas": true,
+        "reducao_relacoes": -55,
+        "escalada_defcon": 2,
+        "mensagem": "Artigo 5 ativado! Os membros da OTAN estão obrigados a defender {defensor}."
+      },
+      "bonus_membro": {
+        "defesa": 0.30,
+        "intel_compartilhada": true,
+        "acesso_bases_militares": true,
+        "reducao_custo_defesa": 0.10
+      },
+      "penalidade_saida": { "relacoes_membros": -40, "defcon_impact": 1 },
+      "cor": "#1a5fb4"
+    },
+    {
+      "id": "BRICS",
+      "nome": "BRICS+",
+      "nome_completo": "Brasil, Rússia, Índia, China, África do Sul e aliados",
+      "descricao": "Bloco econômico-político do Sul Global. Desafia a hegemonia do dólar e do Ocidente. Em 2024 expandiu para incluir Arábia Saudita, EAU, Egito, Etiópia e Irã.",
+      "tipo": "economico_politico",
+      "artigo_defesa": false,
+      "fundacao_ano": 2009,
+      "sede": "Johannesburgo, África do Sul",
+      "membros": ["RU","CN","IN","BR","ZA","AE","SA","EG","ET","IR"],
+      "reacao_agressao": {
+        "tipo": "pressao_economica",
+        "chance_intervencao": 0.25,
+        "sancoes_automaticas": false,
+        "reducao_relacoes": -25,
+        "escalada_defcon": 0,
+        "mensagem": "Os membros do BRICS condenam o ataque e discutem sanções econômicas coordenadas."
+      },
+      "bonus_membro": {
+        "comercio_preferencial": 0.15,
+        "alternativa_dolar": true,
+        "influencia_diplomatica": 0.20
+      },
+      "penalidade_saida": { "relacoes_membros": -20, "defcon_impact": 0 },
+      "cor": "#cc8800"
+    },
+    {
+      "id": "SCO",
+      "nome": "OCS",
+      "nome_completo": "Organização de Cooperação de Xangai",
+      "descricao": "Bloco de segurança e cooperação liderado por China e Rússia. Inclui Índia, Paquistão, Irã e Ásia Central. Contrapeso à OTAN no Eurasiatico.",
+      "tipo": "seguranca_regional",
+      "artigo_defesa": false,
+      "fundacao_ano": 2001,
+      "sede": "Pequim, China",
+      "membros": ["CN","RU","IN","PK","KZ","UZ","TJ","KG","IR","BY"],
+      "reacao_agressao": {
+        "tipo": "pressao_diplomatica",
+        "chance_intervencao": 0.35,
+        "sancoes_automaticas": false,
+        "reducao_relacoes": -30,
+        "escalada_defcon": 1,
+        "mensagem": "A OCS condena a agressão e convoca reunião de emergência dos membros."
+      },
+      "bonus_membro": {
+        "cooperacao_seguranca": 0.20,
+        "inteligencia_compartilhada": true,
+        "comercio_energetico": 0.15
+      },
+      "penalidade_saida": { "relacoes_membros": -15, "defcon_impact": 0 },
+      "cor": "#cc2222"
+    },
+    {
+      "id": "ASEAN",
+      "nome": "ASEAN",
+      "nome_completo": "Associação das Nações do Sudeste Asiático",
+      "descricao": "Bloco econômico regional baseado no princípio da não-interferência. Navega entre EUA e China. Foco em comércio e estabilidade regional.",
+      "tipo": "economico",
+      "artigo_defesa": false,
+      "fundacao_ano": 1967,
+      "sede": "Jacarta, Indonésia",
+      "membros": ["ID","TH","MY","SG","PH","VN","MM","LA","KH","BN"],
+      "reacao_agressao": {
+        "tipo": "declaracao_diplomatica",
+        "chance_intervencao": 0.12,
+        "sancoes_automaticas": false,
+        "reducao_relacoes": -15,
+        "escalada_defcon": 0,
+        "mensagem": "A ASEAN emite declaração de preocupação e pede resolução pacífica."
+      },
+      "bonus_membro": {
+        "zona_livre_comercio": true,
+        "comercio_preferencial": 0.12,
+        "cooperacao_desenvolvimento": 0.10
+      },
+      "penalidade_saida": { "relacoes_membros": -10, "defcon_impact": 0 },
+      "cor": "#0066cc"
+    },
+    {
+      "id": "ARAB_LEAGUE",
+      "nome": "Liga Árabe",
+      "nome_completo": "Liga dos Estados Árabes",
+      "descricao": "Bloco político-cultural de nações árabes. Heterogêneo e frequentemente dividido, mas com potencial de pressão econômica via petróleo.",
+      "tipo": "politico_cultural",
+      "artigo_defesa": false,
+      "fundacao_ano": 1945,
+      "sede": "Cairo, Egito",
+      "membros": ["SA","AE","EG","IQ","JO","LB","LY","MA","DZ","QA","KW","SD","SY","YE"],
+      "reacao_agressao": {
+        "tipo": "embargo_petroleo",
+        "chance_intervencao": 0.20,
+        "sancoes_automaticas": false,
+        "reducao_relacoes": -20,
+        "escalada_defcon": 1,
+        "mensagem": "A Liga Árabe discute embargo de petróleo e medidas diplomáticas."
+      },
+      "bonus_membro": {
+        "solidariedade_petroleo": 0.15,
+        "influencia_mena": 0.20
+      },
+      "penalidade_saida": { "relacoes_membros": -10, "defcon_impact": 0 },
+      "cor": "#006c35"
+    },
+    {
+      "id": "QUAD",
+      "nome": "Quad",
+      "nome_completo": "Diálogo de Segurança Quadrilateral",
+      "descricao": "Aliança informal de segurança no Indo-Pacífico. Formada para conter a expansão da China. Base de cooperação militar e de inteligência.",
+      "tipo": "seguranca_informal",
+      "artigo_defesa": false,
+      "fundacao_ano": 2007,
+      "sede": "Informal",
+      "membros": ["US","JP","IN","AU"],
+      "reacao_agressao": {
+        "tipo": "consulta_militar",
+        "chance_intervencao": 0.50,
+        "sancoes_automaticas": false,
+        "reducao_relacoes": -35,
+        "escalada_defcon": 1,
+        "mensagem": "O Quad reúne-se de emergência. Exercícios militares conjuntos são anunciados."
+      },
+      "bonus_membro": {
+        "intel_indo_pacifico": true,
+        "cooperacao_naval": 0.25,
+        "deterrencia_china": 0.20
+      },
+      "penalidade_saida": { "relacoes_membros": -25, "defcon_impact": 1 },
+      "cor": "#003478"
+    },
+    {
+      "id": "AUKUS",
+      "nome": "AUKUS",
+      "nome_completo": "Parceria de Segurança Austrália-Reino Unido-EUA",
+      "descricao": "Parceria de defesa e tecnologia de alto nível. Fornecerá à Austrália submarinos de propulsão nuclear. Foco em tecnologia de ponta e compartilhamento de inteligência.",
+      "tipo": "defesa_tecnologica",
+      "artigo_defesa": true,
+      "fundacao_ano": 2021,
+      "sede": "Washington, D.C.",
+      "membros": ["AU","GB","US"],
+      "reacao_agressao": {
+        "tipo": "defesa_coletiva_limitada",
+        "chance_intervencao": 0.72,
+        "sancoes_automaticas": true,
+        "reducao_relacoes": -50,
+        "escalada_defcon": 2,
+        "mensagem": "AUKUS ativa cláusula de defesa mútua. Forças navais são mobilizadas."
+      },
+      "bonus_membro": {
+        "tecnologia_nuclear_naval": true,
+        "intel_cinco_olhos": true,
+        "capacidade_submarina": 0.40
+      },
+      "penalidade_saida": { "relacoes_membros": -50, "defcon_impact": 2 },
+      "cor": "#00247d"
+    },
+    {
+      "id": "G7",
+      "nome": "G7",
+      "nome_completo": "Grupo dos Sete",
+      "descricao": "As sete maiores economias democráticas do mundo. Coordena política econômica global, sanções e resposta a crises. Principal instrumento de pressão econômica ocidental.",
+      "tipo": "economico_politico",
+      "artigo_defesa": false,
+      "fundacao_ano": 1975,
+      "sede": "Rotativo",
+      "membros": ["US","GB","DE","FR","IT","CA","JP"],
+      "reacao_agressao": {
+        "tipo": "sancoes_coordenadas",
+        "chance_intervencao": 0.30,
+        "sancoes_automaticas": true,
+        "reducao_relacoes": -40,
+        "escalada_defcon": 1,
+        "mensagem": "O G7 impõe pacote de sanções coordenadas e congela ativos do agressor."
+      },
+      "bonus_membro": {
+        "acesso_mercados_financeiros": true,
+        "coordenacao_sancoes": 0.35,
+        "influencia_institucoes_globais": 0.25
+      },
+      "penalidade_saida": { "relacoes_membros": -30, "defcon_impact": 0 },
+      "cor": "#1a5fb4"
+    },
+    {
+      "id": "CSTO",
+      "nome": "OTSC",
+      "nome_completo": "Organização do Tratado de Segurança Coletiva",
+      "descricao": "A OTAN da Rússia. Aliança de defesa coletiva liderada por Moscou para ex-repúblicas soviéticas. Artigo 4: ataque a um é ataque a todos.",
+      "tipo": "defesa_coletiva",
+      "artigo_defesa": true,
+      "fundacao_ano": 1992,
+      "sede": "Moscou, Rússia",
+      "membros": ["RU","BY","KZ","KG","TJ"],
+      "reacao_agressao": {
+        "tipo": "defesa_coletiva",
+        "chance_intervencao": 0.65,
+        "sancoes_automaticas": false,
+        "reducao_relacoes": -45,
+        "escalada_defcon": 2,
+        "mensagem": "A OTSC ativa defesa coletiva. Tropas russas podem ser mobilizadas."
+      },
+      "bonus_membro": {
+        "bases_militares_russas": true,
+        "suporte_militar_russia": 0.35,
+        "intel_fsb": true
+      },
+      "penalidade_saida": { "relacoes_membros": -35, "defcon_impact": 1 },
+      "cor": "#cc2222"
+    },
+    {
+      "id": "ALIANCA_RESISTENCIA",
+      "nome": "Eixo da Resistência",
+      "nome_completo": "Eixo da Resistência Liderado pelo Irã",
+      "descricao": "Aliança político-militar liderada pelo Irã incluindo forças proxy. Anti-EUA, anti-Israel, anti-saudita. Opera no Iêmen, Líbano, Iraque, Síria e Gaza.",
+      "tipo": "politico_ideologico",
+      "artigo_defesa": false,
+      "fundacao_ano": 1979,
+      "sede": "Teerã, Irã",
+      "membros": ["IR","SY"],
+      "reacao_agressao": {
+        "tipo": "guerra_proxy",
+        "chance_intervencao": 0.55,
+        "sancoes_automaticas": false,
+        "reducao_relacoes": -40,
+        "escalada_defcon": 2,
+        "mensagem": "O Eixo da Resistência ativa operações proxy contra o agressor."
+      },
+      "bonus_membro": {
+        "guerra_assimetrica": 0.40,
+        "misseis_balisticos_proxy": true,
+        "pressao_regional": 0.30
+      },
+      "penalidade_saida": { "relacoes_membros": -30, "defcon_impact": 1 },
+      "cor": "#239f40"
+    },
+    {
+      "id": "CINCO_OLHOS",
+      "nome": "Five Eyes",
+      "nome_completo": "Aliança de Inteligência Five Eyes",
+      "descricao": "Aliança de inteligência SIGINT entre cinco nações anglófonas. Compartilha interceptações, vigilância global e inteligência classificada em tempo real.",
+      "tipo": "inteligencia",
+      "artigo_defesa": false,
+      "fundacao_ano": 1946,
+      "sede": "Secreto",
+      "membros": ["US","GB","CA","AU","NZ"],
+      "reacao_agressao": {
+        "tipo": "operacao_inteligencia",
+        "chance_intervencao": 0.60,
+        "sancoes_automaticas": false,
+        "reducao_relacoes": -35,
+        "escalada_defcon": 1,
+        "mensagem": "Five Eyes ativa operações de inteligência e ciber-guerra contra o agressor."
+      },
+      "bonus_membro": {
+        "intel_score": 40,
+        "ciber_capacidade": 0.35,
+        "espionagem_global": true
+      },
+      "penalidade_saida": { "relacoes_membros": -45, "defcon_impact": 1 },
+      "cor": "#003189"
+    },
+    {
+      "id": "ABRAHAM_ACCORDS",
+      "nome": "Acordos de Abraão",
+      "nome_completo": "Acordos de Normalização de Abraão",
+      "descricao": "Acordos de normalização de relações entre Israel e países árabes mediados pelos EUA. Cria laços econômicos e de segurança entre Israel e o Golfo.",
+      "tipo": "normalizacao_diplomatica",
+      "artigo_defesa": false,
+      "fundacao_ano": 2020,
+      "sede": "Washington, D.C.",
+      "membros": ["IL","AE","BH","MA","SD"],
+      "reacao_agressao": {
+        "tipo": "pressao_diplomatica",
+        "chance_intervencao": 0.20,
+        "sancoes_automaticas": false,
+        "reducao_relacoes": -20,
+        "escalada_defcon": 0,
+        "mensagem": "Os signatários dos Acordos de Abraão pedem de-escalada imediata."
+      },
+      "bonus_membro": {
+        "normalizacao_comercial": 0.20,
+        "cooperacao_seguranca_regional": 0.15,
+        "investimento_mutuo": 0.10
+      },
+      "penalidade_saida": { "relacoes_membros": -20, "defcon_impact": 0 },
+      "cor": "#0038b8"
+    }
+  ],
+
+  "conflitos_ativos_2024": [
+    {
+      "id": "RUS_UKR",
+      "nome": "Guerra Russo-Ucraniana",
+      "atacante": "RU",
+      "defensor": "UA",
+      "aliados_defensor": ["NATO"],
+      "aliados_atacante": ["BY","KP"],
+      "descricao": "Invasão russa em larga escala iniciada em fev/2022. Ucrânia recebe apoio militar massivo do Ocidente.",
+      "gravidade": 90,
+      "defcon_base": 3
+    },
+    {
+      "id": "ISR_GAZA",
+      "nome": "Guerra Israel-Hamas-Gaza",
+      "atacante": "IL",
+      "defensor": "HAMAS_GAZA",
+      "aliados_defensor": ["IR","ALIANCA_RESISTENCIA"],
+      "aliados_atacante": ["US","GB"],
+      "descricao": "Operação militar israelense em Gaza após ataque do Hamas em 7/Out/2023.",
+      "gravidade": 85,
+      "defcon_base": 3
+    },
+    {
+      "id": "TENSAO_TAIWAN",
+      "nome": "Tensão no Estreito de Taiwan",
+      "atacante": "CN",
+      "defensor": "TW",
+      "aliados_defensor": ["US","JP","AU","QUAD"],
+      "aliados_atacante": [],
+      "descricao": "China intensifica pressão militar sobre Taiwan. EUA mantém ambiguidade estratégica.",
+      "gravidade": 95,
+      "defcon_base": 3
+    },
+    {
+      "id": "MAR_SUL_CHINA",
+      "nome": "Disputa no Mar do Sul da China",
+      "atacante": "CN",
+      "defensor": "PH",
+      "aliados_defensor": ["US"],
+      "aliados_atacante": [],
+      "descricao": "China expande ilhas militarizadas e enfrenta Filipinas nas disputas territoriais.",
+      "gravidade": 65,
+      "defcon_base": 4
+    }
+  ]
+}

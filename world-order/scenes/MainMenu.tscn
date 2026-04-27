@@ -1,0 +1,146 @@
+[gd_scene load_steps=3 format=3 uid="uid://b3w0r1d0rd1m"]
+
+[ext_resource type="Script" path="res://scripts/MainMenu.gd" id="1_main"]
+
+[sub_resource type="StyleBoxFlat" id="card_main"]
+bg_color = Color(0.035, 0.06, 0.10, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.823, 1, 0.85)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_left = 16
+corner_radius_bottom_right = 16
+shadow_color = Color(0, 0.6, 1, 0.45)
+shadow_size = 32
+content_margin_left = 48.0
+content_margin_top = 40.0
+content_margin_right = 48.0
+content_margin_bottom = 40.0
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.018, 0.030, 0.054, 1)
+mouse_filter = 2
+
+[node name="GridOverlay" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0.823, 1, 0.020)
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="Card" type="PanelContainer" parent="Center"]
+layout_mode = 2
+custom_minimum_size = Vector2(560, 0)
+theme_override_styles/panel = SubResource("card_main")
+mouse_filter = 1
+
+[node name="MainBox" type="VBoxContainer" parent="Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="TitleSection" type="VBoxContainer" parent="Center/Card/MainBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Brand" type="Label" parent="Center/Card/MainBox/TitleSection"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.823, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "■ COMANDO ESTRATÉGICO GLOBAL"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="Center/Card/MainBox/TitleSection"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 56
+text = "WORLD ORDER"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Center/Card/MainBox/TitleSection"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.65, 0.78, 1)
+theme_override_font_sizes/font_size = 13
+text = "v0.5.0 — Doutrina Geopolítica em Tempo Real"
+horizontal_alignment = 1
+
+[node name="Deco" type="ColorRect" parent="Center/Card/MainBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 2)
+color = Color(0, 0.823, 1, 0.6)
+size_flags_horizontal = 4
+
+[node name="StatusLabel" type="Label" parent="Center/Card/MainBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 0.55, 1)
+theme_override_font_sizes/font_size = 16
+text = "▸ SISTEMA ONLINE"
+horizontal_alignment = 1
+
+[node name="InfoLabel" type="Label" parent="Center/Card/MainBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.62, 0.78, 1)
+theme_override_font_sizes/font_size = 11
+text = "Detectando hardware..."
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="Center/Card/MainBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 6)
+
+[node name="ButtonRow" type="VBoxContainer" parent="Center/Card/MainBox"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="MapButton" type="Button" parent="Center/Card/MainBox/ButtonRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "▶ INICIAR JOGO"
+
+[node name="TestButton" type="Button" parent="Center/Card/MainBox/ButtonRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 38)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "🔧 DIAGNÓSTICO DE HARDWARE"
+
+[node name="Footer" type="Label" parent="Center/Card/MainBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.42, 0.52, 1)
+theme_override_font_sizes/font_size = 10
+text = "Godot 4.6  •  195 nações  •  238 países renderizados em Vulkan"
+horizontal_alignment = 1

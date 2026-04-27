@@ -1,0 +1,72 @@
+{
+  "eventos_historicos": [
+    {
+      "periodo": "1800-1850",
+      "nome": "A Ascensão Industrial e Guerras Napoleônicas",
+      "eventos": [
+        { "ano": 1803, "nome": "Guerras Napoleônicas", "descricao": "França domina a Europa sob Napoleão, alterando fronteiras e espalhando ideais liberais." },
+        { "ano": 1804, "nome": "Independência do Haiti", "descricao": "Primeira república negra das Américas e única revolta de escravos bem-sucedida." },
+        { "ano": 1815, "nome": "Congresso de Viena", "descricao": "Restauração da ordem conservadora na Europa após a queda de Napoleão." },
+        { "ano": 1821, "nome": "Independência do México", "descricao": "Fim do domínio espanhol na Nova Espanha, alterando o equilíbrio na América do Norte." },
+        { "ano": 1822, "nome": "Independência do Brasil", "descricao": "Brasil torna-se independente de Portugal, mantendo o regime monárquico." },
+        { "ano": 1823, "nome": "Doutrina Monroe", "descricao": "EUA declaram que as Américas não estão mais sujeitas à colonização europeia." },
+        { "ano": 1839, "nome": "Primeira Guerra do Ópio", "descricao": "Início do 'Século de Humilhação' da China sob pressão das potências ocidentais." },
+        { "ano": 1848, "nome": "Primavera dos Povos", "descricao": "Série de revoluções liberais e nacionalistas varre a Europa." }
+      ]
+    },
+    {
+      "periodo": "1851-1900",
+      "nome": "Imperialismo e Unificações",
+      "eventos": [
+        { "ano": 1853, "nome": "Abertura do Japão (Commodore Perry)", "descricao": "EUA forçam o Japão a encerrar seu isolamento (Sakoku), iniciando o fim do Xogunato." },
+        { "ano": 1861, "nome": "Guerra de Secessão (EUA)", "descricao": "Conflito interno que abole a escravidão e consolida o poder federal nos EUA." },
+        { "ano": 1868, "nome": "Restauração Meiji", "descricao": "Japão inicia rápida modernização e industrialização para competir com o Ocidente." },
+        { "ano": 1869, "nome": "Inauguração do Canal de Suez", "descricao": "Revolução nas rotas comerciais globais entre Europa e Ásia." },
+        { "ano": 1871, "nome": "Unificação da Alemanha", "descricao": "Proclamação do Império Alemão transforma o equilíbrio de poder europeu." },
+        { "ano": 1884, "nome": "Conferência de Berlim", "descricao": "Partilha da África pelas potências europeias sem consulta local." },
+        { "ano": 1889, "nome": "Proclamação da República (Brasil)", "descricao": "Brasil deixa de ser Império e torna-se uma República federativa." },
+        { "ano": 1898, "nome": "Guerra Hispano-Americana", "descricao": "Surgimento dos EUA como potência imperial global ao conquistar Cuba, Porto Rico e Filipinas." }
+      ]
+    },
+    {
+      "periodo": "1901-1945",
+      "nome": "As Grandes Guerras",
+      "eventos": [
+        { "ano": 1914, "nome": "Primeira Guerra Mundial", "descricao": "Queda de impérios (Otomano, Austro-Húngaro, Russo) e redesenho do mapa global." },
+        { "ano": 1917, "nome": "Revolução Russa", "descricao": "Surgimento da URSS, o primeiro estado socialista sob Lenin." },
+        { "ano": 1929, "nome": "A Grande Depressão", "descricao": "Colapso econômico global iniciado em Wall Street que fortalece regimes totalitários." },
+        { "ano": 1933, "nome": "Ascensão do Nazismo", "descricao": "Hitler assume o poder na Alemanha, desafiando o Tratado de Versalhes." },
+        { "ano": 1939, "nome": "Segunda Guerra Mundial", "descricao": "Conflito mais devastador da história; uso da bomba atômica; criação da ONU." },
+        { "ano": 1945, "nome": "Conferências de Yalta e Potsdam", "descricao": "Divisão do mundo em esferas de influência entre EUA e URSS (Início da Guerra Fria)." }
+      ]
+    },
+    {
+      "periodo": "1946-1991",
+      "nome": "Guerra Fria",
+      "eventos": [
+        { "ano": 1947, "nome": "Plano Marshall / Independência da Índia", "descricao": "Reconstrução europeia e início da descolonização em massa." },
+        { "ano": 1949, "nome": "Fundação da OTAN e Revolução Chinesa", "descricao": "Consolidação dos blocos militares e China torna-se comunista." },
+        { "ano": 1957, "nome": "Tratado de Roma / Sputnik", "descricao": "Início da União Europeia e abertura da Corrida Espacial." },
+        { "ano": 1962, "nome": "Crise dos Mísseis em Cuba", "descricao": "O ponto mais próximo de uma guerra nuclear global." },
+        { "ano": 1973, "nome": "Choque do Petróleo", "descricao": "OPEP demonstra poder econômico, causando inflação global e recessão." },
+        { "ano": 1979, "nome": "Revolução Iraniana", "descricao": "Queda do Xá e surgimento de uma Teocracia Islâmica, alterando o Oriente Médio." },
+        { "ano": 1989, "nome": "Queda do Muro de Berlim", "descricao": "Símbolo do fim da era soviética e reunificação alemã." },
+        { "ano": 1991, "nome": "Dissolução da União Soviética", "descricao": "EUA emergem como única superpotência global (Momento Unipolar)." }
+      ]
+    },
+    {
+      "periodo": "1992-2026",
+      "nome": "Era Digital e Novo Desequilíbrio",
+      "eventos": [
+        { "ano": 2001, "nome": "Atentados de 11 de Setembro", "descricao": "Início da 'Guerra ao Terror' e intervenções no Oriente Médio." },
+        { "ano": 2008, "nome": "Crise Financeira Global / Ascensão do Bitcoin", "descricao": "Colapso do subprime e questionamento do sistema financeiro centralizado." },
+        { "ano": 2011, "nome": "Primavera Árabe", "descricao": "Onda de protestos no Oriente Médio e Norte da África desafiando regimes autoritários." },
+        { "ano": 2014, "nome": "Anexação da Crimeia", "descricao": "Rússia inicia o questionamento da ordem pós-Guerra Fria." },
+        { "ano": 2020, "nome": "Pandemia de COVID-19", "descricao": "Crise sanitária global que acelerou a digitalização e mudou a economia." },
+        { "ano": 2022, "nome": "Invasão da Ucrânia", "descricao": "Retorno da guerra de alta intensidade na Europa e sanções massivas à Rússia." },
+        { "ano": 2024, "nome": "O Ponto de Partida", "descricao": "Mundo multipolar em tensão extrema; corrida pela IA e transição energética." },
+        { "ano": 2025, "nome": "Revolução da IA Quântica", "descricao": "Integração total de modelos de IA em todos os setores da vida humana." }
+      ]
+    }
+  ]
+}

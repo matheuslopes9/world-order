@@ -1,0 +1,382 @@
+{
+  "eventos": [
+    {
+      "id": "crise_financeira_global",
+      "nome": "Crise Financeira Global",
+      "descricao": "Uma bolha no setor imobiliário estourou, causando instabilidade nos mercados mundiais.",
+      "chance": 0.04,
+      "condicao": { "ano_min": 2024 },
+      "efeitos": {
+        "pib_fator": 0.95,
+        "estabilidade_fator": -10,
+        "inflacao": 5,
+        "global": true
+      }
+    },
+    {
+      "id": "descoberta_fusao_nuclear",
+      "nome": "Avanço na Fusão Nuclear",
+      "descricao": "Cientistas alcançaram a ignição estável, prometendo energia limpa e barata.",
+      "chance": 0.015,
+      "condicao": { "ano_min": 2030 },
+      "efeitos": {
+        "pib_fator": 1.10,
+        "estabilidade_fator": 5,
+        "felicidade": 8,
+        "global": true
+      }
+    },
+    {
+      "id": "boom_tecnologico",
+      "nome": "Revolução da IA Quântica",
+      "descricao": "A integração de computação quântica com IA acelerou drasticamente a produtividade.",
+      "chance": 0.025,
+      "condicao": { "ano_min": 2027 },
+      "efeitos": {
+        "pib_fator": 1.08,
+        "estabilidade_fator": 0,
+        "global": true
+      }
+    },
+    {
+      "id": "crise_climatica_extrema",
+      "nome": "Super-Tempestades Globais",
+      "descricao": "O clima atingiu um ponto de não retorno, causando desastres naturais frequentes.",
+      "chance": 0.04,
+      "condicao": { "ano_min": 2027 },
+      "efeitos": { "pib_fator": 0.92, "estabilidade_fator": -10, "felicidade": -8, "global": true }
+    },
+    {
+      "id": "guerra_cibernetica_total",
+      "nome": "O Grande Blecaute Digital",
+      "descricao": "Um vírus de IA paralisou as infraestruturas críticas globais por semanas.",
+      "chance": 0.02,
+      "condicao": { "ano_min": 2026 },
+      "efeitos": { "pib_fator": 0.88, "estabilidade_fator": -15, "global": true }
+    },
+    {
+      "id": "pandemia_emergente",
+      "nome": "Surto Viral Emergente",
+      "descricao": "Um novo patógeno respiratório de origem zoonótica ameaça espalhar-se globalmente.",
+      "chance": 0.025,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "🔒 Lockdown Nacional Imediato",
+          "efeitos": { "pib_fator": 0.92, "felicidade": -10, "estabilidade_fator": 5, "apoio_popular": -3 }
+        },
+        {
+          "label": "💉 Investir em Vacinação Acelerada",
+          "efeitos": { "tesouro": -40, "felicidade": 5, "estabilidade_fator": 3, "apoio_popular": 6 }
+        },
+        {
+          "label": "🤷 Não fazer nada significativo",
+          "efeitos": { "pib_fator": 0.97, "felicidade": -15, "apoio_popular": -10, "estabilidade_fator": -8 }
+        }
+      ]
+    },
+    {
+      "id": "escandalo_corrupcao",
+      "nome": "Escândalo de Corrupção no Alto Escalão",
+      "descricao": "A imprensa expôs um esquema de propinas envolvendo ministros do seu governo.",
+      "chance": 0.04,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "⚖️ Investigar e punir publicamente",
+          "efeitos": { "corrupcao": -8, "estabilidade_fator": -3, "apoio_popular": 8, "tesouro": -10 }
+        },
+        {
+          "label": "🤐 Abafar o caso",
+          "efeitos": { "corrupcao": 4, "estabilidade_fator": 2, "apoio_popular": -12, "felicidade": -5 }
+        },
+        {
+          "label": "🎯 Demitir um bode expiatório",
+          "efeitos": { "corrupcao": -2, "apoio_popular": 2, "estabilidade_fator": 0 }
+        }
+      ]
+    },
+    {
+      "id": "manifestacoes_populares",
+      "nome": "Onda de Manifestações Populares",
+      "descricao": "Multidões tomaram as ruas exigindo melhores condições de vida e mais transparência.",
+      "chance": 0.06,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "🤝 Dialogar e atender pautas",
+          "efeitos": { "tesouro": -25, "apoio_popular": 8, "felicidade": 6, "estabilidade_fator": 4 }
+        },
+        {
+          "label": "🚔 Repressão policial pesada",
+          "efeitos": { "estabilidade_fator": -10, "apoio_popular": -8, "felicidade": -10 }
+        },
+        {
+          "label": "📣 Lançar campanha de propaganda",
+          "efeitos": { "tesouro": -10, "apoio_popular": 4, "felicidade": -2, "corrupcao": 2 }
+        }
+      ]
+    },
+    {
+      "id": "boom_recursos_naturais",
+      "nome": "Descoberta Massiva de Recursos Naturais",
+      "descricao": "Geólogos descobriram uma jazida gigante em território nacional.",
+      "chance": 0.03,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "🏛️ Estatizar a exploração",
+          "efeitos": { "tesouro": 80, "estabilidade_fator": -3, "apoio_popular": 5 }
+        },
+        {
+          "label": "💼 Conceder a empresas privadas",
+          "efeitos": { "tesouro": 40, "pib_fator": 1.03, "corrupcao": 5 }
+        },
+        {
+          "label": "🌿 Proteger a região por motivos ambientais",
+          "efeitos": { "felicidade": 8, "apoio_popular": 4, "estabilidade_fator": 3 }
+        }
+      ]
+    },
+    {
+      "id": "ataque_terrorista",
+      "nome": "Ataque Terrorista em Capital",
+      "descricao": "Um atentado abalou a capital, matando civis e ferindo dezenas.",
+      "chance": 0.035,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "⚔️ Resposta militar imediata no exterior",
+          "efeitos": { "tesouro": -50, "apoio_popular": 10, "estabilidade_fator": -3, "felicidade": -3 }
+        },
+        {
+          "label": "🛡️ Reforçar inteligência e segurança interna",
+          "efeitos": { "tesouro": -30, "estabilidade_fator": 8, "apoio_popular": 4 }
+        },
+        {
+          "label": "🤝 Dialogar com origens do conflito",
+          "efeitos": { "estabilidade_fator": -2, "apoio_popular": -5, "felicidade": 2 }
+        }
+      ]
+    },
+    {
+      "id": "crise_imigracao",
+      "nome": "Crise Migratória nas Fronteiras",
+      "descricao": "Centenas de milhares de refugiados se acumulam nas fronteiras nacionais.",
+      "chance": 0.04,
+      "condicao": { "ano_min": 2025 },
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "🚪 Fechar fronteiras totalmente",
+          "efeitos": { "estabilidade_fator": 5, "felicidade": -3, "apoio_popular": 6 }
+        },
+        {
+          "label": "🏥 Acolher e integrar com programa social",
+          "efeitos": { "tesouro": -40, "felicidade": 4, "pib_fator": 1.01, "apoio_popular": -4 }
+        },
+        {
+          "label": "🤝 Negociar quotas com vizinhos",
+          "efeitos": { "tesouro": -10, "estabilidade_fator": 2 }
+        }
+      ]
+    },
+    {
+      "id": "avanco_medico",
+      "nome": "Avanço Médico Revolucionário",
+      "descricao": "Um laboratório nacional descobriu tratamento para uma doença grave prevalente.",
+      "chance": 0.03,
+      "afeta_jogador": true,
+      "efeitos": { "felicidade": 8, "apoio_popular": 6, "pib_fator": 1.02, "tesouro": 15 }
+    },
+    {
+      "id": "ciclone_devastador",
+      "nome": "Ciclone Devastador",
+      "descricao": "Um ciclone de categoria 5 devastou regiões costeiras com prejuízos bilionários.",
+      "chance": 0.045,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "🚁 Mobilizar todas as Forças Armadas para resgate",
+          "efeitos": { "tesouro": -35, "apoio_popular": 12, "estabilidade_fator": 5, "felicidade": 4 }
+        },
+        {
+          "label": "💸 Fundo emergencial reduzido",
+          "efeitos": { "tesouro": -10, "apoio_popular": -6, "felicidade": -4 }
+        }
+      ]
+    },
+    {
+      "id": "boom_turismo",
+      "nome": "Boom no Turismo Internacional",
+      "descricao": "O país virou destino sensação após eventos culturais virais.",
+      "chance": 0.04,
+      "condicao": { "ano_min": 2024 },
+      "afeta_jogador": true,
+      "efeitos": { "pib_fator": 1.025, "tesouro": 25, "felicidade": 4 }
+    },
+    {
+      "id": "descoberta_arqueologica",
+      "nome": "Descoberta Arqueológica Histórica",
+      "descricao": "Arqueólogos encontraram ruínas antigas de relevância mundial em território nacional.",
+      "chance": 0.025,
+      "afeta_jogador": true,
+      "efeitos": { "felicidade": 6, "apoio_popular": 3, "tesouro": 10 }
+    },
+    {
+      "id": "vazamento_inteligencia",
+      "nome": "Vazamento de Documentos Confidenciais",
+      "descricao": "Um whistleblower publicou milhares de documentos secretos de inteligência.",
+      "chance": 0.03,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "⚖️ Processar publicamente o responsável",
+          "efeitos": { "estabilidade_fator": -8, "apoio_popular": -6, "felicidade": -4 }
+        },
+        {
+          "label": "🤐 Negar autenticidade dos documentos",
+          "efeitos": { "corrupcao": 3, "apoio_popular": -3 }
+        }
+      ]
+    },
+    {
+      "id": "crise_inflacao",
+      "nome": "Crise Inflacionária",
+      "descricao": "Pressões cambiais e logísticas dispararam os preços ao consumidor.",
+      "chance": 0.04,
+      "condicao": { "ano_min": 2024 },
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "📈 Aumentar juros agressivamente",
+          "efeitos": { "inflacao": -8, "pib_fator": 0.97, "felicidade": -5 }
+        },
+        {
+          "label": "🛒 Subsidiar produtos básicos",
+          "efeitos": { "tesouro": -50, "felicidade": 6, "apoio_popular": 4, "inflacao": -3 }
+        },
+        {
+          "label": "🤷 Aguardar normalização do mercado",
+          "efeitos": { "inflacao": 4, "felicidade": -4, "apoio_popular": -6 }
+        }
+      ]
+    },
+    {
+      "id": "campeonato_mundial",
+      "nome": "Vitória em Copa do Mundo",
+      "descricao": "A seleção nacional venceu a Copa do Mundo após décadas de espera.",
+      "chance": 0.02,
+      "afeta_jogador": true,
+      "efeitos": { "felicidade": 12, "apoio_popular": 10, "estabilidade_fator": 5, "pib_fator": 1.005 }
+    },
+    {
+      "id": "fuga_capitais",
+      "nome": "Fuga Massiva de Capitais",
+      "descricao": "Investidores estrangeiros estão saindo do país em pânico.",
+      "chance": 0.03,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "🚧 Controle de capitais (radical)",
+          "efeitos": { "tesouro": 20, "pib_fator": 0.95, "estabilidade_fator": -5 }
+        },
+        {
+          "label": "📈 Subir juros para reter investimento",
+          "efeitos": { "inflacao": -3, "pib_fator": 0.98, "felicidade": -3 }
+        },
+        {
+          "label": "🤝 Buscar pacote de socorro do FMI",
+          "efeitos": { "tesouro": 100, "estabilidade_fator": -8, "apoio_popular": -10 }
+        }
+      ]
+    },
+    {
+      "id": "revolta_militar",
+      "nome": "Murmúrios de Insatisfação Militar",
+      "descricao": "Generais publicaram manifestos exigindo mais orçamento e autonomia.",
+      "chance": 0.025,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "💰 Aumentar imediatamente o orçamento militar",
+          "efeitos": { "tesouro": -60, "estabilidade_fator": 10, "apoio_popular": -5 }
+        },
+        {
+          "label": "👮 Demitir os generais rebeldes",
+          "efeitos": { "estabilidade_fator": -10, "apoio_popular": 4 }
+        }
+      ]
+    },
+    {
+      "id": "tratado_climatico",
+      "nome": "Cúpula Climática Global",
+      "descricao": "Líderes mundiais negociam metas vinculantes de emissões.",
+      "chance": 0.03,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "🌍 Aderir e investir em transição verde",
+          "efeitos": { "tesouro": -50, "felicidade": 8, "pib_fator": 0.99 }
+        },
+        {
+          "label": "🛢️ Recusar e priorizar economia local",
+          "efeitos": { "felicidade": -6, "estabilidade_fator": 2 }
+        }
+      ]
+    },
+    {
+      "id": "colonizacao_marte",
+      "nome": "Base Permanente em Marte",
+      "descricao": "A humanidade estabeleceu sua primeira colônia autossustentável em Marte.",
+      "chance": 0.005,
+      "condicao": { "ano_min": 2050 },
+      "efeitos": { "pib_fator": 1.06, "estabilidade_fator": 10, "felicidade": 8, "global": true }
+    },
+    {
+      "id": "primeiro_contato_radio",
+      "nome": "Sinal Inteligente de Proxima Centauri",
+      "descricao": "SETI detectou um sinal de rádio artificial e complexo, mudando a filosofia humana.",
+      "chance": 0.003,
+      "condicao": { "ano_min": 2060 },
+      "efeitos": { "estabilidade_fator": 12, "felicidade": 15, "global": true }
+    },
+    {
+      "id": "epidemia_local",
+      "nome": "Epidemia Regional",
+      "descricao": "Um surto bacteriano se espalha em regiões sem saneamento adequado.",
+      "chance": 0.05,
+      "condicao": { "estabilidade_max": 60 },
+      "efeitos": { "felicidade": -8, "estabilidade_fator": -5, "apoio_popular": -4, "global": false }
+    },
+    {
+      "id": "protestos_democracia",
+      "nome": "Onda de Protestos Pró-Democracia",
+      "descricao": "Movimentos populares exigem reformas e maior transparência governamental.",
+      "chance": 0.06,
+      "condicao": { "regime": "AUTORITARISMO", "estabilidade_max": 60 },
+      "efeitos": { "estabilidade_fator": -15, "felicidade": -5, "global": false }
+    },
+    {
+      "id": "ascensao_oposicao",
+      "nome": "Ascensão Súbita de Líder Oposicionista",
+      "descricao": "Um carismático opositor ganha popularidade meteórica nas redes.",
+      "chance": 0.05,
+      "afeta_jogador": true,
+      "choices": [
+        {
+          "label": "🎯 Cooptar para o governo (oferecer ministério)",
+          "efeitos": { "apoio_popular": 6, "corrupcao": 3, "estabilidade_fator": 4 }
+        },
+        {
+          "label": "📰 Campanha de difamação na mídia",
+          "efeitos": { "apoio_popular": -3, "felicidade": -5, "corrupcao": 4 }
+        },
+        {
+          "label": "👀 Ignorar e seguir governando",
+          "efeitos": { "apoio_popular": -2, "estabilidade_fator": -2 }
+        }
+      ]
+    }
+  ]
+}

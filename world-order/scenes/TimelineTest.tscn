@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://d1yv8ayeklbsy"]
+
+[ext_resource type="Script" path="res://scripts/TimelineTest.gd" id="1_test"]
+
+[node name="TimelineTest" type="Node"]
+script = ExtResource("1_test")

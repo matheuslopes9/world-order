@@ -1,0 +1,54 @@
+# ────────────────────────────────────────────────────────────────────
+# WORLD ORDER (Godot 4.6) — gitignore
+# ────────────────────────────────────────────────────────────────────
+
+# Executáveis do Godot — não versionar (172MB cada)
+Godot_*.exe
+
+# Cache de import do Godot (gerado automaticamente pelo editor)
+world-order/.godot/
+
+# Logs temporários (testes, playtest, etc)
+*.log
+tmp_*.log
+tmp_*.txt
+
+# Saves locais (não commitar dados de partida)
+saves/
+*.save.json
+*.savegame
+
+# Build / distribuição (exports do Godot)
+dist/
+out/
+build/
+release/
+exports/
+*.pck
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.cursor/
+
+# Variáveis de ambiente / secrets
+.env
+.env.local
+
+# Cache geral
+.cache/
+
+# Claude Code workspace files
+.claude/
+
+# Legacy do projeto antigo (HTML/JS) — não recriar
+deploy.ps1
+node_modules/
+npm-debug.log*

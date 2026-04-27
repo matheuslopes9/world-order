@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#00d2ff"/>
+      <stop offset="60%" stop-color="#0a3a5c"/>
+      <stop offset="100%" stop-color="#050a14"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="16" fill="#0a0e1a"/>
+  <circle cx="64" cy="64" r="44" fill="url(#g)" stroke="#00d2ff" stroke-width="2"/>
+  <ellipse cx="64" cy="64" rx="44" ry="14" fill="none" stroke="#00d2ff" stroke-width="1" opacity="0.5"/>
+  <ellipse cx="64" cy="64" rx="14" ry="44" fill="none" stroke="#00d2ff" stroke-width="1" opacity="0.5"/>
+  <line x1="20" y1="64" x2="108" y2="64" stroke="#00d2ff" stroke-width="0.5" opacity="0.4"/>
+  <line x1="64" y1="20" x2="64" y2="108" stroke="#00d2ff" stroke-width="0.5" opacity="0.4"/>
+  <text x="64" y="118" text-anchor="middle" font-family="monospace" font-size="10" fill="#00d2ff" font-weight="bold">WO</text>
+</svg>
+</content>

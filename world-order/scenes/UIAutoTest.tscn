@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://3hulhbqcleol"]
+
+[ext_resource type="Script" path="res://scripts/UIAutoTest.gd" id="1_test"]
+
+[node name="UIAutoTest" type="Node"]
+script = ExtResource("1_test")

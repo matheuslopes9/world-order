@@ -1,0 +1,220 @@
+{
+  "_meta": {
+    "description": "Templates de eventos secundários — gerados parametrizados por país. Distribuídos pelos 25 anos (2000-2024) via seed determinístico = hash(ISO code).",
+    "version": "1.0.0",
+    "schema": "event_templates_v1"
+  },
+  "templates": {
+    "politico": [
+      {
+        "id_suffix": "eleicao",
+        "headline": "🗳 {PAIS} realiza eleições gerais — {PARTIDO} no poder",
+        "body": "Eleições marcam virada política. {PARTIDO} assume com agenda de reformas.",
+        "effects": {"estabilidade_fator": 4.0, "apoio_popular": 8}
+      },
+      {
+        "id_suffix": "escandalo",
+        "headline": "🕵 {PAIS} vive grande escândalo de corrupção",
+        "body": "Investigação revela desvios. Manifestações populares. Crise política.",
+        "effects": {"corrupcao": 8, "estabilidade_fator": -6.0, "apoio_popular": -10}
+      },
+      {
+        "id_suffix": "transicao",
+        "headline": "🏛 {PAIS} passa por transição de governo turbulenta",
+        "body": "Mudança de liderança após pressão política. Continuidade incerta.",
+        "effects": {"estabilidade_fator": -3.0, "apoio_popular": -5}
+      },
+      {
+        "id_suffix": "reforma",
+        "headline": "📜 {PAIS} aprova ampla reforma constitucional",
+        "body": "Mudanças institucionais consolidam democracia ou centralizam poder.",
+        "effects": {"estabilidade_fator": 5.0, "burocracia": 5}
+      },
+      {
+        "id_suffix": "protesto",
+        "headline": "📢 Protestos massivos tomam as ruas de {PAIS}",
+        "body": "Cidadãos exigem mudanças. Resposta do governo será decisiva.",
+        "effects": {"estabilidade_fator": -7.0, "felicidade": -5, "apoio_popular": -8}
+      }
+    ],
+    "economico": [
+      {
+        "id_suffix": "boom",
+        "headline": "📈 {PAIS} vive boom econômico — exportações disparam",
+        "body": "Crescimento acima da média global. Novos investimentos estrangeiros.",
+        "effects": {"pib_fator": 1.04, "tesouro": 30, "apoio_popular": 6}
+      },
+      {
+        "id_suffix": "recessao",
+        "headline": "📉 {PAIS} entra em recessão técnica",
+        "body": "Dois trimestres consecutivos de queda. Desemprego sobe.",
+        "effects": {"pib_fator": 0.95, "tesouro": -20, "felicidade": -8, "apoio_popular": -7}
+      },
+      {
+        "id_suffix": "reforma_fiscal",
+        "headline": "💰 {PAIS} aprova reforma tributária histórica",
+        "body": "Modernização do sistema fiscal promete mais arrecadação a longo prazo.",
+        "effects": {"tesouro": 25, "burocracia": 8, "apoio_popular": -3}
+      },
+      {
+        "id_suffix": "inflacao_alta",
+        "headline": "🔥 {PAIS} sofre com alta da inflação",
+        "body": "Preços disparam, banco central sobe juros. Economia desacelera.",
+        "effects": {"inflacao": 6, "felicidade": -7}
+      },
+      {
+        "id_suffix": "investimento",
+        "headline": "🏗 {PAIS} recebe mega investimento estrangeiro",
+        "body": "Multinacional anuncia fábrica/sede regional. Empregos criados.",
+        "effects": {"pib_fator": 1.02, "tesouro": 15, "apoio_popular": 4}
+      },
+      {
+        "id_suffix": "crise_cambial",
+        "headline": "💱 {PAIS} enfrenta crise cambial",
+        "body": "Moeda nacional desvaloriza fortemente. Dívida externa explode em moeda local.",
+        "effects": {"pib_fator": 0.96, "tesouro": -25, "inflacao": 8}
+      }
+    ],
+    "social": [
+      {
+        "id_suffix": "olimpiada",
+        "headline": "🏆 {PAIS} brilha em Jogos Olímpicos",
+        "body": "Atletas conquistam medalhas históricas. Orgulho nacional renovado.",
+        "effects": {"felicidade": 10, "apoio_popular": 5}
+      },
+      {
+        "id_suffix": "copa",
+        "headline": "⚽ {PAIS} avança em Copa do Mundo",
+        "body": "Seleção emociona o país. Comércio e turismo aquecem.",
+        "effects": {"felicidade": 8, "pib_fator": 1.005}
+      },
+      {
+        "id_suffix": "direitos",
+        "headline": "✊ {PAIS} aprova marco de direitos civis",
+        "body": "Lei garante novas proteções a grupos historicamente excluídos.",
+        "effects": {"felicidade": 8, "estabilidade_fator": 3.0, "apoio_popular": 5}
+      },
+      {
+        "id_suffix": "educacao",
+        "headline": "🎓 {PAIS} investe em educação universal",
+        "body": "Programa amplia acesso a ensino superior gratuito.",
+        "effects": {"felicidade": 6, "tesouro": -15, "apoio_popular": 4}
+      },
+      {
+        "id_suffix": "saude",
+        "headline": "🏥 {PAIS} expande sistema de saúde pública",
+        "body": "Cobertura amplia. Mortalidade infantil cai.",
+        "effects": {"felicidade": 7, "tesouro": -20, "apoio_popular": 6}
+      },
+      {
+        "id_suffix": "cultura",
+        "headline": "🎭 {PAIS} sedia evento cultural global",
+        "body": "Festival/ano cultural projeta nação no mundo.",
+        "effects": {"felicidade": 5, "apoio_popular": 3}
+      }
+    ],
+    "natural": [
+      {
+        "id_suffix": "enchente",
+        "headline": "🌊 {PAIS} sofre enchentes catastróficas",
+        "body": "Chuvas intensas devastam regiões. Milhares desabrigados.",
+        "effects": {"pib_fator": 0.98, "tesouro": -25, "felicidade": -8, "estabilidade_fator": -3.0}
+      },
+      {
+        "id_suffix": "terremoto",
+        "headline": "💢 Terremoto atinge {PAIS}",
+        "body": "Tremor causa destruição em áreas urbanas. Operação de resgate em curso.",
+        "effects": {"pib_fator": 0.97, "tesouro": -30, "felicidade": -10, "estabilidade_fator": -5.0}
+      },
+      {
+        "id_suffix": "seca",
+        "headline": "🏜 Seca prolongada castiga {PAIS}",
+        "body": "Reservatórios em mínimas históricas. Agricultura sofre perdas.",
+        "effects": {"pib_fator": 0.97, "tesouro": -15, "inflacao": 5}
+      },
+      {
+        "id_suffix": "incendio",
+        "headline": "🔥 Incêndios florestais devastam {PAIS}",
+        "body": "Hectares de vegetação perdidos. Qualidade do ar despenca.",
+        "effects": {"pib_fator": 0.99, "tesouro": -10, "felicidade": -5}
+      },
+      {
+        "id_suffix": "epidemia",
+        "headline": "🦠 {PAIS} enfrenta surto sanitário regional",
+        "body": "Doença emergente sobrecarrega hospitais. Quarentenas localizadas.",
+        "effects": {"felicidade": -7, "tesouro": -15, "estabilidade_fator": -3.0}
+      },
+      {
+        "id_suffix": "furacao",
+        "headline": "🌀 Tempestade tropical atinge {PAIS}",
+        "body": "Ventos destrutivos derrubam infraestrutura costeira.",
+        "effects": {"pib_fator": 0.98, "tesouro": -20, "felicidade": -6}
+      }
+    ],
+    "tecnologico": [
+      {
+        "id_suffix": "internet",
+        "headline": "🌐 {PAIS} expande infraestrutura de internet",
+        "body": "Banda larga chega a regiões remotas. Economia digital cresce.",
+        "effects": {"pib_fator": 1.02, "felicidade": 4}
+      },
+      {
+        "id_suffix": "startup",
+        "headline": "🚀 {PAIS} forma novo unicórnio tecnológico",
+        "body": "Startup nacional avaliada em $1B+. Vale virtual local emerge.",
+        "effects": {"pib_fator": 1.01, "tesouro": 10, "apoio_popular": 3}
+      },
+      {
+        "id_suffix": "energia_solar",
+        "headline": "☀️ {PAIS} inaugura mega-parque solar",
+        "body": "Energia limpa atinge marco. Reduz dependência fóssil.",
+        "effects": {"tesouro": -20, "felicidade": 5, "pib_fator": 1.005}
+      },
+      {
+        "id_suffix": "espacial",
+        "headline": "🛰 {PAIS} lança satélite próprio",
+        "body": "Programa espacial ganha capacidade autônoma.",
+        "effects": {"tesouro": -25, "estabilidade_fator": 2.0, "apoio_popular": 4}
+      },
+      {
+        "id_suffix": "5g",
+        "headline": "📡 {PAIS} cobertura móvel chega a todo território",
+        "body": "Telecom moderniza-se. Serviços digitais explodem.",
+        "effects": {"pib_fator": 1.015, "felicidade": 3}
+      }
+    ],
+    "geopolitico": [
+      {
+        "id_suffix": "tratado_comercial",
+        "headline": "📜 {PAIS} assina tratado comercial estratégico",
+        "body": "Acordo bilateral abre novos mercados. Exportações projetadas crescer.",
+        "effects": {"pib_fator": 1.02, "tesouro": 15}
+      },
+      {
+        "id_suffix": "tensao_fronteira",
+        "headline": "⚠ {PAIS} enfrenta tensão na fronteira",
+        "body": "Incidentes localizados elevam alerta militar. Diplomacia ativa.",
+        "effects": {"estabilidade_fator": -4.0, "tesouro": -10}
+      },
+      {
+        "id_suffix": "diaspora",
+        "headline": "🌎 Diáspora de {PAIS} bate recorde de remessas",
+        "body": "Cidadãos no exterior enviam bilhões. PIB beneficia-se.",
+        "effects": {"pib_fator": 1.01, "tesouro": 12}
+      },
+      {
+        "id_suffix": "lideranca_regional",
+        "headline": "👑 {PAIS} consolida liderança regional",
+        "body": "Iniciativas diplomáticas posicionam nação como hub regional.",
+        "effects": {"estabilidade_fator": 4.0, "apoio_popular": 5}
+      }
+    ]
+  },
+  "weights_by_tier": {
+    "FACIL": {"politico": 0.18, "economico": 0.22, "social": 0.20, "natural": 0.10, "tecnologico": 0.18, "geopolitico": 0.12},
+    "NORMAL": {"politico": 0.20, "economico": 0.22, "social": 0.18, "natural": 0.12, "tecnologico": 0.14, "geopolitico": 0.14},
+    "DIFICIL": {"politico": 0.24, "economico": 0.20, "social": 0.14, "natural": 0.16, "tecnologico": 0.10, "geopolitico": 0.16},
+    "MUITO_DIFICIL": {"politico": 0.28, "economico": 0.20, "social": 0.10, "natural": 0.18, "tecnologico": 0.06, "geopolitico": 0.18},
+    "QUASE_IMPOSSIVEL": {"politico": 0.30, "economico": 0.18, "social": 0.08, "natural": 0.20, "tecnologico": 0.04, "geopolitico": 0.20}
+  }
+}

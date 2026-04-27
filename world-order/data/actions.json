@@ -1,0 +1,31 @@
+{
+  "acoes": {
+    "diplomaticas": [
+      { "id": "prop_alianca", "nome": "Propor Aliança Militar", "custo": 3, "descricao": "Tenta formar um pacto de defesa mútua." },
+      { "id": "acordo_comercial", "nome": "Propor Acordo Comercial", "custo": 1, "descricao": "Aumenta o fluxo de bens e melhora relações." },
+      { "id": "enviar_ajuda", "nome": "Enviar Ajuda Humanitária", "custo": 2, "descricao": "Melhora reputação global e relações." },
+      { "id": "impor_sancoes", "nome": "Impor Sanções", "custo": 2, "descricao": "Restringe comércio para pressionar rival." }
+    ],
+    "militares": [
+      { "id": "mobilizar", "nome": "Mobilizar Tropas", "custo": 4, "descricao": "Prepara o exército para conflito iminente." },
+      { "id": "declarar_guerra", "nome": "Declarar Guerra", "custo": 5, "descricao": "Inicia hostilidades abertas contra outra nação." },
+      { "id": "operacao_especial", "nome": "Operação Especial", "custo": 3, "descricao": "Ação cirúrgica com alvos limitados." }
+    ],
+    "espionagem": [
+      { "id": "infiltrar", "nome": "Infiltrar Agente", "custo": 3, "descricao": "Envia espião para coletar dados internos." },
+      { "id": "sabotagem", "nome": "Sabotagem", "custo": 4, "descricao": "Tenta danificar infraestrutura inimiga secretamente." }
+    ],
+    "governo": [
+      { "id": "reforma_politica", "nome": "Promover Reforma Política", "custo": 2, "descricao": "Aumenta a estabilidade política interna." },
+      { "id": "melhorar_relacoes", "nome": "Enviar Diplomatas", "custo": 3, "descricao": "Melhora relações com uma potência aleatória." },
+      { "id": "propaganda", "nome": "Campanha de Propaganda", "custo": 10, "descricao": "Aumenta o apoio popular através de propaganda estatal." },
+      { "id": "propaganda_leve", "nome": "Campanha de Propaganda Leve", "custo": 5, "descricao": "Aumenta o apoio popular em 5%." },
+      { "id": "propaganda_massiva", "nome": "Campanha de Propaganda Massiva", "custo": 20, "descricao": "Aumenta o apoio popular em 20%, mas reduz a felicidade em 5%." },
+      { "id": "combater_corrupcao", "nome": "Combater Corrupção", "custo": 20, "descricao": "Reduz os níveis de corrupção no governo." },
+      { "id": "combater_corrupcao_leve", "nome": "Combater Corrupção Leve", "custo": 10, "descricao": "Reduz a corrupção em 5%." },
+      { "id": "combater_corrupcao_massiva", "nome": "Combater Corrupção Massiva", "custo": 40, "descricao": "Reduz a corrupção em 30%, mas reduz a eficiência burocrática em 10%." },
+      { "id": "eleicoes_antecipadas", "nome": "Realizar Eleições Antecipadas", "custo": 0, "descricao": "Marca eleições antecipadas (apenas democracias)." },
+      { "id": "adiar_eleicoes", "nome": "Adiar Eleições", "custo": 5, "descricao": "Adia a próxima eleição em 5 turnos e aumenta a estabilidade em 5%." }
+    ]
+  }
+}
