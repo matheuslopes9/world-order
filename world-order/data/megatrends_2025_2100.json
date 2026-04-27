@@ -17,6 +17,7 @@
       "body": "Modelo treinado por consórcio US-CN-EU passa todos os benchmarks. Mudança paradigmática na produtividade.",
       "effects_global": {"pib_fator": 1.04},
       "effects": {"US": {"pib_fator": 1.06, "tesouro": 100}, "CN": {"pib_fator": 1.05, "tesouro": 80}},
+      "unlock_tech": {"US": "ia_geral", "CN": "ia_geral"},
       "modal_decision": true,
       "choices": [
         {"id": "regulate_strict", "label": "🛑 Regulação estrita global", "effects": {"_player": {"estabilidade_fator": 5.0, "pib_fator": 0.97}}},
@@ -80,6 +81,7 @@
       "headline": "☀️ Solar+bateria atinge paridade total com fóssil",
       "body": "Custo da energia solar despenca abaixo do gás natural mesmo sem subsídios. Transição energética acelera.",
       "effects_global": {"pib_fator": 1.015},
+      "unlock_tech_global": "solar_larga_escala",
       "modal_decision": false
     },
     {
@@ -139,6 +141,7 @@
       "body": "Implante neural disponível ao público. Trabalhar/aprender direto pelo pensamento. Dilemas éticos enormes.",
       "effects_global": {"pib_fator": 1.02},
       "effects": {"US": {"pib_fator": 1.05, "tesouro": 80}},
+      "unlock_tech": {"US": "medicina_regenerativa"},
       "modal_decision": false
     },
     {
@@ -179,6 +182,7 @@
       "body": "Reator ITER e concorrentes geram mais energia que consomem. Fim da era fóssil é certificada.",
       "effects_global": {"pib_fator": 1.03},
       "effects": {"US": {"pib_fator": 1.04}, "FR": {"pib_fator": 1.03}, "CN": {"pib_fator": 1.04}, "KR": {"pib_fator": 1.03}},
+      "unlock_tech": {"US": "fusao_nuclear", "FR": "fusao_nuclear", "CN": "fusao_nuclear", "KR": "fusao_nuclear"},
       "modal_decision": false
     },
     {
@@ -193,6 +197,7 @@
       "body": "Tratamentos disponíveis primeiro só pra ricos. Dilema social explosivo: classe paga pra viver mais.",
       "effects_global": {"pib_fator": 1.01},
       "effects": {"US": {"felicidade": -5, "estabilidade_fator": -3.0}},
+      "unlock_tech": {"US": "prolongamento_vida", "CH": "prolongamento_vida", "SG": "prolongamento_vida"},
       "modal_decision": true,
       "choices": [
         {"id": "subsidize", "label": "💊 Subsidiar acesso universal", "effects": {"_player": {"tesouro": -200, "felicidade": 12, "apoio_popular": 10}}},
@@ -212,6 +217,7 @@
       "body": "Primeiro asteroide rico em platina rebocado. Bilhões em metais raros chegam à Terra.",
       "effects_global": {"pib_fator": 1.015},
       "effects": {"US": {"pib_fator": 1.04, "tesouro": 100}},
+      "unlock_tech": {"US": "mineracao_asteroidal", "CN": "mineracao_asteroidal", "JP": "mineracao_asteroidal"},
       "modal_decision": false
     },
     {
@@ -288,6 +294,7 @@
       "body": "Missão tripulada estabelece base permanente. Nova fronteira da civilização.",
       "effects_global": {"pib_fator": 1.005},
       "effects": {"US": {"apoio_popular": 15, "felicidade": 12, "tesouro": -200}, "CN": {"apoio_popular": 10, "tesouro": -150}},
+      "unlock_tech": {"US": "colonizacao_espacial", "CN": "colonizacao_espacial"},
       "modal_decision": true,
       "choices": [
         {"id": "join_mars", "label": "🤝 Participar de consórcio internacional", "effects": {"_player": {"tesouro": -100, "felicidade": 10, "apoio_popular": 8}}},

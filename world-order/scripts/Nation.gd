@@ -155,6 +155,11 @@ func get_action_multiplier() -> float:
 	if wars > 0:
 		var penalty: float = clamp(1.0 - wars * 0.12, 0.5, 1.0)
 		base *= penalty
+	# Bônus acumulativo por techs concluídas: +0.5% cada, cap em +25% (50 techs)
+	# Reflete vantagem permanente de progresso científico — Brasil que descobre cura
+	# pra tetraplegia ganha bônus em saúde + biotecnologia daí em diante.
+	var tech_bonus: float = clamp(tecnologias_concluidas.size() * 0.005, 0.0, 0.25)
+	base *= (1.0 + tech_bonus)
 	return base
 
 # ─────────────────────────────────────────────────────────────────

@@ -473,7 +473,9 @@ var _tech_filter: String = "ALL"
 func _render_tech() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
-	_add_section_title("PESQUISA ATIVA")
+
+	# 1) Pesquisa ativa
+	_add_section_title("🔬 PESQUISA ATIVA")
 	if GameEngine.tech and n.pesquisa_atual:
 		var prog: Dictionary = GameEngine.tech.get_research_progress(n)
 		_add_data_row("Tecnologia", str(prog.get("name", "—")), Color(0, 0.823, 1))
@@ -486,16 +488,17 @@ func _render_tech() -> void:
 			_render_panel("tech"))
 		panel_content.add_child(btn)
 	else:
-		_add_hint_label("Nenhuma pesquisa em andamento. Selecione uma tecnologia abaixo.")
+		_add_hint_label("Nenhuma pesquisa em andamento.")
 	_add_separator()
 
-	_add_section_title("STATUS")
+	# 2) Status compacto
+	_add_section_title("📊 STATUS")
 	_add_data_row("Concluídas", "%d techs" % n.tecnologias_concluidas.size())
 	_add_data_row("Velocidade pesquisa", "%.1fx" % n.velocidade_pesquisa)
 	_add_separator()
 
-	# Filtro de categoria
-	_add_section_title("FILTRAR CATEGORIA")
+	# 3) Filtro de categoria
+	_add_section_title("🗂 CATEGORIA")
 	var cats: Array = ["ALL"]
 	if GameEngine.tech:
 		for c in GameEngine.tech.get_categories():
@@ -506,7 +509,7 @@ func _render_tech() -> void:
 		var btn := Button.new()
 		btn.toggle_mode = true
 		btn.button_pressed = (c == _tech_filter)
-		btn.text = "ALL" if c == "ALL" else str(c).substr(0, 4)
+		btn.text = "Todas" if c == "ALL" else str(c).substr(0, 5)
 		btn.custom_minimum_size = Vector2(0, 28)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.add_theme_font_size_override("font_size", 10)
@@ -517,23 +520,132 @@ func _render_tech() -> void:
 	panel_content.add_child(filter_row)
 	_add_separator()
 
-	# Lista de techs disponíveis
-	_add_section_title("TECNOLOGIAS DISPONÍVEIS")
-	var available: Array = []
+	# 4) Coleta techs filtradas
+	var all_techs: Array = []
 	if GameEngine.tech:
 		if _tech_filter == "ALL":
 			for c in GameEngine.tech.get_categories():
 				for t in GameEngine.tech.get_techs_by_category(c):
-					available.append(t)
+					all_techs.append(t)
 		else:
-			available = GameEngine.tech.get_techs_by_category(_tech_filter)
-	# Ordena por tier então custo
-	available.sort_custom(func(a, b):
-		if int(a.get("tier", 1)) != int(b.get("tier", 1)):
-			return int(a.get("tier", 1)) < int(b.get("tier", 1))
-		return float(a.get("custo", 0)) < float(b.get("custo", 0)))
-	for t in available.slice(0, 20):
+			all_techs = GameEngine.tech.get_techs_by_category(_tech_filter)
+
+	# 5) Separa em 3 grupos: concluídas / disponíveis / bloqueadas
+	var done: Array = []
+	var available: Array = []
+	var locked: Array = []
+	for t in all_techs:
+		if t["id"] in n.tecnologias_concluidas:
+			done.append(t)
+		else:
+			var check: Dictionary = GameEngine.tech.can_research(n, t["id"])
+			# Diferencia "pode pesquisar" de "bloqueada por pré-requisito/recurso"
+			var reason: String = String(check.get("reason", ""))
+			if check.get("ok", false):
+				available.append(t)
+			elif "Pré-requisito" in reason or "PIB mínimo" in reason or "Estabilidade" in reason:
+				locked.append({"tech": t, "reason": reason})
+			else:
+				# "Custo" — disponível mas sem dinheiro agora
+				available.append(t)
+	# Ordena cada grupo por tier→custo
+	var sort_fn := func(a, b):
+		var ta = a["tech"] if a is Dictionary and a.has("tech") else a
+		var tb = b["tech"] if b is Dictionary and b.has("tech") else b
+		if int(ta.get("tier", 1)) != int(tb.get("tier", 1)):
+			return int(ta.get("tier", 1)) < int(tb.get("tier", 1))
+		return float(ta.get("custo", 0)) < float(tb.get("custo", 0))
+	done.sort_custom(sort_fn)
+	available.sort_custom(sort_fn)
+	locked.sort_custom(sort_fn)
+
+	# 6) Renderiza cada grupo
+
+	# ✓ CONCLUÍDAS — bloco verde
+	if done.size() > 0:
+		_add_section_title("✓ CONCLUÍDAS (%d)" % done.size())
+		for t in done.slice(0, 8):
+			_render_tech_card_compact(t, "done")
+		if done.size() > 8:
+			_add_hint_label("  ...e mais %d técnica(s) já concluída(s)" % (done.size() - 8))
+		_add_separator()
+
+	# 🔬 DISPONÍVEIS PARA PESQUISA
+	_add_section_title("🔬 DISPONÍVEIS (%d)" % available.size())
+	if available.is_empty():
+		_add_hint_label("Sem techs disponíveis nesta categoria. Cumpra pré-requisitos primeiro.")
+	for t in available.slice(0, 12):
 		_render_tech_card(n, t)
+
+	# 🔒 BLOQUEADAS — só mostra top 6
+	if locked.size() > 0:
+		_add_separator()
+		_add_section_title("🔒 BLOQUEADAS (%d)" % locked.size())
+		for entry in locked.slice(0, 6):
+			_render_tech_card_locked(entry["tech"], entry["reason"])
+		if locked.size() > 6:
+			_add_hint_label("  ...e mais %d bloqueada(s)" % (locked.size() - 6))
+
+# Card compacto pra tech concluída ou bloqueada
+func _render_tech_card_compact(tech: Dictionary, state: String) -> void:
+	var card := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	if state == "done":
+		sb.bg_color = Color(0.05, 0.15, 0.10, 0.85)
+		sb.border_color = Color(0.30, 0.85, 0.50, 0.7)
+	else:
+		sb.bg_color = Color(0.10, 0.10, 0.12, 0.85)
+		sb.border_color = Color(0.4, 0.4, 0.45, 0.6)
+	sb.set_border_width_all(1)
+	sb.border_width_left = 3
+	sb.set_corner_radius_all(5)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 8
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	card.add_theme_stylebox_override("panel", sb)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 1)
+	card.add_child(v)
+	var name_lbl := Label.new()
+	name_lbl.text = "%s  •  T%d" % [tech.get("nome", "?"), int(tech.get("tier", 1))]
+	name_lbl.add_theme_font_size_override("font_size", 11)
+	if state == "done":
+		name_lbl.add_theme_color_override("font_color", Color(0.4, 1, 0.55))
+	else:
+		name_lbl.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
+	v.add_child(name_lbl)
+	panel_content.add_child(card)
+
+# Card pra tech bloqueada (mostra motivo)
+func _render_tech_card_locked(tech: Dictionary, reason: String) -> void:
+	var card := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.08, 0.10, 0.85)
+	sb.border_color = Color(0.4, 0.4, 0.45, 0.5)
+	sb.set_border_width_all(1)
+	sb.border_width_left = 3
+	sb.set_corner_radius_all(5)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 8
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	card.add_theme_stylebox_override("panel", sb)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 1)
+	card.add_child(v)
+	var name_lbl := Label.new()
+	name_lbl.text = "%s  •  T%d" % [tech.get("nome", "?"), int(tech.get("tier", 1))]
+	name_lbl.add_theme_font_size_override("font_size", 11)
+	name_lbl.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
+	v.add_child(name_lbl)
+	var reason_lbl := Label.new()
+	reason_lbl.text = "🔒 " + reason
+	reason_lbl.add_theme_font_size_override("font_size", 9)
+	reason_lbl.add_theme_color_override("font_color", Color(0.85, 0.55, 0.45))
+	reason_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(reason_lbl)
+	panel_content.add_child(card)
 
 func _render_tech_card(nation, tech: Dictionary) -> void:
 	var card := PanelContainer.new()

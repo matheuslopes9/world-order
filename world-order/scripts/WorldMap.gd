@@ -24,6 +24,8 @@ const COUNTRY_ALLY    := Color(0.0, 1.0, 0.5, 0.6)
 
 # Layer pra markers de eventos sobre os países (criado em runtime)
 var event_markers_layer: Node2D = null
+# Layer pra ícones de recursos (visível só quando filtro = RECURSOS)
+var resource_icons_layer: Node2D = null
 # Markers ativos: cada item = { node: Node2D, ttl_turns: int, country: String, ev_id: String }
 var active_markers: Array = []
 const MARKER_TTL_DEFAULT: int = 4  # turnos que o marker fica visível
@@ -150,6 +152,12 @@ func _ready() -> void:
 	event_markers_layer.name = "EventMarkers"
 	event_markers_layer.z_index = 5
 	add_child(event_markers_layer)
+	# Cria layer pra ícones de recursos (visível só com filtro RECURSOS)
+	resource_icons_layer = Node2D.new()
+	resource_icons_layer.name = "ResourceIcons"
+	resource_icons_layer.z_index = 4
+	resource_icons_layer.visible = false
+	add_child(resource_icons_layer)
 	# Contador de ações por turno (FASE 7)
 	if GameEngine and GameEngine.has_signal("player_actions_changed"):
 		GameEngine.player_actions_changed.connect(_refresh_actions_label)
@@ -2524,6 +2532,7 @@ func _build_map_filters() -> void:
 		{"id": "ECONOMIA",     "label": "Economia"},
 		{"id": "MILITAR",      "label": "Militar"},
 		{"id": "ESTABILIDADE", "label": "Estabilidade"},
+		{"id": "RECURSOS",     "label": "Recursos"},
 	]
 	for f in filters:
 		var btn := Button.new()
@@ -2543,6 +2552,56 @@ func _on_map_filter_pressed(filter_id: String) -> void:
 		if child is Button:
 			child.button_pressed = (child.get_meta("filter_id", "") == filter_id)
 	_repaint_map()
+	_refresh_resource_icons()  # mostra/esconde camada de ícones
+
+# Constrói (ou esconde) a camada de ícones de recursos.
+# Aparece só quando filtro == RECURSOS. Cada país com top resource >= 60
+# ganha um ícone emoji no centro do território.
+func _refresh_resource_icons() -> void:
+	if resource_icons_layer == null: return
+	# Limpa filhos atuais
+	for c in resource_icons_layer.get_children():
+		c.queue_free()
+	if current_filter != "RECURSOS":
+		resource_icons_layer.visible = false
+		return
+	resource_icons_layer.visible = true
+	# Pra cada país, se tem recurso predominante >= 60, cria ícone
+	for code in countries.keys():
+		if not GameEngine.nations.has(code): continue
+		var n = GameEngine.nations[code]
+		var top: Dictionary = _top_resource(n)
+		if top.is_empty(): continue
+		if float(top["value"]) < 60.0: continue
+		var entry: Dictionary = countries[code]
+		var bounds: Rect2 = entry.get("bounds", Rect2())
+		if bounds.size.length_squared() <= 0: continue
+		var center: Vector2 = bounds.position + bounds.size / 2.0
+		var meta: Dictionary = RESOURCE_META.get(top["name"], {})
+		var icon_str: String = meta.get("icon", "📦")
+		# Container do ícone
+		var holder := Node2D.new()
+		holder.position = center
+		holder.z_index = 4
+		resource_icons_layer.add_child(holder)
+		# Fundo translúcido
+		var bg := Polygon2D.new()
+		var bg_pts := PackedVector2Array()
+		var radius: float = 12.0
+		for i in 16:
+			var a: float = TAU * i / 16.0
+			bg_pts.append(Vector2(cos(a) * radius, sin(a) * radius))
+		bg.polygon = bg_pts
+		var bg_color: Color = meta.get("color", Color(0.5, 0.5, 0.5))
+		bg.color = Color(bg_color.r, bg_color.g, bg_color.b, 0.75)
+		holder.add_child(bg)
+		# Emoji do recurso
+		var lbl := Label.new()
+		lbl.text = icon_str
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.position = Vector2(-7, -10)
+		lbl.tooltip_text = "%s: %d/100" % [meta.get("label", top["name"]), int(top["value"])]
+		holder.add_child(lbl)
 
 # ─────────────────────────────────────────────────────────────────
 # COR POR ESTADO + FILTROS DE MAPA
@@ -2598,7 +2657,45 @@ func _filter_color(n) -> Color:
 				return Color(1, 0.7, 0, v)
 			else:
 				return Color(1, 0.3, 0.3, v)
+		"RECURSOS":
+			# Pinta país pela cor do recurso predominante (valor mais alto)
+			# Intensidade = magnitude do valor (recursos vão 0-100)
+			var top: Dictionary = _top_resource(n)
+			if top.is_empty(): return COUNTRY_FILL
+			var meta: Dictionary = RESOURCE_META.get(top["name"], {})
+			var col: Color = meta.get("color", Color(0.5, 0.5, 0.5))
+			var intensity: float = clamp(float(top["value"]) / 100.0, 0.15, 0.9)
+			return Color(col.r, col.g, col.b, intensity)
 	return COUNTRY_FILL
+
+# Recursos do jogo com cor + ícone emoji (usado no filtro RECURSOS)
+const RESOURCE_META := {
+	"petroleo":       {"color": Color(0.15, 0.10, 0.05),  "icon": "🛢", "label": "Petróleo"},
+	"gas_natural":    {"color": Color(0.45, 0.45, 0.55),  "icon": "🔥", "label": "Gás Natural"},
+	"minerios_raros": {"color": Color(0.85, 0.55, 0.10),  "icon": "💎", "label": "Minérios Raros"},
+	"uranio":         {"color": Color(0.55, 1.00, 0.30),  "icon": "☢", "label": "Urânio"},
+	"ferro":          {"color": Color(0.55, 0.35, 0.25),  "icon": "⚙", "label": "Ferro"},
+	"terras_araveis": {"color": Color(0.30, 0.85, 0.35),  "icon": "🌾", "label": "Agricultura"},
+	"agua_doce":      {"color": Color(0.35, 0.65, 1.00),  "icon": "💧", "label": "Água"},
+	"madeira":        {"color": Color(0.45, 0.30, 0.15),  "icon": "🌲", "label": "Madeira"},
+	"peixes":         {"color": Color(0.20, 0.60, 0.85),  "icon": "🐟", "label": "Pesca"},
+	"carvao":         {"color": Color(0.20, 0.20, 0.20),  "icon": "⬛", "label": "Carvão"},
+	"cobre":          {"color": Color(0.85, 0.45, 0.20),  "icon": "🟫", "label": "Cobre"},
+	"ouro":           {"color": Color(1.00, 0.85, 0.20),  "icon": "🟡", "label": "Ouro"},
+}
+
+# Retorna {name, value} do recurso predominante (maior valor) da nação
+func _top_resource(n) -> Dictionary:
+	if n.recursos == null or n.recursos.is_empty(): return {}
+	var best_name: String = ""
+	var best_val: float = -1.0
+	for k in n.recursos.keys():
+		var v: float = float(n.recursos[k])
+		if v > best_val:
+			best_val = v
+			best_name = String(k)
+	if best_name == "" or best_val <= 0: return {}
+	return {"name": best_name, "value": best_val}
 
 func _paint_country(code: String, color: Color) -> void:
 	var entry = countries.get(code)

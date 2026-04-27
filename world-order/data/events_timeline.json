@@ -552,6 +552,7 @@
       "body": "Wuhan vira epicentro. OMS declara pandemia. Bolsas mundiais despencam 30%.",
       "effects_global": {"pib_fator": 0.92, "defcon_delta": -1},
       "effects": {"CN": {"estabilidade_fator": -8.0, "apoio_popular": -5}},
+      "unlock_tech_global": "vacinacao_em_massa",
       "modal_decision": true,
       "choices": [
         {

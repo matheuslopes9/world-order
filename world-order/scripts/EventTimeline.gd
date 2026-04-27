@@ -246,6 +246,11 @@ func _fire_event(ev: Dictionary) -> void:
 	# (antes esses estados ficavam isolados do resto do jogo — bug crítico de integração)
 	_apply_categorical_side_effects(ev)
 
+	# 1.6) Outorga de tecnologias por evento (FASE 8)
+	# Eventos históricos/megatrends podem desbloquear techs em países específicos
+	# (ex: AGI breakthrough → US/CN ganham "ia_geral") ou globalmente (vacinação em massa pós-COVID)
+	_apply_tech_unlocks(ev)
+
 	# 2) Decisão? Se sim e jogador é primary, abre modal
 	var primary: String = ev.get("trigger", {}).get("primary_country", "")
 	var is_player: bool = (engine.player_nation != null and engine.player_nation.codigo_iso == primary)
@@ -343,6 +348,40 @@ func _apply_global_effects(eff: Dictionary) -> void:
 			engine.nations[code].apply_pib_multiplier(f)
 	if eff.has("defcon_delta"):
 		engine.defcon = clamp(engine.defcon + int(eff["defcon_delta"]), 1, 5)
+
+# Outorga tecnologias automaticamente quando um evento histórico/megatrend dispara.
+# Suporta dois formatos:
+#   "unlock_tech": {"US": "ia_geral", "CN": "ia_geral"}   → outorga por país
+#   "unlock_tech_global": "vacinacao_em_massa"            → outorga pra TODOS os países
+func _apply_tech_unlocks(ev: Dictionary) -> void:
+	if engine == null: return
+	var per_country: Dictionary = ev.get("unlock_tech", {})
+	for code in per_country.keys():
+		var tech_id: String = String(per_country[code])
+		_grant_tech(code, tech_id, ev)
+	var global_tech: String = ev.get("unlock_tech_global", "")
+	if global_tech != "":
+		for code in engine.nations.keys():
+			_grant_tech(code, global_tech, ev)
+
+func _grant_tech(country_code: String, tech_id: String, ev: Dictionary) -> void:
+	if not engine.nations.has(country_code): return
+	if engine.tech == null: return
+	var nation = engine.nations[country_code]
+	if tech_id in nation.tecnologias_concluidas:
+		return  # já tinha
+	nation.tecnologias_concluidas.append(tech_id)
+	# Loga uma micro-notícia se for o jogador
+	if engine.player_nation != null and engine.player_nation.codigo_iso == country_code:
+		if engine.has_method("_log_news"):
+			var tech_meta: Dictionary = engine.tech.tech_index.get(tech_id, {}) if engine.tech.tech_index.has(tech_id) else {}
+			engine._log_news({
+				"type": "tech_unlocked",
+				"headline": "🔬 Descoberta outorgada: %s" % tech_meta.get("nome", tech_id),
+				"body": "Conexão com %s — %s" % [ev.get("headline", ""), tech_meta.get("descricao", "")],
+				"involves_player": true,
+				"color": Color(0.7, 0.5, 1),
+			}, [country_code], "")
 
 # Aplica side-effects por categoria — conecta timeline ao resto do jogo:
 # - "guerra"/"terrorismo": popula em_guerra entre país agressor e alvo
