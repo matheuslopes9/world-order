@@ -26,6 +26,8 @@ static func save_game(engine) -> bool:
 		"active_trades": engine.active_trades,
 		"storyline_active_arcs": engine.storylines.active_arcs if engine.storylines else [],
 		"storyline_started_arcs": engine.storylines.started_arcs if engine.storylines else [],
+		"player_nemesis": engine.player_nemesis,
+		"nemesis_declared": engine.nemesis_declared,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
@@ -97,6 +99,9 @@ static func load_game(engine) -> bool:
 	if engine.storylines:
 		engine.storylines.active_arcs = data.get("storyline_active_arcs", [])
 		engine.storylines.started_arcs = data.get("storyline_started_arcs", [])
+	# Restaura antagonista
+	engine.player_nemesis = String(data.get("player_nemesis", ""))
+	engine.nemesis_declared = bool(data.get("nemesis_declared", false))
 	print("[LOAD] Jogo carregado: turno %d, jogador %s" % [engine.current_turn, player_code])
 	return true
 

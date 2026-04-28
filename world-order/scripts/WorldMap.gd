@@ -1371,6 +1371,16 @@ func _process(delta: float) -> void:
 		camera_target_pos = camera.position
 		# Decaimento exponencial — natural e estável
 		pan_velocity *= exp(-PAN_INERTIA_DAMP * delta)
+	# Pan via gamepad (analógico esquerdo) — só ativo se não há modal aberto
+	if not _is_modal_open() and not camera_animating:
+		var pan_x: float = Input.get_action_strength("game_pan_right") - Input.get_action_strength("game_pan_left")
+		var pan_y: float = Input.get_action_strength("game_pan_down") - Input.get_action_strength("game_pan_up")
+		if abs(pan_x) > 0.15 or abs(pan_y) > 0.15:
+			var pan_speed: float = 600.0 / camera.zoom.x  # px/s no espaço-mundo
+			camera.position += Vector2(pan_x, pan_y) * pan_speed * delta
+			camera_target_pos = camera.position
+			_clamp_camera()
+			_apply_central_offset()
 
 func _zoom_camera_to_country(code: String) -> void:
 	if not countries.has(code): return
@@ -1627,6 +1637,43 @@ func _show_options_modal() -> void:
 					c.button_pressed = (c.text.begins_with("%d" % ai_speed)))
 		ai_row.add_child(btn)
 	v.add_child(ai_row)
+	# Acessibilidade
+	v.add_child(HSeparator.new())
+	var a11y_lbl := Label.new()
+	a11y_lbl.text = "◆ ACESSIBILIDADE"
+	a11y_lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.9))
+	a11y_lbl.add_theme_font_size_override("font_size", 11)
+	a11y_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(a11y_lbl)
+	# Daltonismo toggle
+	var cb_btn := _make_modal_toggle("👁 Modo Daltonismo (vermelho/verde → azul/laranja)", Accessibility.colorblind_mode)
+	cb_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cb_btn.pressed.connect(func():
+		Accessibility.set_colorblind(not Accessibility.colorblind_mode)
+		cb_btn.button_pressed = Accessibility.colorblind_mode)
+	v.add_child(cb_btn)
+	# Tamanho de fonte
+	var font_lbl := Label.new()
+	font_lbl.text = "◆ TAMANHO DA FONTE"
+	font_lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.9))
+	font_lbl.add_theme_font_size_override("font_size", 11)
+	font_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(font_lbl)
+	var font_row := HBoxContainer.new()
+	font_row.add_theme_constant_override("separation", 6)
+	var font_options := [{"label": "Pequena", "delta": -2}, {"label": "Normal", "delta": 0}, {"label": "Grande", "delta": 2}, {"label": "Muito Grande", "delta": 4}]
+	for opt in font_options:
+		var d_val: int = int(opt["delta"])
+		var fbtn := _make_modal_toggle(String(opt["label"]), d_val == Accessibility.font_size_delta)
+		fbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		fbtn.pressed.connect(func():
+			Accessibility.set_font_delta(d_val)
+			for c in font_row.get_children():
+				if c is Button:
+					c.button_pressed = (c.text == String(opt["label"]))
+			_log_ticker("✓ ACESSIBILIDADE", "Tamanho de fonte alterado — reabra menus para aplicar", Color(0.4, 1, 0.6)))
+		font_row.add_child(fbtn)
+	v.add_child(font_row)
 	# Histórico de decisões
 	v.add_child(HSeparator.new())
 	var btn_history := _make_modal_button("📜 HISTÓRICO DE DECISÕES", false)
@@ -1635,12 +1682,15 @@ func _show_options_modal() -> void:
 		_close_modal(modal_ref[0])
 		_open_decisions_history_modal())
 	v.add_child(btn_history)
-	# Sair
+	# Sair (com confirmação — perde progresso não salvo)
 	var btn_quit := _make_modal_button("🏠 SAIR PARA MENU PRINCIPAL", false)
 	btn_quit.custom_minimum_size = Vector2(0, 40)
 	btn_quit.pressed.connect(func():
 		_close_modal(modal_ref[0])
-		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
+		_show_confirmation_modal(
+			"🏠 SAIR PARA O MENU",
+			"Tem certeza que quer sair? Progresso desde o último save será perdido.\n\nUse 'Salvar Jogo' antes se quer manter sua partida.",
+			func(): get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")))
 	v.add_child(btn_quit)
 	# Abre como modal central
 	modal_ref[0] = _open_modal(v, "⚙ OPÇÕES DE JOGO", Vector2(520, 640))
@@ -3578,6 +3628,64 @@ func _on_turn_advanced(_t: int) -> void:
 	_notify_upcoming_decisions()
 	_decay_event_markers()
 	_maybe_autosave()
+	_maybe_show_contextual_tip()
+
+# Tooltip-toast contextual nos primeiros turnos. Aparece no canto superior por 6s,
+# não bloqueia gameplay. Persiste turnos mostrados em user://settings.cfg.
+func _maybe_show_contextual_tip() -> void:
+	var t: int = GameEngine.current_turn
+	if t < 1 or t > 6: return
+	var cfg = ConfigFile.new()
+	cfg.load("user://settings.cfg")
+	var shown_turns: Array = cfg.get_value("tips", "shown_turns", [])
+	if t in shown_turns: return
+	var tip: String = ""
+	match t:
+		1:
+			tip = "💡 DICA: Você tem 3 ações por turno. Use os 9 painéis (G, M, E, etc) para agir antes de avançar com SPACE."
+		2:
+			tip = "💡 DICA: Clique em qualquer país no mapa para ver detalhes e abrir ações diplomáticas (embaixada, sanção, tratado)."
+		3:
+			tip = "💡 DICA: Acompanhe a barra de notícias no rodapé — eventos históricos podem disparar decisões importantes."
+		5:
+			tip = "💡 DICA: Sua relação com outros países muda com tempo. Quem cair abaixo de -50 vira rival declarado."
+	if tip == "":
+		return
+	_show_tutorial_toast(tip)
+	shown_turns.append(t)
+	cfg.set_value("tips", "shown_turns", shown_turns)
+	cfg.save("user://settings.cfg")
+
+func _show_tutorial_toast(text: String) -> void:
+	var toast := PanelContainer.new()
+	toast.name = "TutorialToast_%d" % Time.get_ticks_msec()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.08, 0.14, 0.96)
+	sb.border_color = Color(1, 0.85, 0.3, 0.85)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(10)
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	toast.add_theme_stylebox_override("panel", sb)
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_color_override("font_color", Color(1, 0.95, 0.7))
+	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(420, 0)
+	toast.add_child(lbl)
+	add_child(toast)
+	# Posiciona no topo-centro
+	toast.position = Vector2(get_viewport_rect().size.x * 0.5 - 230, 110)
+	toast.modulate = Color(1, 1, 1, 0)
+	var tw := create_tween()
+	tw.tween_property(toast, "modulate:a", 1.0, 0.4)
+	tw.tween_interval(6.0)
+	tw.tween_property(toast, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(func():
+		if is_instance_valid(toast): toast.queue_free())
 
 # Auto-save a cada AUTOSAVE_INTERVAL turnos. Silencioso, só loga no ticker
 # se foi feito. Não bloqueia jogo.
@@ -3802,8 +3910,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_handle_mouse_motion(event)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		_handle_key(event)
+	elif event is InputEventJoypadButton and event.pressed:
+		_handle_key(event)
 
-func _handle_key(event: InputEventKey) -> void:
+func _handle_key(event: InputEvent) -> void:
 	# ESC: abre opções
 	if event.is_action_pressed("game_open_options"):
 		_show_options_modal()
@@ -3817,6 +3927,16 @@ func _handle_key(event: InputEventKey) -> void:
 		var SaveSys = preload("res://scripts/SaveSystem.gd")
 		if SaveSys.save_game(GameEngine):
 			_log_ticker("💾 SAVE", "Progresso salvo (Ctrl+S)", Color(0.4, 1, 0.6))
+		return
+	# Zoom in/out via teclado ou trigger de gamepad
+	if event.is_action_pressed("game_zoom_in"):
+		var vp_center: Vector2 = get_viewport_rect().size * 0.5
+		_zoom_at(vp_center, ZOOM_STEP)
+		return
+	if event.is_action_pressed("game_zoom_out"):
+		var vp_center2: Vector2 = get_viewport_rect().size * 0.5
+		_zoom_at(vp_center2, 1.0 / ZOOM_STEP)
+		return
 
 func _is_in_map_area(screen_pos: Vector2) -> bool:
 	# True se o ponto da tela está na área visível do mapa.

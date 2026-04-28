@@ -33,12 +33,18 @@ func _ready() -> void:
 	if map_button:
 		map_button.pressed.connect(_on_map_pressed)
 
+	# Botão de deletar save — só aparece se existe save
+	if SaveSys.has_save():
+		_add_delete_save_button()
+
 	# Seletor de modo de jogo (inspirado / livre) — inserido antes do ButtonRow
 	_add_mode_selector()
 	# Seletor de cenário (campanha, década crítica, sandbox, etc)
 	_add_scenario_selector()
 	# Botão de progresso (XP / perks desbloqueados entre saves)
 	_add_progression_button()
+	# Seletor de idioma
+	_add_language_selector()
 	# Botão de créditos depois dos demais
 	_add_credits_button()
 
@@ -263,6 +269,114 @@ func _add_scenario_selector() -> void:
 			GameEngine.settings["scenario"] = String(sc.get("id"))
 		update_hint.call(idx))
 
+func _add_delete_save_button() -> void:
+	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
+	if button_row == null: return
+	var btn := Button.new()
+	btn.text = tr("ui.menu.delete_save")
+	btn.custom_minimum_size = Vector2(420, 28)
+	btn.add_theme_font_size_override("font_size", 10)
+	btn.modulate = Color(1, 0.7, 0.7)
+	btn.pressed.connect(func():
+		_show_main_menu_confirm(
+			"🗑 APAGAR SAVE?",
+			"Tem certeza que quer apagar o save atual?\n\nEsta ação não pode ser desfeita. A partida atual será perdida e você precisará começar uma nova.",
+			func():
+				if SaveSys.delete_save():
+					btn.queue_free()
+					if map_button:
+						map_button.text = "▶ INICIAR NOVA CAMPANHA"))
+	button_row.add_child(btn)
+
+# Modal genérico de confirmação no MainMenu (overlay simples)
+func _show_main_menu_confirm(title: String, msg: String, on_confirm: Callable) -> void:
+	var modal := Control.new()
+	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	modal.mouse_filter = Control.MOUSE_FILTER_STOP
+	modal.z_index = 200
+	add_child(modal)
+	var bg := ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.85)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	modal.add_child(bg)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	modal.add_child(center)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(480, 240)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.10, 0.04, 0.04, 0.99)
+	sb.border_color = Color(1, 0.4, 0.4, 0.85)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(12)
+	sb.content_margin_left = 24
+	sb.content_margin_right = 24
+	sb.content_margin_top = 22
+	sb.content_margin_bottom = 22
+	card.add_theme_stylebox_override("panel", sb)
+	center.add_child(card)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	card.add_child(v)
+	var title_lbl := Label.new()
+	title_lbl.text = title
+	title_lbl.add_theme_color_override("font_color", Color(1, 0.6, 0.4))
+	title_lbl.add_theme_font_size_override("font_size", 18)
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(title_lbl)
+	var msg_lbl := Label.new()
+	msg_lbl.text = msg
+	msg_lbl.add_theme_color_override("font_color", Color(0.9, 0.95, 1))
+	msg_lbl.add_theme_font_size_override("font_size", 11)
+	msg_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(msg_lbl)
+	var btns := HBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	btns.add_theme_constant_override("separation", 16)
+	v.add_child(btns)
+	var btn_no := Button.new()
+	btn_no.text = "✕ CANCELAR"
+	btn_no.custom_minimum_size = Vector2(140, 36)
+	btn_no.pressed.connect(func(): modal.queue_free())
+	btns.add_child(btn_no)
+	var btn_yes := Button.new()
+	btn_yes.text = "✓ CONFIRMAR"
+	btn_yes.custom_minimum_size = Vector2(140, 36)
+	btn_yes.modulate = Color(1, 0.7, 0.7)
+	btn_yes.pressed.connect(func():
+		modal.queue_free()
+		on_confirm.call())
+	btns.add_child(btn_yes)
+
+func _add_language_selector() -> void:
+	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
+	if button_row == null: return
+	var box := HBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 6)
+	box.custom_minimum_size = Vector2(420, 0)
+	button_row.add_child(box)
+	var lbl := Label.new()
+	lbl.text = "🌐"
+	lbl.add_theme_font_size_override("font_size", 14)
+	box.add_child(lbl)
+	for loc in Accessibility.SUPPORTED_LOCALES:
+		var label_text: String = "PT" if loc == "pt_BR" else loc.to_upper()
+		var btn := Button.new()
+		btn.text = label_text
+		btn.toggle_mode = true
+		btn.button_pressed = (Accessibility.locale == loc)
+		btn.custom_minimum_size = Vector2(64, 28)
+		btn.add_theme_font_size_override("font_size", 11)
+		var ll: String = loc
+		btn.pressed.connect(func():
+			Accessibility.set_locale(ll)
+			get_tree().reload_current_scene())
+		box.add_child(btn)
+
 func _add_progression_button() -> void:
 	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
 	if button_row == null: return
@@ -432,7 +546,7 @@ func _add_credits_button() -> void:
 	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
 	if button_row == null: return
 	var btn := Button.new()
-	btn.text = "📜 CRÉDITOS"
+	btn.text = tr("ui.menu.credits")
 	btn.custom_minimum_size = Vector2(420, 32)
 	btn.add_theme_font_size_override("font_size", 11)
 	btn.pressed.connect(_show_credits_modal)

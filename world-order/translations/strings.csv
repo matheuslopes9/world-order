@@ -1,0 +1,58 @@
+keys,pt_BR,en
+ui.menu.start_game,▶ INICIAR NOVA CAMPANHA,▶ START NEW CAMPAIGN
+ui.menu.continue,▶ CONTINUAR,▶ CONTINUE
+ui.menu.test,EXECUTAR TESTE TÉCNICO,RUN TECHNICAL TEST
+ui.menu.credits,📜 CRÉDITOS,📜 CREDITS
+ui.menu.progression,⭐ PROGRESSO,⭐ PROGRESSION
+ui.menu.delete_save,🗑 APAGAR SAVE,🗑 DELETE SAVE
+ui.menu.scenario,◆ CENÁRIO,◆ SCENARIO
+ui.menu.mode,◆ MODO DE CAMPANHA,◆ CAMPAIGN MODE
+ui.menu.language,🌐 IDIOMA,🌐 LANGUAGE
+ui.common.confirm,✓ CONFIRMAR,✓ CONFIRM
+ui.common.cancel,✕ CANCELAR,✕ CANCEL
+ui.common.close,✕ FECHAR,✕ CLOSE
+ui.common.next,PRÓXIMO ▶,NEXT ▶
+ui.common.back,◀ VOLTAR,◀ BACK
+ui.common.save,💾 SALVAR,💾 SAVE
+ui.common.load,📂 CARREGAR,📂 LOAD
+ui.common.options,⚙ OPÇÕES,⚙ OPTIONS
+ui.common.quit_to_menu,🏠 MENU PRINCIPAL,🏠 MAIN MENU
+ui.game.next_turn,PRÓXIMO TURNO,NEXT TURN
+ui.game.actions_remaining,Ações restantes,Actions remaining
+ui.game.turn,Turno,Turn
+ui.game.year,Ano,Year
+ui.panel.governo,Governo,Government
+ui.panel.militar,Militar,Military
+ui.panel.economia,Economia,Economy
+ui.panel.diplomacia,Diplomacia,Diplomacy
+ui.panel.tech,Tecnologia,Technology
+ui.panel.intel,Inteligência,Intelligence
+ui.panel.situacao,Situação,Situation
+ui.panel.historico,Histórico,History
+ui.panel.noticias,Notícias,News
+ui.indicator.estabilidade,Estabilidade,Stability
+ui.indicator.apoio,Apoio Popular,Popular Support
+ui.indicator.felicidade,Felicidade,Happiness
+ui.indicator.corrupcao,Corrupção,Corruption
+ui.indicator.inflacao,Inflação,Inflation
+ui.indicator.tesouro,Tesouro,Treasury
+ui.indicator.pib,PIB,GDP
+ui.action.declare_war,⚔️ DECLARAR GUERRA,⚔️ DECLARE WAR
+ui.action.propose_peace,🕊️ PROPOR PAZ,🕊️ PROPOSE PEACE
+ui.action.embassy,🤝 EMBAIXADA,🤝 EMBASSY
+ui.action.sanctions,🚫 IMPOR SANÇÕES,🚫 IMPOSE SANCTIONS
+ui.action.trade,🤝 COMERCIAR,🤝 TRADE
+ui.action.spy,🕵 ESPIONAGEM,🕵 ESPIONAGE
+ui.endgame.victory,VITÓRIA HISTÓRICA,HISTORIC VICTORY
+ui.endgame.defeat,FIM DE GOVERNO,GOVERNMENT END
+ui.endgame.continue_free,▶ CONTINUAR LIVRE,▶ CONTINUE FREE
+ui.endgame.new_campaign,🔄 NOVA CAMPANHA,🔄 NEW CAMPAIGN
+ui.endgame.legacy,🏛 SEU LEGADO,🏛 YOUR LEGACY
+ui.endgame.summary,📊 SUMÁRIO DA CAMPANHA,📊 CAMPAIGN SUMMARY
+ui.a11y.title,◆ ACESSIBILIDADE,◆ ACCESSIBILITY
+ui.a11y.colorblind,👁 Modo Daltonismo,👁 Colorblind Mode
+ui.a11y.font_size,◆ TAMANHO DA FONTE,◆ FONT SIZE
+ui.a11y.font_small,Pequena,Small
+ui.a11y.font_normal,Normal,Normal
+ui.a11y.font_large,Grande,Large
+ui.a11y.font_xlarge,Muito Grande,Extra Large

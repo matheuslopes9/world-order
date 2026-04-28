@@ -1116,9 +1116,14 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	box.add_child(v)
-	# Badge
+	# Badge — vitória recebe título conferido pelo sumário da campanha
 	var badge := Label.new()
-	badge.text = "★ VITÓRIA HISTÓRICA ★" if victory else "✕ FIM DE GOVERNO"
+	if victory:
+		var n_b = GameEngine.player_nation
+		var earned_title: String = _compute_legacy_title(n_b)
+		badge.text = "★ %s ★" % earned_title
+	else:
+		badge.text = "✕ FIM DE GOVERNO"
 	badge.add_theme_color_override("font_color", Color(1, 0.85, 0.2) if victory else Color(1, 0.4, 0.4))
 	badge.add_theme_font_size_override("font_size", 13)
 	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1144,6 +1149,22 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	m.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(m)
+	# Seção "Legado" — só pra vitória, com narrativa contextualizada
+	if victory:
+		v.add_child(HSeparator.new())
+		var legacy_title := Label.new()
+		legacy_title.text = "🏛 SEU LEGADO"
+		legacy_title.add_theme_color_override("font_color", Color(1, 0.85, 0.4))
+		legacy_title.add_theme_font_size_override("font_size", 11)
+		legacy_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(legacy_title)
+		var legacy_text := Label.new()
+		legacy_text.text = _compute_legacy_narrative(GameEngine.player_nation)
+		legacy_text.add_theme_color_override("font_color", Color(0.92, 0.95, 0.8))
+		legacy_text.add_theme_font_size_override("font_size", 12)
+		legacy_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		legacy_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(legacy_text)
 	# Estatísticas finais
 	v.add_child(HSeparator.new())
 	var stats_title := Label.new()
@@ -1194,16 +1215,23 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	btn_row.add_theme_constant_override("separation", 12)
 	v.add_child(btn_row)
-	# Vitória oferece "Continuar Livre" (pode seguir jogando após ganhar)
+	# Vitória oferece "Continuar Livre" + "Nova Campanha" (NG+ com XP acumulado)
 	if victory:
 		var btn_continue := Button.new()
 		btn_continue.text = "▶ CONTINUAR LIVRE"
 		btn_continue.custom_minimum_size = Vector2(200, 44)
 		btn_continue.pressed.connect(func():
 			modal.queue_free()
-			# permite jogar mais (vitória opcional)
 			endgame_triggered = false)
 		btn_row.add_child(btn_continue)
+		var btn_newgame := Button.new()
+		btn_newgame.text = "🔄 NOVA CAMPANHA"
+		btn_newgame.custom_minimum_size = Vector2(200, 44)
+		btn_newgame.pressed.connect(func():
+			modal.queue_free()
+			SaveSystem.delete_save()
+			get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
+		btn_row.add_child(btn_newgame)
 	var btn_menu := Button.new()
 	btn_menu.text = "🏠 MENU PRINCIPAL"
 	btn_menu.custom_minimum_size = Vector2(200, 44)
@@ -1211,6 +1239,54 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 		modal.queue_free()
 		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
 	btn_row.add_child(btn_menu)
+
+# Título conferido na vitória, baseado em qual estatística mais se destacou.
+# Usa thresholds escaláveis em vez de checagem fixa pra dar variedade.
+func _compute_legacy_title(n) -> String:
+	if n == null: return "VITÓRIA HISTÓRICA"
+	var pib_base: float = float(n.pib_inicial) if n.pib_inicial > 0 else float(n.pib_bilhoes_usd)
+	var pib_growth: float = float(n.pib_bilhoes_usd) / max(1.0, pib_base)
+	var techs: int = n.tecnologias_concluidas.size() if n.tecnologias_concluidas else 0
+	var apoio: float = float(n.apoio_popular)
+	var corrupcao: float = float(n.corrupcao)
+	var hist_decisions: int = GameEngine.timeline.decision_log.size() if GameEngine.timeline else 0
+	var wars: int = n.em_guerra.size() if n.em_guerra else 0
+	# Decide título por categoria dominante
+	if pib_growth >= 3.0:
+		return "ARQUITETO DA PROSPERIDADE"
+	if techs >= 12:
+		return "VISIONÁRIO TECNOLÓGICO"
+	if apoio >= 75 and corrupcao <= 25:
+		return "LÍDER QUERIDO DO POVO"
+	if wars == 0 and hist_decisions >= 8:
+		return "PACIFICADOR HISTÓRICO"
+	if corrupcao <= 15:
+		return "GUARDIÃO DA RES PUBLICA"
+	if hist_decisions >= 12:
+		return "ESTADISTA DECISIVO"
+	return "VITÓRIA HISTÓRICA"
+
+# Narrativa de 2-3 linhas que muda conforme perfil da partida
+func _compute_legacy_narrative(n) -> String:
+	if n == null: return ""
+	var leader: String = String(n.get_meta("leader_name", "O líder"))
+	var nome: String = n.nome
+	var pib_base: float = float(n.pib_inicial) if n.pib_inicial > 0 else 1.0
+	var pib_growth: float = float(n.pib_bilhoes_usd) / max(1.0, pib_base)
+	var techs: int = n.tecnologias_concluidas.size() if n.tecnologias_concluidas else 0
+	var hist_decisions: int = GameEngine.timeline.decision_log.size() if GameEngine.timeline else 0
+	var lines: Array = []
+	lines.append("%s liderou %s por %d turnos." % [leader, nome, GameEngine.current_turn])
+	if pib_growth >= 2.0:
+		lines.append("A economia cresceu %dx — uma transformação histórica." % int(pib_growth))
+	elif pib_growth >= 1.3:
+		lines.append("A economia se expandiu de forma sustentável.")
+	if techs >= 8:
+		lines.append("%d tecnologias-chave foram desbloqueadas, redefinindo a fronteira da inovação." % techs)
+	if hist_decisions >= 5:
+		lines.append("Em %d momentos críticos da história, suas decisões marcaram o século." % hist_decisions)
+	lines.append("Os historiadores da Olimpia registrarão esta linha temporal.")
+	return "\n".join(lines)
 
 func _show_event_modal(event: Dictionary) -> void:
 	var modal := ColorRect.new()

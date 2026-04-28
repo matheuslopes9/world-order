@@ -188,6 +188,14 @@ func _process_megatrends() -> void:
 		var progress: float = float(year - lo) / float(window_size)  # 0.0 → 1.0 conforme avança
 		# Probabilidade efetiva: base * (1 + progress) — dobra no fim da janela
 		var effective_prob: float = base_prob * (1.0 + progress)
+		# Cenário Apocalipse Climático: multiplica eventos das categorias clima/desastre/ambiental
+		var scenario_mult: float = float(engine.active_scenario.get("climate_event_multiplier", 1.0)) if engine.active_scenario else 1.0
+		if scenario_mult > 1.0:
+			var cats: Array = ev_dict.get("categories", [])
+			for c in cats:
+				if String(c) in ["clima", "desastre_natural", "ambiental"]:
+					effective_prob *= scenario_mult
+					break
 		if randf() < effective_prob:
 			_fire_event(ev_dict)
 

@@ -103,6 +103,11 @@ var settings: Dictionary = {
 var active_scenario: Dictionary = {}
 var scenarios_data: Array = []
 
+# Antagonista declarado: nação com pior relação ao jogador, atualizado a cada turno.
+# Quando relação ≤ -50 vira "rival declarado" e ganha bônus de hostilidade.
+var player_nemesis: String = ""
+var nemesis_declared: bool = false  # vira true ao cruzar limiar
+
 # ── Dados estáticos ──────────────────────────────────────────────
 var difficulty_tiers: Dictionary = {}    # code → tier
 var alliances_data: Array = []
@@ -356,11 +361,65 @@ func end_turn() -> void:
 				"color": n.get("color", Color(0.7, 0.8, 1)),
 			}, inv, reg)
 
+	# Atualiza tracking de antagonista (nação rival recorrente)
+	_update_player_nemesis()
+
 	# Reset de ações do jogador para o novo turno
 	player_actions_remaining = PLAYER_ACTIONS_PER_TURN
 	emit_signal("player_actions_changed", player_actions_remaining)
 
 	emit_signal("turn_advanced", current_turn)
+
+# Identifica e mantém o "nêmesis" do jogador — nação com pior relação que cruzou ≤ -50.
+# Nemesis declarada gera notícias de provocação periódicas e tem maior chance de hostilidade.
+func _update_player_nemesis() -> void:
+	if player_nation == null: return
+	var worst_code: String = ""
+	var worst_rel: float = 1.0
+	for code in player_nation.relacoes:
+		if code == player_nation.codigo_iso: continue
+		var r: float = float(player_nation.relacoes[code])
+		if r < worst_rel:
+			worst_rel = r
+			worst_code = code
+	if worst_code == "" or worst_rel > -50.0:
+		# Sem rival qualificado — limpa estado se havia
+		if nemesis_declared:
+			nemesis_declared = false
+			player_nemesis = ""
+		return
+	# Tem rival qualificado
+	if worst_code != player_nemesis:
+		# Mudou o rival principal — declara
+		player_nemesis = worst_code
+		nemesis_declared = true
+		var rival_name: String = nations[worst_code].nome if nations.has(worst_code) else worst_code
+		_log_news({
+			"type": "rival_declared",
+			"headline": "🔥 %s emerge como rival declarado de %s" % [rival_name, player_nation.nome],
+			"body": "Relação caiu para %d — esperar provocações nos próximos turnos." % int(worst_rel),
+			"color": Color(1, 0.4, 0.3),
+		}, [worst_code, player_nation.codigo_iso], nations[worst_code].continente if nations.has(worst_code) else "")
+	elif current_turn % 5 == 0:
+		# Provocação periódica do rival declarado (a cada 5 turnos)
+		var rival = nations.get(player_nemesis)
+		if rival != null:
+			var provocations: Array = [
+				"%s denuncia %s em fórum internacional" % [rival.nome, player_nation.nome],
+				"%s acusa %s de interferência regional" % [rival.nome, player_nation.nome],
+				"%s ameaça revisar tratados com %s" % [rival.nome, player_nation.nome],
+				"Manifestações anti-%s em %s ganham força" % [player_nation.nome, rival.nome],
+			]
+			var msg: String = provocations[randi() % provocations.size()]
+			_log_news({
+				"type": "rival_provocation",
+				"headline": "⚠ " + msg,
+				"body": "",
+				"color": Color(1, 0.55, 0.3),
+			}, [player_nemesis, player_nation.codigo_iso], rival.continente)
+			# Aplica pequena penalidade contínua de relação (rival ataca)
+			player_nation.relacoes[player_nemesis] = clamp(float(player_nation.relacoes.get(player_nemesis, 0)) - 3, -100, 100)
+			rival.relacoes[player_nation.codigo_iso] = clamp(float(rival.relacoes.get(player_nation.codigo_iso, 0)) - 3, -100, 100)
 
 # ─────────────────────────────────────────────────────────────────
 # IA — nações NPCs decidem ações por turno
