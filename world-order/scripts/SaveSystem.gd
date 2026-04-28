@@ -24,6 +24,8 @@ static func save_game(engine) -> bool:
 		"player_actions_remaining": engine.player_actions_remaining,
 		"active_sanctions": engine.active_sanctions,
 		"active_trades": engine.active_trades,
+		"storyline_active_arcs": engine.storylines.active_arcs if engine.storylines else [],
+		"storyline_started_arcs": engine.storylines.started_arcs if engine.storylines else [],
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
@@ -91,6 +93,10 @@ static func load_game(engine) -> bool:
 	engine.active_sanctions = data.get("active_sanctions", [])
 	# Restaura acordos comerciais ativos
 	engine.active_trades = data.get("active_trades", [])
+	# Restaura storylines (arcs ativos + iniciados)
+	if engine.storylines:
+		engine.storylines.active_arcs = data.get("storyline_active_arcs", [])
+		engine.storylines.started_arcs = data.get("storyline_started_arcs", [])
 	print("[LOAD] Jogo carregado: turno %d, jogador %s" % [engine.current_turn, player_code])
 	return true
 

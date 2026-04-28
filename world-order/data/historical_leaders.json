@@ -1,0 +1,152 @@
+{
+  "_meta": {
+    "description": "Líderes históricos pré-fabricados — quando o jogador escolhe uma das nações listadas abaixo, o wizard de tomada de posse pode auto-preencher com o líder real daquela época + traits únicos. Disponível apenas se trabalhar em modo 'Inspirado' E ano de início match com leader.year.",
+    "version": "1.0.0"
+  },
+  "leaders": [
+    {
+      "id": "lula_2003",
+      "country": "BR",
+      "year": 2003,
+      "year_window": [2002, 2004],
+      "name": "Luiz Inácio Lula da Silva",
+      "background": "politico",
+      "motto": "Brasil de todos",
+      "government_type": "DEMOCRACIA_IMPERFEITA",
+      "economic_doctrine": "mista",
+      "first_steps": ["saude", "educacao", "diplomacia"],
+      "trait": {
+        "name": "Negociador Sindical",
+        "description": "+10% relações com vizinhos do mesmo continente, -2% inflação acumulada por 10 turnos",
+        "effects": {"continent_relations_bonus": 10, "inflation_decay": 2, "decay_turns": 10}
+      },
+      "tagline": "Operário virou presidente. Foco social, abertura econômica."
+    },
+    {
+      "id": "putin_2000",
+      "country": "RU",
+      "year": 2000,
+      "year_window": [2000, 2001],
+      "name": "Vladimir Putin",
+      "background": "militar",
+      "motto": "Восстановим Россию (Restauraremos a Rússia)",
+      "government_type": "REGIME_HIBRIDO",
+      "economic_doctrine": "mista",
+      "first_steps": ["militar", "energia", "diplomacia"],
+      "trait": {
+        "name": "Pulso de Aço",
+        "description": "+15% controle sobre instabilidade interna (revolução só dispara com -5 apoio extra), +10 corrupção fixa",
+        "effects": {"revolution_threshold_bonus": 5, "corrupcao_offset": 10}
+      },
+      "tagline": "Ex-KGB assume Rússia pós-1998. Recuperação econômica via petróleo."
+    },
+    {
+      "id": "bush_2001",
+      "country": "US",
+      "year": 2001,
+      "year_window": [2001, 2002],
+      "name": "George W. Bush",
+      "background": "politico",
+      "motto": "Compassionate Conservatism",
+      "government_type": "DEMOCRACIA_IMPERFEITA",
+      "economic_doctrine": "livre_mercado",
+      "first_steps": ["militar", "estimulo", "infra"],
+      "trait": {
+        "name": "Doutrina Bush",
+        "description": "+25% capacidade militar quando em guerra, mas -3 apoio popular por turno em conflitos prolongados",
+        "effects": {"war_military_bonus": 25, "war_apoio_decay": 3}
+      },
+      "tagline": "Texano herda boom econômico. Choque do 11/9 viria meses depois."
+    },
+    {
+      "id": "merkel_2005",
+      "country": "DE",
+      "year": 2005,
+      "year_window": [2005, 2006],
+      "name": "Angela Merkel",
+      "background": "academico",
+      "motto": "Wir schaffen das (Conseguiremos)",
+      "government_type": "DEMOCRACIA_PLENA",
+      "economic_doctrine": "mista",
+      "first_steps": ["educacao", "diplomacia", "digital"],
+      "trait": {
+        "name": "Liderança Pragmática",
+        "description": "+20% velocidade de pesquisa, +5 estabilidade fixa, -10% chance de eventos catastróficos atingirem direto",
+        "effects": {"research_bonus": 20, "stab_offset": 5, "event_resistance": 10}
+      },
+      "tagline": "Física vira chanceler. 16 anos de estabilidade alemã iniciam aqui."
+    },
+    {
+      "id": "obama_2009",
+      "country": "US",
+      "year": 2009,
+      "year_window": [2009, 2010],
+      "name": "Barack Obama",
+      "background": "academico",
+      "motto": "Yes We Can",
+      "government_type": "DEMOCRACIA_IMPERFEITA",
+      "economic_doctrine": "mista",
+      "first_steps": ["saude", "diplomacia", "digital"],
+      "trait": {
+        "name": "Esperança",
+        "description": "+15 apoio popular inicial, +10% bônus em tratados de cooperação, -10 corrupção fixa",
+        "effects": {"apoio_offset": 15, "treaty_bonus": 10, "corrupcao_offset": -10}
+      },
+      "tagline": "Primeiro presidente afro-americano. Recuperação pós-Lehman."
+    },
+    {
+      "id": "xi_2013",
+      "country": "CN",
+      "year": 2013,
+      "year_window": [2012, 2014],
+      "name": "Xi Jinping",
+      "background": "politico",
+      "motto": "中国梦 (Sonho Chinês)",
+      "government_type": "DITADURA",
+      "economic_doctrine": "planejada",
+      "first_steps": ["militar", "infra", "digital"],
+      "trait": {
+        "name": "Centralização",
+        "description": "+30% velocidade em decisões (megaprojetos), +15 estabilidade base, -10% chance de eventos democráticos",
+        "effects": {"action_speed_bonus": 30, "stab_offset": 15, "democracy_event_block": 10}
+      },
+      "tagline": "Líder paramount da China assume durante ascensão econômica."
+    },
+    {
+      "id": "macron_2017",
+      "country": "FR",
+      "year": 2017,
+      "year_window": [2017, 2018],
+      "name": "Emmanuel Macron",
+      "background": "empresario",
+      "motto": "En Marche!",
+      "government_type": "DEMOCRACIA_PLENA",
+      "economic_doctrine": "livre_mercado",
+      "first_steps": ["digital", "diplomacia", "estimulo"],
+      "trait": {
+        "name": "Centrismo Tecnocrático",
+        "description": "+$30B tesouro inicial, +15% velocidade de pesquisa, -5 apoio popular fixo (impopularidade urbana)",
+        "effects": {"tesouro_offset": 30, "research_bonus": 15, "apoio_offset": -5}
+      },
+      "tagline": "Ex-banqueiro vira presidente da França. Macron-mania."
+    },
+    {
+      "id": "zelensky_2019",
+      "country": "UA",
+      "year": 2019,
+      "year_window": [2019, 2020],
+      "name": "Volodymyr Zelensky",
+      "background": "academico",
+      "motto": "Слава Україні (Glória à Ucrânia)",
+      "government_type": "DEMOCRACIA_IMPERFEITA",
+      "economic_doctrine": "mista",
+      "first_steps": ["digital", "diplomacia", "militar"],
+      "trait": {
+        "name": "Comunicador Carismático",
+        "description": "+25 apoio popular em qualquer conflito armado, dobra alcance de propostas diplomáticas internacionais",
+        "effects": {"war_apoio_bonus": 25, "diplomatic_reach": 100}
+      },
+      "tagline": "Comediante vira presidente. A guerra de 2022 forjaria o líder."
+    }
+  ]
+}

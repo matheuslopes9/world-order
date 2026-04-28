@@ -9,6 +9,8 @@ const TechScript := preload("res://scripts/TechManager.gd")
 const EspionageScript := preload("res://scripts/EspionageManager.gd")
 const TimelineScript := preload("res://scripts/EventTimeline.gd")
 const AchievementScript := preload("res://scripts/AchievementManager.gd")
+const StorylineScript := preload("res://scripts/StorylineManager.gd")
+const MetaProgressionScript := preload("res://scripts/MetaProgression.gd")
 
 var diplomacy = null  # DiplomacyManager
 var news = null       # NewsManager
@@ -16,6 +18,8 @@ var tech = null       # TechManager
 var espionage = null  # EspionageManager
 var timeline = null   # EventTimelineManager
 var achievements = null  # AchievementManager
+var storylines = null    # StorylineManager
+var meta_progression = null  # MetaProgression (singleton entre saves)
 
 # ── Estado do jogo ───────────────────────────────────────────────
 var nations: Dictionary = {}             # code → Nation
@@ -120,6 +124,8 @@ func _ready() -> void:
 	espionage = EspionageScript.new(self)
 	timeline = TimelineScript.new(self)
 	achievements = AchievementScript.new(self)
+	storylines = StorylineScript.new(self)
+	meta_progression = MetaProgressionScript.new()
 
 func _load_all_data() -> void:
 	var t0 := Time.get_ticks_msec()
@@ -279,6 +285,13 @@ func confirm_player_nation(code: String) -> void:
 		"MUITO_DIFICIL": 2.8, "QUASE_IMPOSSIVEL": 3.5
 	}.get(player_nation.tier_dificuldade, 1.0))
 	player_nation.tesouro = round(player_nation.tesouro * diff_mult * tier_mult)
+	# Aplica perks ativos do meta_progression (XP unlocks)
+	if meta_progression:
+		meta_progression.apply_perks_to_player(player_nation)
+	# Perk "actions_per_turn": +1 ação por turno se ativo
+	var extra_actions: int = int(player_nation.get_meta("perk_extra_actions", 0))
+	if extra_actions > 0:
+		player_actions_remaining = PLAYER_ACTIONS_PER_TURN + extra_actions
 	current_turn = 1
 	emit_signal("player_confirmed", code)
 	print("[ENGINE] Comando assumido: %s (Tier: %s, Tesouro: $%dB | mult=%.2f×%.2f)" %
@@ -326,6 +339,9 @@ func end_turn() -> void:
 	# Atualiza conquistas (verifica condições de progressão automática)
 	if achievements:
 		achievements.update()
+	# Storylines: dispara nodes pendentes + tenta iniciar novas
+	if storylines:
+		storylines.process_turn()
 	# Notícias procedurais
 	if news:
 		var generated: Array = news.generate_turn_news()

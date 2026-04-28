@@ -1075,6 +1075,18 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	endgame_triggered = true
 	# Pausa o jogo
 	get_tree().paused = false  # reseta caso houvesse
+	# Concede XP de meta-progressão (persiste entre saves)
+	var xp_earned: int = 0
+	if GameEngine.meta_progression:
+		var n_ref = GameEngine.player_nation
+		var stats_payload := {
+			"victory": victory,
+			"turns_played": GameEngine.current_turn,
+			"tier": String(n_ref.tier_dificuldade) if n_ref and "tier_dificuldade" in n_ref else "NORMAL",
+			"tech_count": n_ref.tecnologias_concluidas.size() if n_ref else 0,
+			"decisions": GameEngine.timeline.decision_log.size() if GameEngine.timeline else 0,
+		}
+		xp_earned = GameEngine.meta_progression.award_end_game_xp(stats_payload)
 	var modal := ColorRect.new()
 	modal.name = "EndgameOverlay"
 	modal.color = Color(0, 0, 0, 0.94)
@@ -1161,6 +1173,8 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 		if GameEngine.timeline:
 			hist_count = GameEngine.timeline.decision_log.size()
 		stats.append(["Decisões históricas", "%d" % hist_count])
+		if xp_earned > 0:
+			stats.append(["⭐ XP ganho", "+%d (total: %d)" % [xp_earned, GameEngine.meta_progression.total_xp if GameEngine.meta_progression else 0]])
 		for pair in stats:
 			var k := Label.new()
 			k.text = String(pair[0])

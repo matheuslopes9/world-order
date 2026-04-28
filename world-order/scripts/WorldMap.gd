@@ -148,6 +148,9 @@ func _ready() -> void:
 	# Signal pra MARKERS de eventos no mapa (FASE 8 - integração visual)
 	if GameEngine and GameEngine.timeline and GameEngine.timeline.has_signal("event_fired"):
 		GameEngine.timeline.event_fired.connect(_on_event_fired_marker)
+	# Signal de storylines (Sessão 3 do roadmap) — abre o mesmo modal de decisão
+	if GameEngine and GameEngine.storylines and GameEngine.storylines.has_signal("storyline_triggered"):
+		GameEngine.storylines.storyline_triggered.connect(_on_storyline_triggered)
 	# Cria layer pra markers
 	event_markers_layer = Node2D.new()
 	event_markers_layer.name = "EventMarkers"
@@ -632,6 +635,12 @@ func _open_overlay_modal(panel_id: String = "governo") -> void:
 # Aplica choices[i].effects via timeline.apply_choice_by_id().
 # ─────────────────────────────────────────────────────────────────
 
+# Storylines disparam através do mesmo modal de decisão histórica.
+# A diferença é que ao escolher, chama storylines.apply_storyline_choice
+# (em vez de timeline.apply_choice_by_id).
+func _on_storyline_triggered(storyline_id: String, event: Dictionary) -> void:
+	_open_historic_decision_modal(event)
+
 func _open_historic_decision_modal(event: Dictionary) -> void:
 	if event.is_empty(): return
 
@@ -735,10 +744,15 @@ func _open_historic_decision_modal(event: Dictionary) -> void:
 		btn.add_theme_color_override("font_color", Color(0.92, 0.96, 1))
 		btn.add_theme_color_override("font_hover_color", Color(1, 1, 1))
 		var choice_id: String = ch.get("id", "choice_%d" % i)
+		var is_storyline: bool = bool(event.get("is_storyline", false))
+		var storyline_id: String = String(event.get("storyline_id", ""))
 		btn.pressed.connect(func():
-			if GameEngine and GameEngine.timeline:
+			if is_storyline and GameEngine and GameEngine.storylines:
+				GameEngine.storylines.apply_storyline_choice(storyline_id, choice_id)
+				_log_ticker("📖 NARRATIVA", "Decisão: %s" % ch.get("label", "?"), Color(0.85, 0.6, 1))
+			elif GameEngine and GameEngine.timeline:
 				GameEngine.timeline.apply_choice_by_id(event_id, choice_id)
-			_log_ticker("📜 HISTÓRIA", "Decisão tomada: %s" % ch.get("label", "?"), Color(1, 0.85, 0.4))
+				_log_ticker("📜 HISTÓRIA", "Decisão tomada: %s" % ch.get("label", "?"), Color(1, 0.85, 0.4))
 			_close_modal(modal_ref[0]))
 		content.add_child(btn)
 
@@ -2164,6 +2178,43 @@ func _on_confirm_pressed() -> void:
 # Estado coletado pelo wizard (4 etapas)
 var _takeover_state: Dictionary = {}
 
+# Cache dos líderes históricos (carregado uma vez)
+var _historical_leaders_cache: Array = []
+
+func _load_historical_leaders() -> void:
+	if not _historical_leaders_cache.is_empty(): return
+	var f := FileAccess.open("res://data/historical_leaders.json", FileAccess.READ)
+	if f == null: return
+	var raw := f.get_as_text()
+	f.close()
+	var json := JSON.new()
+	if json.parse(raw) != OK: return
+	var d: Dictionary = json.data
+	_historical_leaders_cache = d.get("leaders", [])
+
+# Busca um líder histórico que combine com (country_code, year_min..year_max)
+func _find_historical_leader(country_code: String, year: int) -> Dictionary:
+	_load_historical_leaders()
+	for leader in _historical_leaders_cache:
+		var l: Dictionary = leader
+		if l.get("country", "") != country_code: continue
+		var window: Array = l.get("year_window", [l.get("year", 0), l.get("year", 0)])
+		if window.size() == 2:
+			if year >= int(window[0]) and year <= int(window[1]):
+				return l
+	return {}
+
+# Preenche _takeover_state com os dados do líder histórico
+func _apply_historical_leader_to_state(leader: Dictionary) -> void:
+	_takeover_state["leader_name"] = String(leader.get("name", ""))
+	_takeover_state["leader_motto"] = String(leader.get("motto", ""))
+	_takeover_state["leader_background"] = String(leader.get("background", "politico"))
+	_takeover_state["government_type"] = String(leader.get("government_type", "manter"))
+	_takeover_state["economic_doctrine"] = String(leader.get("economic_doctrine", "mista"))
+	_takeover_state["first_steps"] = leader.get("first_steps", []).duplicate()
+	# Salva trait pra aplicar no Nation depois
+	_takeover_state["historical_trait"] = leader.get("trait", {})
+
 func _open_takeover_wizard(country_code: String) -> void:
 	var n = GameEngine.nations[country_code]
 	# Inicializa estado com defaults
@@ -2203,6 +2254,55 @@ func _show_takeover_step_1(country_code: String) -> void:
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(intro)
+
+	# Sugestão de líder histórico (se há match com country + year)
+	var historical: Dictionary = _find_historical_leader(country_code, GameEngine.date_year)
+	if not historical.is_empty():
+		var hist_panel := PanelContainer.new()
+		var hsb := StyleBoxFlat.new()
+		hsb.bg_color = Color(0.05, 0.10, 0.15, 0.88)
+		hsb.border_color = Color(1, 0.85, 0.3, 0.85)
+		hsb.set_border_width_all(1)
+		hsb.border_width_left = 4
+		hsb.set_corner_radius_all(8)
+		hsb.content_margin_left = 12
+		hsb.content_margin_right = 12
+		hsb.content_margin_top = 10
+		hsb.content_margin_bottom = 10
+		hist_panel.add_theme_stylebox_override("panel", hsb)
+		content.add_child(hist_panel)
+		var hv := VBoxContainer.new()
+		hv.add_theme_constant_override("separation", 4)
+		hist_panel.add_child(hv)
+		var h_title := Label.new()
+		h_title.text = "🕰 LÍDER HISTÓRICO DISPONÍVEL"
+		h_title.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
+		h_title.add_theme_font_size_override("font_size", 10)
+		hv.add_child(h_title)
+		var h_name := Label.new()
+		h_name.text = "%s — %s" % [historical.get("name", ""), historical.get("tagline", "")]
+		h_name.add_theme_color_override("font_color", Color(0.95, 1, 1))
+		h_name.add_theme_font_size_override("font_size", 12)
+		h_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hv.add_child(h_name)
+		var h_trait := Label.new()
+		var trait_data: Dictionary = historical.get("trait", {})
+		h_trait.text = "✦ %s — %s" % [trait_data.get("name", ""), trait_data.get("description", "")]
+		h_trait.add_theme_color_override("font_color", Color(0.65, 0.78, 0.92))
+		h_trait.add_theme_font_size_override("font_size", 10)
+		h_trait.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hv.add_child(h_trait)
+		var h_btn := Button.new()
+		h_btn.text = "🕰 Usar este líder histórico"
+		h_btn.custom_minimum_size = Vector2(0, 32)
+		h_btn.add_theme_font_size_override("font_size", 11)
+		h_btn.pressed.connect(func():
+			_apply_historical_leader_to_state(historical)
+			# Re-renderiza step 1 com campos preenchidos
+			_close_top_modal()
+			_show_takeover_step_1(country_code))
+		hv.add_child(h_btn)
+
 	content.add_child(HSeparator.new())
 	# Nome do líder
 	var name_label := Label.new()
@@ -2561,6 +2661,30 @@ func _apply_takeover_choices(n) -> void:
 	n.set_meta("leader_background", _takeover_state.get("leader_background", "politico"))
 	n.set_meta("leader_motto", _takeover_state.get("leader_motto", ""))
 	n.set_meta("economic_doctrine", _takeover_state.get("economic_doctrine", "mista"))
+	# Aplica trait do líder histórico se houver
+	var leader_trait: Dictionary = _takeover_state.get("historical_trait", {})
+	if not leader_trait.is_empty():
+		n.set_meta("historical_trait_name", String(leader_trait.get("name", "")))
+		var effects: Dictionary = leader_trait.get("effects", {})
+		# Aplica efeitos imediatos do trait (offsets fixos)
+		if effects.has("apoio_offset"):
+			n.apoio_popular = clamp(n.apoio_popular + float(effects["apoio_offset"]), 0.0, 100.0)
+		if effects.has("stab_offset"):
+			n.estabilidade_politica = clamp(n.estabilidade_politica + float(effects["stab_offset"]), 0.0, 100.0)
+		if effects.has("corrupcao_offset"):
+			n.corrupcao = clamp(n.corrupcao + float(effects["corrupcao_offset"]), 0.0, 100.0)
+		if effects.has("tesouro_offset"):
+			n.tesouro = max(0.0, n.tesouro + float(effects["tesouro_offset"]))
+		if effects.has("research_bonus"):
+			n.velocidade_pesquisa *= (1.0 + float(effects["research_bonus"]) / 100.0)
+		if effects.has("continent_relations_bonus"):
+			var bonus: float = float(effects["continent_relations_bonus"])
+			for code in GameEngine.nations.keys():
+				if code == n.codigo_iso: continue
+				var other = GameEngine.nations[code]
+				if other.continente == n.continente:
+					n.relacoes[code] = clamp(float(n.relacoes.get(code, 0)) + bonus, -100.0, 100.0)
+					other.relacoes[n.codigo_iso] = clamp(float(other.relacoes.get(n.codigo_iso, 0)) + bonus, -100.0, 100.0)
 	# Background do líder
 	match String(_takeover_state.get("leader_background", "politico")):
 		"militar":

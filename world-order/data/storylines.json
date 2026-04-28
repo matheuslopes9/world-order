@@ -1,0 +1,312 @@
+{
+  "_meta": {
+    "description": "Storylines encadeadas — arcs narrativos onde uma decisão dispara follow-ups condicionais. Cada arc tem trigger (inicial) + nodes (sub-eventos que disparam após N turnos baseado em flag/escolha anterior).",
+    "version": "1.0.0",
+    "schema": "storylines_v1"
+  },
+  "storylines": [
+    {
+      "id": "filha_ativista",
+      "name": "Crise Familiar",
+      "trigger_condition": {
+        "min_turn": 8,
+        "max_turn": 60,
+        "min_apoio_popular": 50,
+        "regime_in": ["DEMOCRACIA_PLENA", "DEMOCRACIA_IMPERFEITA", "REPUBLICA"],
+        "probability": 0.15
+      },
+      "trigger_event": {
+        "headline": "👨‍👧 Sua filha pediu para estudar no exterior",
+        "body": "Sua filha de 18 anos quer estudar em uma universidade ocidental. Como líder, sua decisão será observada — populistas farão campanha contra a 'elite cosmopolita'.",
+        "color": [0.85, 0.6, 1, 1],
+        "choices": [
+          {
+            "id": "permitir",
+            "label": "✓ Permitir e apoiar publicamente",
+            "effects": {"_player": {"apoio_popular": -3, "felicidade": 5}},
+            "next_node": "estudante_no_exterior"
+          },
+          {
+            "id": "negar",
+            "label": "✗ Negar — manter família em casa",
+            "effects": {"_player": {"apoio_popular": 4, "felicidade": -5}},
+            "next_node": "filha_ressentida"
+          },
+          {
+            "id": "discreto",
+            "label": "🤫 Permitir discretamente",
+            "effects": {"_player": {"corrupcao": 3, "felicidade": 2}},
+            "next_node": "vazamento_imprensa"
+          }
+        ]
+      },
+      "nodes": {
+        "estudante_no_exterior": {
+          "delay_turns": 6,
+          "headline": "🎓 Sua filha brilhou em conferência internacional",
+          "body": "Ela apresentou trabalho sobre desenvolvimento sustentável. Cobertura positiva da imprensa global eleva sua reputação.",
+          "auto_apply_effects": {"_player": {"apoio_popular": 5, "felicidade": 5}},
+          "color": [0.4, 1, 0.6, 1]
+        },
+        "filha_ressentida": {
+          "delay_turns": 8,
+          "headline": "💔 Sua filha publicou carta aberta criticando o governo",
+          "body": "Anos de ressentimento. Ela vazou e-mails familiares à imprensa internacional. Escândalo doméstico.",
+          "auto_apply_effects": {"_player": {"apoio_popular": -8, "felicidade": -10, "estabilidade_fator": -3.0}},
+          "color": [1, 0.4, 0.4, 1]
+        },
+        "vazamento_imprensa": {
+          "delay_turns": 4,
+          "headline": "📰 Imprensa expõe: 'Filha do líder estuda no exterior'",
+          "body": "Vazamento revela uso de canais privados. Oposição acusa hipocrisia.",
+          "auto_apply_effects": {"_player": {"apoio_popular": -7, "corrupcao": 4}},
+          "color": [1, 0.78, 0.30, 1]
+        }
+      }
+    },
+    {
+      "id": "general_ambicioso",
+      "name": "General Ambicioso",
+      "trigger_condition": {
+        "min_turn": 15,
+        "max_turn": 100,
+        "max_estabilidade": 60,
+        "regime_in": ["DITADURA", "REGIME_HIBRIDO", "REGIME_AUTORITARIO", "REGIME_MILITAR"],
+        "probability": 0.12
+      },
+      "trigger_event": {
+        "headline": "🎖 General Korov solicita audiência urgente",
+        "body": "Um dos seus principais comandantes militares pede mais autonomia e orçamento. Inteligência sugere que ele tem ambições políticas. Como você responde?",
+        "color": [1, 0.4, 0.4, 1],
+        "choices": [
+          {
+            "id": "promover",
+            "label": "⬆ Promover e dar mais poder (cooptar)",
+            "effects": {"_player": {"tesouro": -50, "estabilidade_fator": 4.0}},
+            "next_node": "general_aliado"
+          },
+          {
+            "id": "demitir",
+            "label": "✗ Demitir e exilar (preventivo)",
+            "effects": {"_player": {"estabilidade_fator": -5.0, "apoio_popular": -3}},
+            "next_node": "exilio_protesto"
+          },
+          {
+            "id": "manter",
+            "label": "⏸ Manter status — observar",
+            "effects": {},
+            "next_node": "tentativa_golpe"
+          }
+        ]
+      },
+      "nodes": {
+        "general_aliado": {
+          "delay_turns": 10,
+          "headline": "🤝 General Korov consolidou seu apoio",
+          "body": "A promoção comprou lealdade. Forças armadas apoiam abertamente seu governo.",
+          "auto_apply_effects": {"_player": {"estabilidade_fator": 8.0, "apoio_popular": 5}},
+          "color": [0.4, 1, 0.6, 1]
+        },
+        "exilio_protesto": {
+          "delay_turns": 5,
+          "headline": "📢 Setores militares protestam exílio de Korov",
+          "body": "Oficiais leais ao general organizam dissidências. Risco de instabilidade.",
+          "auto_apply_effects": {"_player": {"estabilidade_fator": -6.0, "felicidade": -3}},
+          "color": [1, 0.4, 0.4, 1]
+        },
+        "tentativa_golpe": {
+          "delay_turns": 7,
+          "headline": "💥 General Korov tenta golpe militar!",
+          "body": "Sua passividade foi interpretada como fraqueza. Korov mobiliza tropas leais. Você precisa agir agora — não tem tempo pra deliberar.",
+          "color": [1, 0.2, 0.2, 1],
+          "choices": [
+            {
+              "id": "reprimir_forca",
+              "label": "⚔ Reprimir com força total (sangrento)",
+              "effects": {"_player": {"estabilidade_fator": 8.0, "apoio_popular": -12, "felicidade": -8, "tesouro": -60}}
+            },
+            {
+              "id": "negociar",
+              "label": "🤝 Negociar — concessões",
+              "effects": {"_player": {"estabilidade_fator": -3.0, "apoio_popular": -5, "tesouro": -30}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "descoberta_petroleo",
+      "name": "Descoberta de Recurso",
+      "trigger_condition": {
+        "min_turn": 5,
+        "max_turn": 80,
+        "max_pib": 800,
+        "probability": 0.08
+      },
+      "trigger_event": {
+        "headline": "🛢 Geólogos descobriram grande jazida de petróleo!",
+        "body": "Reserva estimada em 8 bilhões de barris. Oportunidade histórica — mas exploração tem custo ambiental e demanda parceiros internacionais.",
+        "color": [1, 0.85, 0.3, 1],
+        "choices": [
+          {
+            "id": "estatal",
+            "label": "🏛 Exploração estatal (lenta, soberana)",
+            "effects": {"_player": {"tesouro": -80, "apoio_popular": 6}},
+            "next_node": "estatal_consolida"
+          },
+          {
+            "id": "estrangeiro",
+            "label": "🤝 Parceria estrangeira (rápida, dependente)",
+            "effects": {"_player": {"tesouro": 100, "apoio_popular": -5}},
+            "next_node": "estrangeiro_lucros"
+          },
+          {
+            "id": "deixar",
+            "label": "🌱 Não explorar (ambiental)",
+            "effects": {"_player": {"felicidade": 8, "apoio_popular": 3}},
+            "next_node": "imagem_verde"
+          }
+        ]
+      },
+      "nodes": {
+        "estatal_consolida": {
+          "delay_turns": 12,
+          "headline": "⛽ Estatal de petróleo opera em capacidade total",
+          "body": "Anos de investimento, agora retorno. Receita autônoma, soberania energética.",
+          "auto_apply_effects": {"_player": {"tesouro": 200, "estabilidade_fator": 5.0}, "_player_recursos": {"petroleo": 25}},
+          "color": [0.4, 1, 0.6, 1]
+        },
+        "estrangeiro_lucros": {
+          "delay_turns": 8,
+          "headline": "💸 Multinacional repatria lucros do petróleo",
+          "body": "Royalties chegam, mas a maior parte do lucro vai pra fora. Manifestações nacionalistas.",
+          "auto_apply_effects": {"_player": {"tesouro": 60, "apoio_popular": -8, "estabilidade_fator": -3.0}},
+          "color": [1, 0.78, 0.30, 1]
+        },
+        "imagem_verde": {
+          "delay_turns": 15,
+          "headline": "🌍 Reconhecimento internacional pela política ambiental",
+          "body": "Sua decisão virou marco diplomático. ONGs e países desenvolvidos elogiam.",
+          "auto_apply_effects": {"_player": {"felicidade": 5}, "_global_relations": 5},
+          "color": [0.4, 1, 0.6, 1]
+        }
+      }
+    },
+    {
+      "id": "epidemia_local",
+      "name": "Epidemia Regional",
+      "trigger_condition": {
+        "min_turn": 10,
+        "max_turn": 200,
+        "max_felicidade": 60,
+        "probability": 0.07
+      },
+      "trigger_event": {
+        "headline": "🦠 Surto de doença infecciosa em região metropolitana",
+        "body": "Cluster de casos identificado. OMS solicita declaração formal. Sistema de saúde sob pressão. Reação econômica global iminente.",
+        "color": [0.85, 0.45, 1, 1],
+        "choices": [
+          {
+            "id": "lockdown",
+            "label": "🔒 Lockdown imediato (caro mas seguro)",
+            "effects": {"_player": {"tesouro": -80, "felicidade": -8, "pib_fator": 0.95}},
+            "next_node": "lockdown_eficaz"
+          },
+          {
+            "id": "quarentena",
+            "label": "🚦 Quarentena focal (balanceado)",
+            "effects": {"_player": {"tesouro": -30, "felicidade": -3}},
+            "next_node": "quarentena_resultado"
+          },
+          {
+            "id": "ignorar",
+            "label": "🌐 Manter rotina (priorizar economia)",
+            "effects": {"_player": {"pib_fator": 1.01}},
+            "next_node": "epidemia_descontrolada"
+          }
+        ]
+      },
+      "nodes": {
+        "lockdown_eficaz": {
+          "delay_turns": 4,
+          "headline": "✅ Lockdown conteve a epidemia em 4 semanas",
+          "body": "Casos zerados. OMS elogia rapidez. Recuperação econômica gradual.",
+          "auto_apply_effects": {"_player": {"apoio_popular": 8, "felicidade": 5, "estabilidade_fator": 4.0}},
+          "color": [0.4, 1, 0.6, 1]
+        },
+        "quarentena_resultado": {
+          "delay_turns": 5,
+          "headline": "📊 Quarentena focal: contenção parcial",
+          "body": "Casos diminuíram mas não zeraram. Saúde pública estável.",
+          "auto_apply_effects": {"_player": {"felicidade": 2, "apoio_popular": 2}},
+          "color": [1, 0.78, 0.30, 1]
+        },
+        "epidemia_descontrolada": {
+          "delay_turns": 3,
+          "headline": "💀 Epidemia descontrolada — caos sanitário",
+          "body": "Hospitais sobrecarregados. Mortes em massa. Isolamento internacional. Economia entra em queda livre.",
+          "auto_apply_effects": {"_player": {"apoio_popular": -25, "felicidade": -20, "estabilidade_fator": -10.0, "pib_fator": 0.85, "inflacao": 8}},
+          "color": [1, 0.2, 0.2, 1]
+        }
+      }
+    },
+    {
+      "id": "imigracao_massa",
+      "name": "Pressão Migratória",
+      "trigger_condition": {
+        "min_turn": 20,
+        "max_turn": 300,
+        "min_pib": 500,
+        "probability": 0.10
+      },
+      "trigger_event": {
+        "headline": "🚶 Onda migratória de país vizinho em colapso",
+        "body": "Refugiados chegando em massa pela fronteira. Mídia dividida: humanitarismo vs segurança nacional. Decida sua política.",
+        "color": [0.85, 0.6, 0.3, 1],
+        "choices": [
+          {
+            "id": "acolher",
+            "label": "🤝 Política de portas abertas",
+            "effects": {"_player": {"tesouro": -100, "felicidade": 5, "apoio_popular": -4}},
+            "next_node": "integracao_sucesso"
+          },
+          {
+            "id": "cotas",
+            "label": "📋 Cotas controladas",
+            "effects": {"_player": {"tesouro": -40, "felicidade": 2}},
+            "next_node": "cotas_funcionam"
+          },
+          {
+            "id": "fechar",
+            "label": "🚫 Fechar fronteiras",
+            "effects": {"_player": {"apoio_popular": 8, "felicidade": -5, "estabilidade_fator": 3.0}},
+            "next_node": "isolacao_consequencia"
+          }
+        ]
+      },
+      "nodes": {
+        "integracao_sucesso": {
+          "delay_turns": 18,
+          "headline": "🌟 Integração de refugiados é caso de estudo global",
+          "body": "Anos depois, refugiados se tornam força produtiva. ONU usa seu modelo como exemplo.",
+          "auto_apply_effects": {"_player": {"pib_fator": 1.04, "apoio_popular": 8, "felicidade": 10}},
+          "color": [0.4, 1, 0.6, 1]
+        },
+        "cotas_funcionam": {
+          "delay_turns": 10,
+          "headline": "📋 Sistema de cotas funcionando como esperado",
+          "body": "Integração gradual sem grandes problemas. Estabilidade mantida.",
+          "auto_apply_effects": {"_player": {"pib_fator": 1.01, "apoio_popular": 3}},
+          "color": [0.7, 0.85, 1, 1]
+        },
+        "isolacao_consequencia": {
+          "delay_turns": 12,
+          "headline": "💔 Crise humanitária na fronteira choca o mundo",
+          "body": "Imagens de campos improvisados viralizam. ONU e ONGs criticam abertamente.",
+          "auto_apply_effects": {"_player": {"felicidade": -8, "apoio_popular": -3, "estabilidade_fator": -3.0}, "_global_relations": -10},
+          "color": [1, 0.4, 0.4, 1]
+        }
+      }
+    }
+  ]
+}

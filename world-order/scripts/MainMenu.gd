@@ -37,6 +37,8 @@ func _ready() -> void:
 	_add_mode_selector()
 	# Seletor de cenário (campanha, década crítica, sandbox, etc)
 	_add_scenario_selector()
+	# Botão de progresso (XP / perks desbloqueados entre saves)
+	_add_progression_button()
 	# Botão de créditos depois dos demais
 	_add_credits_button()
 
@@ -260,6 +262,171 @@ func _add_scenario_selector() -> void:
 		if sc.get("id", "") != "":
 			GameEngine.settings["scenario"] = String(sc.get("id"))
 		update_hint.call(idx))
+
+func _add_progression_button() -> void:
+	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
+	if button_row == null: return
+	var btn := Button.new()
+	var xp: int = 0
+	if GameEngine and GameEngine.meta_progression:
+		xp = GameEngine.meta_progression.total_xp
+	btn.text = "⭐ PROGRESSO  (%d XP)" % xp
+	btn.custom_minimum_size = Vector2(420, 32)
+	btn.add_theme_font_size_override("font_size", 11)
+	btn.pressed.connect(_show_progression_modal)
+	button_row.add_child(btn)
+
+func _show_progression_modal() -> void:
+	if GameEngine == null or GameEngine.meta_progression == null:
+		return
+	var meta = GameEngine.meta_progression
+	var modal := Control.new()
+	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	modal.mouse_filter = Control.MOUSE_FILTER_STOP
+	modal.z_index = 100
+	add_child(modal)
+	var bg := ColorRect.new()
+	bg.color = Color(0, 0.04, 0.08, 0.94)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	modal.add_child(bg)
+	bg.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			modal.queue_free())
+	# Card central
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	modal.add_child(center)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(720, 640)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.035, 0.06, 0.10, 0.99)
+	sb.border_color = Color(1, 0.85, 0.2, 0.85)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(14)
+	sb.content_margin_left = 26
+	sb.content_margin_right = 26
+	sb.content_margin_top = 22
+	sb.content_margin_bottom = 22
+	card.add_theme_stylebox_override("panel", sb)
+	center.add_child(card)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	card.add_child(v)
+	# Título
+	var title := Label.new()
+	title.text = "⭐ PROGRESSO ENTRE PARTIDAS"
+	title.add_theme_color_override("font_color", Color(1, 0.85, 0.2))
+	title.add_theme_font_size_override("font_size", 22)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(title)
+	# Stats globais
+	var stats := Label.new()
+	stats.text = "XP TOTAL: %d   |   PARTIDAS: %d   |   VITÓRIAS: %d" % [meta.total_xp, meta.lifetime_games, meta.lifetime_wins]
+	stats.add_theme_color_override("font_color", Color(0.85, 0.93, 1))
+	stats.add_theme_font_size_override("font_size", 12)
+	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(stats)
+	var hint := Label.new()
+	hint.text = "Compre perks com XP. Ative até 2 deles antes de iniciar uma partida."
+	hint.add_theme_color_override("font_color", Color(0.55, 0.7, 0.85))
+	hint.add_theme_font_size_override("font_size", 10)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(hint)
+	v.add_child(HSeparator.new())
+	# Lista de perks (scroll)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 460)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 6)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
+	for p in meta.PERK_CATALOG:
+		var perk_id: String = String(p.get("id", ""))
+		var owned: bool = perk_id in meta.available_perks
+		var active: bool = perk_id in meta.active_perks
+		var cost: int = int(p.get("cost", 0))
+		var row := PanelContainer.new()
+		var rsb := StyleBoxFlat.new()
+		if active:
+			rsb.bg_color = Color(0.08, 0.15, 0.05, 0.95)
+			rsb.border_color = Color(0.4, 1, 0.5, 0.85)
+		elif owned:
+			rsb.bg_color = Color(0.06, 0.10, 0.16, 0.95)
+			rsb.border_color = Color(0, 0.7, 1, 0.6)
+		else:
+			rsb.bg_color = Color(0.05, 0.06, 0.10, 0.95)
+			rsb.border_color = Color(0.4, 0.4, 0.5, 0.5)
+		rsb.set_border_width_all(1)
+		rsb.set_corner_radius_all(8)
+		rsb.content_margin_left = 12
+		rsb.content_margin_right = 12
+		rsb.content_margin_top = 8
+		rsb.content_margin_bottom = 8
+		row.add_theme_stylebox_override("panel", rsb)
+		list.add_child(row)
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 12)
+		row.add_child(hb)
+		# Texto
+		var info_box := VBoxContainer.new()
+		info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info_box.add_theme_constant_override("separation", 2)
+		hb.add_child(info_box)
+		var nm := Label.new()
+		var prefix: String = ("✅ ATIVO  " if active else ("◆ "+ ("DESBLOQUEADO  " if owned else "BLOQUEADO  ")))
+		nm.text = prefix + String(p.get("name", "?"))
+		nm.add_theme_color_override("font_color", Color(1, 0.85, 0.4) if active else (Color(0.85, 0.95, 1) if owned else Color(0.55, 0.65, 0.78)))
+		nm.add_theme_font_size_override("font_size", 13)
+		info_box.add_child(nm)
+		var desc := Label.new()
+		desc.text = String(p.get("description", ""))
+		desc.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+		desc.add_theme_font_size_override("font_size", 11)
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		info_box.add_child(desc)
+		var meta_lbl := Label.new()
+		meta_lbl.text = "Categoria: %s  |  Custo: %d XP" % [String(p.get("category", "?")), cost]
+		meta_lbl.add_theme_color_override("font_color", Color(0.5, 0.6, 0.75))
+		meta_lbl.add_theme_font_size_override("font_size", 10)
+		info_box.add_child(meta_lbl)
+		# Botão ação
+		var btn_action := Button.new()
+		btn_action.custom_minimum_size = Vector2(140, 64)
+		btn_action.add_theme_font_size_override("font_size", 11)
+		if not owned:
+			btn_action.text = "💰 COMPRAR\n(%d XP)" % cost
+			btn_action.disabled = meta.total_xp < cost
+			var pid := perk_id
+			btn_action.pressed.connect(func():
+				var res: Dictionary = meta.purchase_perk(pid)
+				modal.queue_free()
+				_show_progression_modal()
+				if not bool(res.get("ok", false)):
+					push_warning("[META] Falha: " + String(res.get("reason", ""))))
+		else:
+			if active:
+				btn_action.text = "⛔ DESATIVAR"
+			else:
+				btn_action.text = "▶ ATIVAR\n(%d/2)" % meta.active_perks.size()
+				btn_action.disabled = meta.active_perks.size() >= 2
+			var pid2 := perk_id
+			btn_action.pressed.connect(func():
+				var res: Dictionary = meta.toggle_active_perk(pid2)
+				modal.queue_free()
+				_show_progression_modal()
+				if not bool(res.get("ok", false)):
+					push_warning("[META] Falha: " + String(res.get("reason", ""))))
+		hb.add_child(btn_action)
+	v.add_child(HSeparator.new())
+	var close_btn := Button.new()
+	close_btn.text = "✕ FECHAR"
+	close_btn.custom_minimum_size = Vector2(0, 36)
+	close_btn.pressed.connect(func(): modal.queue_free())
+	v.add_child(close_btn)
 
 func _add_credits_button() -> void:
 	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
