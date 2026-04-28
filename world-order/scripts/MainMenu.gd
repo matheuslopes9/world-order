@@ -35,6 +35,8 @@ func _ready() -> void:
 
 	# Seletor de modo de jogo (inspirado / livre) — inserido antes do ButtonRow
 	_add_mode_selector()
+	# Botão de créditos depois dos demais
+	_add_credits_button()
 
 	# ─── ANIMAÇÃO DE ENTRADA + SCANLINES ───
 	_play_entrance_animation()
@@ -44,6 +46,115 @@ func _ready() -> void:
 	_style_main_buttons()
 
 	print("[WORLD ORDER] MainMenu pronto. Renderer: %s" % RenderingServer.get_video_adapter_name())
+
+func _add_credits_button() -> void:
+	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
+	if button_row == null: return
+	var btn := Button.new()
+	btn.text = "📜 CRÉDITOS"
+	btn.custom_minimum_size = Vector2(420, 32)
+	btn.add_theme_font_size_override("font_size", 11)
+	btn.pressed.connect(_show_credits_modal)
+	button_row.add_child(btn)
+
+func _show_credits_modal() -> void:
+	# Cria overlay simples cobrindo a tela
+	var modal := Control.new()
+	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	modal.mouse_filter = Control.MOUSE_FILTER_STOP
+	modal.z_index = 100
+	add_child(modal)
+	var bg := ColorRect.new()
+	bg.color = Color(0, 0.04, 0.08, 0.94)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	modal.add_child(bg)
+	bg.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			modal.queue_free())
+	# Card central
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	modal.add_child(center)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(620, 580)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.035, 0.06, 0.10, 0.99)
+	sb.border_color = Color(0, 0.823, 1, 0.85)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(14)
+	sb.content_margin_left = 30
+	sb.content_margin_right = 30
+	sb.content_margin_top = 26
+	sb.content_margin_bottom = 26
+	card.add_theme_stylebox_override("panel", sb)
+	center.add_child(card)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	card.add_child(v)
+	# Título
+	var title := Label.new()
+	title.text = "📜 CRÉDITOS"
+	title.add_theme_color_override("font_color", Color(0, 0.95, 1))
+	title.add_theme_font_size_override("font_size", 24)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(title)
+	var sub := Label.new()
+	sub.text = "WORLD ORDER v0.5.0"
+	sub.add_theme_color_override("font_color", Color(0.55, 0.7, 0.85))
+	sub.add_theme_font_size_override("font_size", 12)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(sub)
+	v.add_child(HSeparator.new())
+	var sections := [
+		{"title": "DESENVOLVIMENTO", "items": [
+			"Matheus Lopes — design, código, direção criativa",
+			"Claude (Anthropic) — pair programming, GDScript, integração de sistemas"
+		]},
+		{"title": "ENGINE & FERRAMENTAS", "items": [
+			"Godot Engine 4.6 — open source",
+			"GDScript — linguagem de scripting",
+			"Vulkan / Forward+ — renderização"
+		]},
+		{"title": "DADOS & CONTEÚDO", "items": [
+			"Banco Mundial — dados de PIB e demografia 2000",
+			"Wikipedia — eventos históricos 2000-2024",
+			"Natural Earth Data — geometria dos países"
+		]},
+		{"title": "FONTES", "items": [
+			"Cascadia Mono (Microsoft) — texto monoespaçado",
+			"Segoe UI (Microsoft) — texto principal",
+			"Segoe UI Emoji — ícones e bandeiras"
+		]},
+		{"title": "AGRADECIMENTOS", "items": [
+			"Comunidade Godot pela documentação e exemplos",
+			"Você, jogador, por embarcar nessa simulação de 100 anos"
+		]},
+	]
+	for sec in sections:
+		var sec_title := Label.new()
+		sec_title.text = "◆ " + String(sec["title"])
+		sec_title.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.85))
+		sec_title.add_theme_font_size_override("font_size", 11)
+		v.add_child(sec_title)
+		for item in sec["items"]:
+			var lbl := Label.new()
+			lbl.text = "  " + String(item)
+			lbl.add_theme_color_override("font_color", Color(0.85, 0.93, 1))
+			lbl.add_theme_font_size_override("font_size", 11)
+			lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			v.add_child(lbl)
+		var sp := Control.new()
+		sp.custom_minimum_size = Vector2(0, 4)
+		v.add_child(sp)
+	v.add_child(HSeparator.new())
+	# Botão fechar
+	var close_btn := Button.new()
+	close_btn.text = "✕ FECHAR"
+	close_btn.custom_minimum_size = Vector2(0, 36)
+	close_btn.pressed.connect(func(): modal.queue_free())
+	v.add_child(close_btn)
 
 func _add_mode_selector() -> void:
 	# Insere um VBox de "MODO DE CAMPANHA" antes do ButtonRow

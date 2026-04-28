@@ -1070,39 +1070,126 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	if get_node_or_null("/root/EndgameOverlay") != null:
 		return
 	endgame_triggered = true
+	# Pausa o jogo
+	get_tree().paused = false  # reseta caso houvesse
 	var modal := ColorRect.new()
 	modal.name = "EndgameOverlay"
-	modal.color = Color(0, 0, 0, 0.92)
+	modal.color = Color(0, 0, 0, 0.94)
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
 	get_tree().root.add_child(modal)
+	# Card central com tema visual diferente pra vitória vs derrota
 	var box := PanelContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.custom_minimum_size = Vector2(560, 280)
-	box.position = Vector2(-280, -140)
+	box.custom_minimum_size = Vector2(640, 480)
+	box.position = Vector2(-320, -240)
+	var sb := StyleBoxFlat.new()
+	if victory:
+		sb.bg_color = Color(0.05, 0.10, 0.05, 0.99)
+		sb.border_color = Color(1, 0.85, 0.2, 1)  # dourado vitória
+	else:
+		sb.bg_color = Color(0.10, 0.04, 0.04, 0.99)
+		sb.border_color = Color(1, 0.3, 0.3, 1)  # vermelho derrota
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(12)
+	sb.content_margin_left = 32
+	sb.content_margin_right = 32
+	sb.content_margin_top = 28
+	sb.content_margin_bottom = 28
+	box.add_theme_stylebox_override("panel", sb)
 	modal.add_child(box)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 16)
+	v.add_theme_constant_override("separation", 12)
 	box.add_child(v)
+	# Badge
+	var badge := Label.new()
+	badge.text = "★ VITÓRIA HISTÓRICA ★" if victory else "✕ FIM DE GOVERNO"
+	badge.add_theme_color_override("font_color", Color(1, 0.85, 0.2) if victory else Color(1, 0.4, 0.4))
+	badge.add_theme_font_size_override("font_size", 13)
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(badge)
+	# Título grande
 	var t := Label.new()
 	t.text = title
-	t.add_theme_color_override("font_color", Color(1, 0.85, 0) if victory else Color(1, 0.3, 0.3))
-	t.add_theme_font_size_override("font_size", 28)
+	t.add_theme_color_override("font_color", Color(1, 1, 1))
+	t.add_theme_font_size_override("font_size", 32)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(t)
+	# Linha decorativa
+	var deco := ColorRect.new()
+	deco.color = Color(1, 0.85, 0.2, 0.6) if victory else Color(1, 0.4, 0.4, 0.6)
+	deco.custom_minimum_size = Vector2(120, 2)
+	deco.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(deco)
+	# Mensagem
 	var m := Label.new()
 	m.text = msg
 	m.add_theme_color_override("font_color", Color(0.85, 0.93, 1))
 	m.add_theme_font_size_override("font_size", 13)
 	m.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(m)
+	# Estatísticas finais
 	v.add_child(HSeparator.new())
+	var stats_title := Label.new()
+	stats_title.text = "📊 SUMÁRIO DA CAMPANHA"
+	stats_title.add_theme_color_override("font_color", Color(0.5, 0.7, 0.95))
+	stats_title.add_theme_font_size_override("font_size", 11)
+	stats_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(stats_title)
+	var n = GameEngine.player_nation
+	if n != null:
+		var stats_grid := GridContainer.new()
+		stats_grid.columns = 2
+		stats_grid.add_theme_constant_override("h_separation", 24)
+		stats_grid.add_theme_constant_override("v_separation", 4)
+		stats_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		var stats := [
+			["Nação", n.nome],
+			["Turnos jogados", "%d" % GameEngine.current_turn],
+			["Período", "2000 - %d" % GameEngine.date_year],
+			["PIB final", "$%dB" % int(n.pib_bilhoes_usd)],
+			["Tesouro final", "$%dB" % int(n.tesouro)],
+			["Apoio popular", "%d%%" % int(n.apoio_popular)],
+			["Estabilidade", "%d%%" % int(n.estabilidade_politica)],
+			["Tecnologias", "%d concluídas" % n.tecnologias_concluidas.size()],
+		]
+		var hist_count: int = 0
+		if GameEngine.timeline:
+			hist_count = GameEngine.timeline.decision_log.size()
+		stats.append(["Decisões históricas", "%d" % hist_count])
+		for pair in stats:
+			var k := Label.new()
+			k.text = String(pair[0])
+			k.add_theme_color_override("font_color", Color(0.55, 0.65, 0.78))
+			k.add_theme_font_size_override("font_size", 11)
+			stats_grid.add_child(k)
+			var val := Label.new()
+			val.text = String(pair[1])
+			val.add_theme_color_override("font_color", Color(0.95, 1, 1))
+			val.add_theme_font_size_override("font_size", 12)
+			val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			stats_grid.add_child(val)
+		v.add_child(stats_grid)
+	v.add_child(HSeparator.new())
+	# Botões
 	var btn_row := HBoxContainer.new()
 	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	btn_row.add_theme_constant_override("separation", 12)
 	v.add_child(btn_row)
+	# Vitória oferece "Continuar Livre" (pode seguir jogando após ganhar)
+	if victory:
+		var btn_continue := Button.new()
+		btn_continue.text = "▶ CONTINUAR LIVRE"
+		btn_continue.custom_minimum_size = Vector2(200, 44)
+		btn_continue.pressed.connect(func():
+			modal.queue_free()
+			# permite jogar mais (vitória opcional)
+			endgame_triggered = false)
+		btn_row.add_child(btn_continue)
 	var btn_menu := Button.new()
 	btn_menu.text = "🏠 MENU PRINCIPAL"
-	btn_menu.custom_minimum_size = Vector2(180, 44)
+	btn_menu.custom_minimum_size = Vector2(200, 44)
 	btn_menu.pressed.connect(func():
 		modal.queue_free()
 		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
@@ -1113,7 +1200,7 @@ func _show_event_modal(event: Dictionary) -> void:
 	modal.color = Color(0, 0, 0, 0.85)
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
-	get_tree().root.add_child(modal)
+	add_child(modal)  # filho do GameOverlay (não da root → limpa em scene change)
 	var box := PanelContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.custom_minimum_size = Vector2(560, 360)

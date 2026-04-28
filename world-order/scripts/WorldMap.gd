@@ -163,6 +163,9 @@ func _ready() -> void:
 	if GameEngine and GameEngine.has_signal("player_actions_changed"):
 		GameEngine.player_actions_changed.connect(_refresh_actions_label)
 	_refresh_actions_label(GameEngine.player_actions_remaining)
+	# Achievements: toast quando desbloqueia
+	if GameEngine and GameEngine.achievements and GameEngine.achievements.has_signal("achievement_unlocked"):
+		GameEngine.achievements.achievement_unlocked.connect(_show_achievement_toast)
 
 	_refresh_top_bar()
 
@@ -2366,12 +2369,132 @@ func _make_modal_button(label: String, primary: bool = false) -> Button:
 	b.add_theme_color_override("font_hover_color", Color(1, 1, 1))
 	return b
 
+# ─────────────────────────────────────────────────────────────────
+# MODAL DE CONFIRMAÇÃO PARA AÇÕES DESTRUTIVAS
+# Reutilizável: passe título, mensagem, callback quando confirmado.
+# Inclui label de "consequência irreversível" e estilo amarelo de alerta.
+# ─────────────────────────────────────────────────────────────────
+
+# Mostra toast (notificação canto da tela) quando achievement é desbloqueado.
+# Não-bloqueante: aparece, fica 4s, fade out automático.
+func _show_achievement_toast(id: String, name: String, description: String) -> void:
+	# Acha o icon do achievement
+	var icon: String = "🏅"
+	for ach in GameEngine.achievements.ACHIEVEMENTS:
+		if ach.get("id", "") == id:
+			icon = ach.get("icon", "🏅")
+			break
+	# Cria toast como Control flutuante no canto superior direito
+	var toast := PanelContainer.new()
+	toast.size = Vector2(380, 76)
+	toast.position = Vector2(get_viewport_rect().size.x - 400, 100)
+	toast.z_index = 200
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.10, 0.15, 0.97)
+	sb.border_color = Color(1, 0.85, 0.2, 1)
+	sb.border_width_left = 4
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	toast.add_theme_stylebox_override("panel", sb)
+	add_child(toast)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	toast.add_child(v)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
+	v.add_child(head)
+	var icon_lbl := Label.new()
+	icon_lbl.text = icon
+	icon_lbl.add_theme_font_size_override("font_size", 22)
+	head.add_child(icon_lbl)
+	var col := VBoxContainer.new()
+	head.add_child(col)
+	var badge := Label.new()
+	badge.text = "🏆 CONQUISTA DESBLOQUEADA"
+	badge.add_theme_color_override("font_color", Color(1, 0.85, 0.2))
+	badge.add_theme_font_size_override("font_size", 10)
+	col.add_child(badge)
+	var name_lbl := Label.new()
+	name_lbl.text = name
+	name_lbl.add_theme_color_override("font_color", Color(1, 1, 1))
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	col.add_child(name_lbl)
+	var desc_lbl := Label.new()
+	desc_lbl.text = description
+	desc_lbl.add_theme_color_override("font_color", Color(0.65, 0.78, 0.92))
+	desc_lbl.add_theme_font_size_override("font_size", 10)
+	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(desc_lbl)
+	# Animação: slide-in da direita + fade-out depois de 4s
+	toast.modulate = Color(1, 1, 1, 0)
+	toast.position.x += 50
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(toast, "modulate:a", 1.0, 0.3).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(toast, "position:x", get_viewport_rect().size.x - 400, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# Fade out após 4 segundos
+	var tw_out := create_tween()
+	tw_out.tween_interval(4.0)
+	tw_out.tween_property(toast, "modulate:a", 0.0, 0.6).set_trans(Tween.TRANS_CUBIC)
+	tw_out.tween_callback(func(): if is_instance_valid(toast): toast.queue_free())
+
+func _show_confirmation_modal(title: String, msg: String, on_confirm: Callable, danger: bool = true) -> void:
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 14)
+	content.mouse_filter = Control.MOUSE_FILTER_PASS
+	content.custom_minimum_size = Vector2(520, 0)
+	# Mensagem
+	var msg_lbl := Label.new()
+	msg_lbl.text = msg
+	msg_lbl.add_theme_color_override("font_color", Color(0.92, 0.96, 1))
+	msg_lbl.add_theme_font_size_override("font_size", 13)
+	msg_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(msg_lbl)
+	# Aviso
+	if danger:
+		var warn := Label.new()
+		warn.text = "⚠ Ação irreversível neste turno"
+		warn.add_theme_color_override("font_color", Color(1, 0.65, 0.35))
+		warn.add_theme_font_size_override("font_size", 11)
+		warn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		warn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		content.add_child(warn)
+	# Botões
+	var modal_ref: Array = [null]
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.add_theme_constant_override("separation", 10)
+	content.add_child(row)
+	var btn_no := _make_modal_button("✖ Cancelar", false)
+	btn_no.custom_minimum_size = Vector2(140, 38)
+	btn_no.pressed.connect(func(): _close_modal(modal_ref[0]))
+	row.add_child(btn_no)
+	var btn_yes := _make_modal_button("✓ Confirmar", true)
+	btn_yes.custom_minimum_size = Vector2(140, 38)
+	btn_yes.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		on_confirm.call())
+	row.add_child(btn_yes)
+	modal_ref[0] = _open_modal(content, title, Vector2(560, 220))
+
 func _on_declare_war_pressed() -> void:
 	if preview_code == "" or preview_code == player_code: return
-	if GameEngine.player_declare_war(preview_code):
-		_log_ticker("⚔️ MILITAR", "Você declarou guerra contra %s" % GameEngine.nations[preview_code].nome, Color(1, 0.3, 0.3))
-		_repaint_map()
-		_show_preview(preview_code)
+	var target_name: String = GameEngine.nations[preview_code].nome
+	var cost: float = max(20.0, GameEngine.player_nation.pib_bilhoes_usd * 0.02)
+	_show_confirmation_modal(
+		"⚔️ DECLARAR GUERRA",
+		"Tem certeza que quer declarar guerra contra %s?\n\nCusto: $%dB. Aliados de %s podem entrar em guerra contra você. DEFCON cai. Esta ação não pode ser desfeita." % [target_name, int(cost), target_name],
+		func():
+			if GameEngine.player_declare_war(preview_code):
+				_log_ticker("⚔️ MILITAR", "Você declarou guerra contra %s" % target_name, Color(1, 0.3, 0.3))
+				_repaint_map()
+				_show_preview(preview_code))
 
 func _on_propose_peace_pressed() -> void:
 	if preview_code == "" or preview_code == player_code: return
@@ -2394,13 +2517,17 @@ func _on_embassy_pressed() -> void:
 
 func _on_sanctions_pressed() -> void:
 	if preview_code == "" or preview_code == player_code: return
-	var res: Dictionary = GameEngine.player_impose_sanctions(preview_code)
-	if res.get("ok", false):
-		var t = GameEngine.nations[preview_code]
-		_log_ticker("🚫 SANÇÕES", "Sanções contra %s — duração %d turnos" % [t.nome, GameEngine.SANCTION_DURATION], Color(1, 0.7, 0))
-		_show_preview(preview_code)
-	else:
-		_log_ticker("⚠ SANÇÕES", res.get("reason", "Falha ao impor sanções"), Color(1, 0.4, 0.4))
+	var t = GameEngine.nations[preview_code]
+	_show_confirmation_modal(
+		"🚫 IMPOR SANÇÕES",
+		"Impor sanções contra %s?\n\nCusto: $%dB + 1 ação. Aplica -1.5%% PIB/turno no alvo por %d turnos. Relações caem -30. Bloqueia comércio bilateral." % [t.nome, GameEngine.SANCTION_COST, GameEngine.SANCTION_DURATION],
+		func():
+			var res: Dictionary = GameEngine.player_impose_sanctions(preview_code)
+			if res.get("ok", false):
+				_log_ticker("🚫 SANÇÕES", "Sanções contra %s — duração %d turnos" % [t.nome, GameEngine.SANCTION_DURATION], Color(1, 0.7, 0))
+				_show_preview(preview_code)
+			else:
+				_log_ticker("⚠ SANÇÕES", res.get("reason", "Falha ao impor sanções"), Color(1, 0.4, 0.4)))
 
 func _on_trade_pressed() -> void:
 	if preview_code == "" or preview_code == player_code: return
@@ -2495,7 +2622,7 @@ func _show_spy_picker_modal(target_code: String) -> void:
 	modal.color = Color(0, 0, 0, 0.85)
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
-	get_tree().root.add_child(modal)
+	add_child(modal)  # filho da scene atual (limpa em scene_change)
 	var box := PanelContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.custom_minimum_size = Vector2(640, 600)
@@ -2559,7 +2686,7 @@ func _show_treaty_picker_modal(target_code: String) -> void:
 	modal.color = Color(0, 0, 0, 0.85)
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
-	get_tree().root.add_child(modal)
+	add_child(modal)  # filho da scene atual (limpa em scene_change)
 	var box := PanelContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.custom_minimum_size = Vector2(560, 480)
@@ -2838,6 +2965,18 @@ func _on_turn_advanced(_t: int) -> void:
 	_update_news_ticker()
 	_notify_upcoming_decisions()
 	_decay_event_markers()
+	_maybe_autosave()
+
+# Auto-save a cada AUTOSAVE_INTERVAL turnos. Silencioso, só loga no ticker
+# se foi feito. Não bloqueia jogo.
+const AUTOSAVE_INTERVAL: int = 5
+func _maybe_autosave() -> void:
+	if GameEngine == null or GameEngine.player_nation == null: return
+	if GameEngine.current_turn <= 0: return
+	if GameEngine.current_turn % AUTOSAVE_INTERVAL != 0: return
+	var SaveSys = preload("res://scripts/SaveSystem.gd")
+	if SaveSys.save_game(GameEngine):
+		_log_ticker("💾 AUTOSAVE", "Salvo automaticamente (turno %d)" % GameEngine.current_turn, Color(0.4, 0.85, 1))
 
 # ─────────────────────────────────────────────────────────────────
 # MARKERS DE EVENTOS NO MAPA — visual sobre países afetados

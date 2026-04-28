@@ -103,6 +103,50 @@ func _ready() -> void:
 	# Zoom reset deve ter setado um target diferente do atual
 	_test("ZoomReset setou novo target", world_map.camera_animating)
 
+	# ─── 9. Sanções funcionais ───
+	# Reset de ações pra ter folga
+	GameEngine.player_actions_remaining = 3
+	var us_pib_before: float = GameEngine.nations["US"].pib_bilhoes_usd
+	var sanc_result: Dictionary = GameEngine.player_impose_sanctions("US")
+	_test("Sanções: ok = true", sanc_result.get("ok", false))
+	_test("Sanções: criou entry em active_sanctions", GameEngine.active_sanctions.size() >= 1)
+	_test("Sanções: relação BR-US caiu (≤ -30)",
+		float(GameEngine.player_nation.relacoes.get("US", 0)) <= -30)
+	# Avança 1 turno e checa se PIB do alvo caiu
+	GameEngine.end_turn()
+	await get_tree().process_frame
+	_test("Sanções: PIB do alvo caiu após 1 turno",
+		GameEngine.nations["US"].pib_bilhoes_usd < us_pib_before)
+
+	# ─── 10. Comércio bilateral ───
+	GameEngine.player_actions_remaining = 3
+	# Brasil tem terras_araveis ~90 — usa um recurso real
+	var trade_result: Dictionary = GameEngine.player_export_resource("CN", "terras_araveis")
+	# Pode dar erro de sanção/relação — testa apenas se tem retorno coerente
+	_test("Comércio: retorno tem 'ok'", trade_result.has("ok"))
+	if trade_result.get("ok", false):
+		_test("Comércio: criou entry em active_trades",
+			GameEngine.active_trades.size() >= 1)
+		_test("Comércio: value_per_turn > 0",
+			float(trade_result.get("value_per_turn", 0)) > 0)
+
+	# ─── 11. Auto-save / save corrupto ───
+	# Tenta carregar sem ter save: deve retornar false sem crash
+	var SaveSys2 = preload("res://scripts/SaveSystem.gd")
+	# Save first pra criar arquivo válido
+	var save_ok: bool = SaveSys2.save_game(GameEngine)
+	_test("Save: salva sem erro", save_ok)
+	_test("Save: has_save() retorna true após salvar", SaveSys2.has_save())
+
+	# ─── 12. Achievements desbloqueados ───
+	if GameEngine.achievements:
+		# first_turn deve estar desbloqueado (já avançou turnos)
+		_test("Achievement: first_turn desbloqueado",
+			GameEngine.achievements.is_unlocked("first_turn"))
+		var prog: Dictionary = GameEngine.achievements.get_progress()
+		_test("Achievement: get_progress retorna total ≥ 15",
+			int(prog.get("total", 0)) >= 15)
+
 	# ─── RESUMO ───
 	print("\n╔══════════════════════════════════════════════════════════════════")
 	print("║  RESULTADO: %d PASS  /  %d FAIL  (total %d)" % [passed, failed, passed + failed])

@@ -38,14 +38,31 @@ static func load_game(engine) -> bool:
 	if not FileAccess.file_exists(SAVE_PATH):
 		return false
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if file == null: return false
+	if file == null:
+		push_error("SaveSystem: não foi possível abrir o save (acesso negado)")
+		return false
 	var raw := file.get_as_text()
 	file.close()
+	# Validações de save corrupto (com backup pra debug)
+	if raw.length() < 50:
+		push_error("SaveSystem: save vazio ou truncado")
+		_backup_corrupt_save(raw, "vazio")
+		return false
 	var json := JSON.new()
 	if json.parse(raw) != OK:
-		push_error("SaveSystem: erro ao parsear save: " + json.get_error_message())
+		push_error("SaveSystem: JSON inválido — " + json.get_error_message())
+		_backup_corrupt_save(raw, "json_invalido")
+		return false
+	if not (json.data is Dictionary):
+		push_error("SaveSystem: estrutura de save inválida")
+		_backup_corrupt_save(raw, "estrutura_invalida")
 		return false
 	var data: Dictionary = json.data
+	# Sanity checks: campos obrigatórios
+	if not data.has("current_turn") or not data.has("nations"):
+		push_error("SaveSystem: save sem campos obrigatórios")
+		_backup_corrupt_save(raw, "campos_faltando")
+		return false
 	# Restaura estado básico
 	engine.current_turn = int(data.get("current_turn", 0))
 	engine.date_quarter = int(data.get("date_quarter", 1))
@@ -76,6 +93,16 @@ static func load_game(engine) -> bool:
 	engine.active_trades = data.get("active_trades", [])
 	print("[LOAD] Jogo carregado: turno %d, jogador %s" % [engine.current_turn, player_code])
 	return true
+
+# Salva backup do save corrupto pra debug (não sobrescreve o save vivo)
+static func _backup_corrupt_save(raw_content: String, reason: String) -> void:
+	var ts: String = Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
+	var backup_path: String = "user://corrupt_save_%s_%s.txt" % [reason, ts]
+	var f := FileAccess.open(backup_path, FileAccess.WRITE)
+	if f != null:
+		f.store_string(raw_content)
+		f.close()
+		print("[SAVE] Backup do save corrupto: %s" % backup_path)
 
 static func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)

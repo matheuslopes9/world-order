@@ -8,12 +8,14 @@ const NewsScript := preload("res://scripts/NewsManager.gd")
 const TechScript := preload("res://scripts/TechManager.gd")
 const EspionageScript := preload("res://scripts/EspionageManager.gd")
 const TimelineScript := preload("res://scripts/EventTimeline.gd")
+const AchievementScript := preload("res://scripts/AchievementManager.gd")
 
 var diplomacy = null  # DiplomacyManager
 var news = null       # NewsManager
 var tech = null       # TechManager
 var espionage = null  # EspionageManager
 var timeline = null   # EventTimelineManager
+var achievements = null  # AchievementManager
 
 # ── Estado do jogo ───────────────────────────────────────────────
 var nations: Dictionary = {}             # code → Nation
@@ -111,6 +113,7 @@ func _ready() -> void:
 	tech = TechScript.new(self)
 	espionage = EspionageScript.new(self)
 	timeline = TimelineScript.new(self)
+	achievements = AchievementScript.new(self)
 
 func _load_all_data() -> void:
 	var t0 := Time.get_ticks_msec()
@@ -261,6 +264,9 @@ func end_turn() -> void:
 	# Timeline histórica: dispara eventos âncora se chegou o momento
 	if timeline:
 		timeline.process_turn()
+	# Atualiza conquistas (verifica condições de progressão automática)
+	if achievements:
+		achievements.update()
 	# Notícias procedurais
 	if news:
 		var generated: Array = news.generate_turn_news()
@@ -547,6 +553,7 @@ func player_declare_war(target_code: String) -> bool:
 		return false
 	if not _consume_action(): return false
 	_declare_war(player_nation.codigo_iso, target_code)
+	if achievements: achievements.on_war_declared(true)
 	return true
 
 func player_propose_peace(target_code: String) -> bool:
