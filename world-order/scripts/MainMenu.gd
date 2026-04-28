@@ -10,6 +10,27 @@ extends Control
 const SaveSys = preload("res://scripts/SaveSystem.gd")
 const MONO_FONT := preload("res://fonts/CascadiaMono.ttf")
 
+# Paleta consolidada — referenciada pelos modais e UI dinâmica
+const PALETTE := {
+	"cyan": Color(0, 0.823, 1, 0.9),
+	"cyan_dim": Color(0, 0.823, 1, 0.55),
+	"gold": Color(1, 0.85, 0.3, 0.85),
+	"red_warn": Color(1, 0.45, 0.4, 0.85),
+	"green_ok": Color(0.4, 1, 0.6, 0.95),
+	"bg_panel": Color(0.035, 0.06, 0.10, 0.99),
+	"bg_panel_red": Color(0.10, 0.04, 0.04, 0.99),
+	"bg_overlay": Color(0, 0.04, 0.08, 0.94),
+	"text_primary": Color(0.95, 0.99, 1),
+	"text_dim": Color(0.55, 0.7, 0.85),
+}
+
+# Aplica fade-in suave (200ms) a um node, partindo de modulate.a=0.
+func _fade_in(node: CanvasItem, duration: float = 0.20) -> void:
+	if node == null: return
+	node.modulate = Color(node.modulate.r, node.modulate.g, node.modulate.b, 0.0)
+	var tw := create_tween()
+	tw.tween_property(node, "modulate:a", 1.0, duration).set_trans(Tween.TRANS_CUBIC)
+
 func _ready() -> void:
 	# Roda diagnóstico inicial
 	var info := []
@@ -350,6 +371,7 @@ func _show_main_menu_confirm(title: String, msg: String, on_confirm: Callable) -
 		modal.queue_free()
 		on_confirm.call())
 	btns.add_child(btn_yes)
+	_fade_in(modal)
 
 func _add_language_selector() -> void:
 	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
@@ -541,6 +563,7 @@ func _show_progression_modal() -> void:
 	close_btn.custom_minimum_size = Vector2(0, 36)
 	close_btn.pressed.connect(func(): modal.queue_free())
 	v.add_child(close_btn)
+	_fade_in(modal)
 
 func _add_credits_button() -> void:
 	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
@@ -658,6 +681,7 @@ func _show_credits_modal() -> void:
 	close_btn.custom_minimum_size = Vector2(0, 36)
 	close_btn.pressed.connect(func(): modal.queue_free())
 	v.add_child(close_btn)
+	_fade_in(modal)
 
 func _add_mode_selector() -> void:
 	# Insere um VBox de "MODO DE CAMPANHA" antes do ButtonRow
@@ -849,6 +873,7 @@ func _show_loading_overlay() -> void:
 	icon.pivot_offset = Vector2(32, 32)
 	var tw := create_tween().set_loops()
 	tw.tween_method(func(angle: float): icon.rotation = angle, 0.0, TAU, 1.0)
+	_fade_in(ov, 0.18)
 
 func _on_test_pressed() -> void:
 	# Teste simples: muda cor e mostra que input funciona

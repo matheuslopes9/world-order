@@ -1093,6 +1093,10 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
 	get_tree().root.add_child(modal)
+	# Fade-in cinematográfico — cor já está no ColorRect, modula sobre o card
+	modal.modulate = Color(1, 1, 1, 0)
+	var tw_fade := create_tween()
+	tw_fade.tween_property(modal, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_CUBIC)
 	# Card central com tema visual diferente pra vitória vs derrota
 	var box := PanelContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
@@ -1228,17 +1232,26 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 		btn_newgame.text = "🔄 NOVA CAMPANHA"
 		btn_newgame.custom_minimum_size = Vector2(200, 44)
 		btn_newgame.pressed.connect(func():
-			modal.queue_free()
 			SaveSystem.delete_save()
-			get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
+			_transition_to_scene(modal, "res://scenes/MainMenu.tscn"))
 		btn_row.add_child(btn_newgame)
 	var btn_menu := Button.new()
 	btn_menu.text = "🏠 MENU PRINCIPAL"
 	btn_menu.custom_minimum_size = Vector2(200, 44)
 	btn_menu.pressed.connect(func():
-		modal.queue_free()
-		get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
+		_transition_to_scene(modal, "res://scenes/MainMenu.tscn"))
 	btn_row.add_child(btn_menu)
+
+# Transição com fade-out do modal + change_scene
+func _transition_to_scene(modal: Node, scene_path: String) -> void:
+	if modal != null and is_instance_valid(modal):
+		var tw := create_tween()
+		tw.tween_property(modal, "modulate:a", 0.0, 0.18)
+		tw.tween_callback(func():
+			if is_instance_valid(modal): modal.queue_free()
+			get_tree().change_scene_to_file(scene_path))
+	else:
+		get_tree().change_scene_to_file(scene_path)
 
 # Título conferido na vitória, baseado em qual estatística mais se destacou.
 # Usa thresholds escaláveis em vez de checagem fixa pra dar variedade.

@@ -92,6 +92,9 @@ var country_codes_filtered: Array = []
 var preview_code: String = ""
 var player_code: String = ""
 var current_filter: String = "POLITICO"
+# Hover tracking — atualiza tooltip flutuante e pequeno highlight no país sob mouse
+var hover_code: String = ""
+var hover_label: Label = null
 
 # Camera/zoom
 var is_dragging: bool = false
@@ -1690,7 +1693,10 @@ func _show_options_modal() -> void:
 		_show_confirmation_modal(
 			"🏠 SAIR PARA O MENU",
 			"Tem certeza que quer sair? Progresso desde o último save será perdido.\n\nUse 'Salvar Jogo' antes se quer manter sua partida.",
-			func(): get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")))
+			func():
+				_show_spinner("Voltando ao menu…")
+				await get_tree().process_frame
+				get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")))
 	v.add_child(btn_quit)
 	# Abre como modal central
 	modal_ref[0] = _open_modal(v, "⚙ OPÇÕES DE JOGO", Vector2(520, 640))
@@ -3989,6 +3995,50 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 		pan_velocity = pan_velocity.lerp(-inst_v, 0.5)
 		last_drag_pos = event.position
 		last_drag_time_ms = now_ms
+		return
+	# Sem drag: atualiza hover (tooltip flutuante com nome do país)
+	if not _is_in_map_area(event.position):
+		_clear_hover()
+		return
+	var world := _screen_to_world(event.position)
+	var hit := _country_at(world)
+	if hit == "":
+		_clear_hover()
+		return
+	if hit != hover_code:
+		_clear_hover()
+		hover_code = hit
+		_update_hover_label(event.position)
+	elif hover_label != null:
+		# Mantém label seguindo o cursor com offset
+		hover_label.position = event.position + Vector2(14, -28)
+
+func _update_hover_label(screen_pos: Vector2) -> void:
+	if not GameEngine.nations.has(hover_code):
+		_clear_hover()
+		return
+	var n = GameEngine.nations[hover_code]
+	if hover_label == null:
+		hover_label = Label.new()
+		hover_label.name = "HoverLabel"
+		hover_label.add_theme_font_size_override("font_size", 12)
+		hover_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
+		hover_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		hover_label.add_theme_constant_override("outline_size", 4)
+		hover_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hover_label.z_index = 50
+		add_child(hover_label)
+	hover_label.text = "%s  ·  %s" % [n.nome, hover_code]
+	hover_label.position = screen_pos + Vector2(14, -28)
+	hover_label.modulate = Color(1, 1, 1, 0)
+	var tw := create_tween()
+	tw.tween_property(hover_label, "modulate:a", 1.0, 0.12)
+
+func _clear_hover() -> void:
+	hover_code = ""
+	if hover_label != null and is_instance_valid(hover_label):
+		hover_label.queue_free()
+		hover_label = null
 
 func _zoom_at(screen_pos: Vector2, factor: float) -> void:
 	camera_animating = false
