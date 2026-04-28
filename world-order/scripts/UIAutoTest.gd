@@ -42,10 +42,22 @@ func _ready() -> void:
 		await get_tree().process_frame
 		# Verifica preview_code setado
 		_test("preview_code virou 'BR' após seleção", world_map.preview_code == "BR")
-		# Confirma comando
-		world_map._on_confirm_pressed()
-		await get_tree().process_frame
-		_test("player_code virou 'BR' após confirmar", world_map.player_code == "BR")
+		# Bypass do wizard: seta estado diretamente e finaliza (autoplay não preenche modais)
+		world_map._takeover_state = {
+			"country_code": "BR",
+			"leader_name": "Tester Bot",
+			"leader_age": 50,
+			"leader_background": "politico",
+			"leader_motto": "Test mode",
+			"government_type": "manter",
+			"economic_doctrine": "mista",
+			"first_steps": ["saude", "educacao", "infra"],
+		}
+		world_map._finalize_takeover()
+		await get_tree().create_timer(0.6).timeout
+		_test("player_code virou 'BR' após finalize_takeover", world_map.player_code == "BR")
+		_test("Wizard salvou leader_name no Nation",
+			GameEngine.player_nation.get_meta("leader_name", "") == "Tester Bot")
 		# Modal de seleção fechado
 		_test("Modal fechou após confirmar (ou tutorial pode ter aberto)",
 			not world_map._is_modal_open() or world_map._modal_stack.size() == 1)

@@ -2153,31 +2153,392 @@ func _render_pros_cons(n) -> void:
 func _on_confirm_pressed() -> void:
 	if preview_code == "" or not GameEngine.nations.has(preview_code):
 		return
-	# Spinner imediato — todo o setup leva 100-300ms (paint, zoom, overlay)
-	_show_spinner("Assumindo comando…")
+	# Abre wizard de tomada de posse antes de iniciar o jogo de fato
+	_open_takeover_wizard(preview_code)
+
+# Estado coletado pelo wizard (4 etapas)
+var _takeover_state: Dictionary = {}
+
+func _open_takeover_wizard(country_code: String) -> void:
+	var n = GameEngine.nations[country_code]
+	# Inicializa estado com defaults
+	_takeover_state = {
+		"country_code": country_code,
+		"leader_name": "",
+		"leader_age": 50,
+		"leader_background": "politico",
+		"leader_motto": "",
+		"government_type": n.regime_politico,
+		"economic_doctrine": "mista",
+		"first_steps": [],  # 3 ações grátis escolhidas
+	}
+	_show_takeover_step_1(country_code)
+
+# ───────────────────────────────────────────────────────────
+# WIZARD DE TOMADA DE POSSE — 4 etapas (carinho com o jogador)
+# ───────────────────────────────────────────────────────────
+
+func _show_takeover_step_1(country_code: String) -> void:
+	var n = GameEngine.nations[country_code]
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 14)
+	content.mouse_filter = Control.MOUSE_FILTER_PASS
+	content.custom_minimum_size = Vector2(560, 0)
+	# Indicador de etapa
+	var step_lbl := Label.new()
+	step_lbl.text = "ETAPA 1 / 4 — IDENTIDADE DO LÍDER"
+	step_lbl.add_theme_color_override("font_color", Color(0, 0.95, 1, 0.85))
+	step_lbl.add_theme_font_size_override("font_size", 11)
+	step_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(step_lbl)
+	var intro := Label.new()
+	intro.text = "Você assume %s, %s. Quem é você nesse mundo?" % [n.nome, n.continente]
+	intro.add_theme_color_override("font_color", Color(0.85, 0.93, 1))
+	intro.add_theme_font_size_override("font_size", 13)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(intro)
+	content.add_child(HSeparator.new())
+	# Nome do líder
+	var name_label := Label.new()
+	name_label.text = "Nome do líder:"
+	name_label.add_theme_color_override("font_color", Color(0.55, 0.7, 0.9))
+	name_label.add_theme_font_size_override("font_size", 11)
+	content.add_child(name_label)
+	var name_edit := LineEdit.new()
+	name_edit.placeholder_text = "Ex: Maria Silva, John Doe, ..."
+	name_edit.text = _takeover_state.get("leader_name", "")
+	name_edit.custom_minimum_size = Vector2(0, 36)
+	name_edit.text_changed.connect(func(t: String): _takeover_state["leader_name"] = t)
+	content.add_child(name_edit)
+	# Background
+	var bg_label := Label.new()
+	bg_label.text = "Background do líder:"
+	bg_label.add_theme_color_override("font_color", Color(0.55, 0.7, 0.9))
+	bg_label.add_theme_font_size_override("font_size", 11)
+	content.add_child(bg_label)
+	var bg_row := HBoxContainer.new()
+	bg_row.add_theme_constant_override("separation", 6)
+	content.add_child(bg_row)
+	var bg_btns: Array = []
+	var backgrounds := [
+		{"id": "militar",   "label": "⚔ Militar",     "tip": "+5 poder militar inicial"},
+		{"id": "empresario","label": "💼 Empresário",  "tip": "+$50B tesouro inicial"},
+		{"id": "academico", "label": "🎓 Acadêmico",   "tip": "+10% velocidade pesquisa"},
+		{"id": "politico",  "label": "🏛 Político",    "tip": "+5 estabilidade inicial"},
+	]
+	for bg in backgrounds:
+		var btn := Button.new()
+		btn.text = bg["label"]
+		btn.tooltip_text = bg["tip"]
+		btn.toggle_mode = true
+		btn.button_pressed = (_takeover_state.get("leader_background", "politico") == bg["id"])
+		btn.set_meta("bg_id", bg["id"])
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(0, 38)
+		btn.add_theme_font_size_override("font_size", 11)
+		var bid: String = bg["id"]
+		btn.pressed.connect(func():
+			_takeover_state["leader_background"] = bid
+			for b in bg_btns:
+				b.button_pressed = (b.get_meta("bg_id") == bid))
+		bg_row.add_child(btn)
+		bg_btns.append(btn)
+	# Lema/slogan
+	var motto_label := Label.new()
+	motto_label.text = "Lema/Slogan (aparece no game over):"
+	motto_label.add_theme_color_override("font_color", Color(0.55, 0.7, 0.9))
+	motto_label.add_theme_font_size_override("font_size", 11)
+	content.add_child(motto_label)
+	var motto_edit := LineEdit.new()
+	motto_edit.placeholder_text = "Ex: 'Pelo bem do povo', 'Ordem e Progresso', ..."
+	motto_edit.text = _takeover_state.get("leader_motto", "")
+	motto_edit.custom_minimum_size = Vector2(0, 36)
+	motto_edit.text_changed.connect(func(t: String): _takeover_state["leader_motto"] = t)
+	content.add_child(motto_edit)
+	# Botões navegação
+	content.add_child(HSeparator.new())
+	var nav_row := HBoxContainer.new()
+	nav_row.alignment = BoxContainer.ALIGNMENT_END
+	nav_row.add_theme_constant_override("separation", 10)
+	content.add_child(nav_row)
+	var modal_ref: Array = [null]
+	var btn_cancel := _make_modal_button("✕ Cancelar", false)
+	btn_cancel.custom_minimum_size = Vector2(120, 36)
+	btn_cancel.pressed.connect(func(): _close_modal(modal_ref[0]))
+	nav_row.add_child(btn_cancel)
+	var btn_next := _make_modal_button("PRÓXIMO ▶", true)
+	btn_next.custom_minimum_size = Vector2(160, 36)
+	btn_next.pressed.connect(func():
+		# Auto-fill nome se vazio
+		if String(_takeover_state.get("leader_name", "")).strip_edges() == "":
+			_takeover_state["leader_name"] = "Líder de %s" % n.nome
+		_close_modal(modal_ref[0])
+		_show_takeover_step_2(country_code))
+	nav_row.add_child(btn_next)
+	modal_ref[0] = _open_modal(content, "🎭 ASSUMIR COMANDO — %s" % n.nome, Vector2(620, 540), false)
+
+func _show_takeover_step_2(country_code: String) -> void:
+	var n = GameEngine.nations[country_code]
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 12)
+	content.mouse_filter = Control.MOUSE_FILTER_PASS
+	content.custom_minimum_size = Vector2(560, 0)
+	var step_lbl := Label.new()
+	step_lbl.text = "ETAPA 2 / 4 — SISTEMA DE GOVERNO"
+	step_lbl.add_theme_color_override("font_color", Color(0, 0.95, 1, 0.85))
+	step_lbl.add_theme_font_size_override("font_size", 11)
+	step_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(step_lbl)
+	var intro := Label.new()
+	intro.text = "Atual: %s\n\nMudar regime no início do governo é caro: $50B + -10 estabilidade. Mas pode valer a pena estrategicamente." % n.regime_politico.replace("_", " ").capitalize()
+	intro.add_theme_color_override("font_color", Color(0.85, 0.93, 1))
+	intro.add_theme_font_size_override("font_size", 12)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(intro)
+	content.add_child(HSeparator.new())
+	var gov_btns: Array = []
+	var governments := [
+		{"id": "manter",                "label": "✓ Manter regime atual",  "tip": "Sem custo, sem mudanças"},
+		{"id": "DEMOCRACIA_PLENA",      "label": "🗳 Democracia Plena",     "tip": "-10 corrupção, decisões mais lentas"},
+		{"id": "DEMOCRACIA_IMPERFEITA", "label": "🏛 Democracia Imperfeita","tip": "Balanceada"},
+		{"id": "REGIME_HIBRIDO",        "label": "⚖ Regime Híbrido",        "tip": "+5 corrupção, decisões rápidas"},
+		{"id": "DITADURA",              "label": "👑 Ditadura Militar",     "tip": "+10 estabilidade, -10 apoio popular"},
+		{"id": "TEOCRACIA",             "label": "✝ Teocracia",             "tip": "+15 estabilidade, mas poucos parceiros"},
+	]
+	# Default: manter
+	if not _takeover_state.has("government_type") or _takeover_state["government_type"] == n.regime_politico:
+		_takeover_state["government_type"] = "manter"
+	for gov in governments:
+		var btn := Button.new()
+		btn.text = "  " + gov["label"]
+		btn.tooltip_text = gov["tip"]
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.toggle_mode = true
+		btn.button_pressed = (_takeover_state.get("government_type", "manter") == gov["id"])
+		btn.set_meta("gov_id", gov["id"])
+		btn.custom_minimum_size = Vector2(0, 40)
+		btn.add_theme_font_size_override("font_size", 12)
+		var gid: String = gov["id"]
+		btn.pressed.connect(func():
+			_takeover_state["government_type"] = gid
+			for b in gov_btns:
+				b.button_pressed = (b.get_meta("gov_id") == gid))
+		content.add_child(btn)
+		gov_btns.append(btn)
+	# Nav
+	content.add_child(HSeparator.new())
+	var nav_row := HBoxContainer.new()
+	nav_row.alignment = BoxContainer.ALIGNMENT_END
+	nav_row.add_theme_constant_override("separation", 10)
+	content.add_child(nav_row)
+	var modal_ref: Array = [null]
+	var btn_back := _make_modal_button("◀ Voltar", false)
+	btn_back.custom_minimum_size = Vector2(120, 36)
+	btn_back.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_show_takeover_step_1(country_code))
+	nav_row.add_child(btn_back)
+	var btn_next := _make_modal_button("PRÓXIMO ▶", true)
+	btn_next.custom_minimum_size = Vector2(160, 36)
+	btn_next.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_show_takeover_step_3(country_code))
+	nav_row.add_child(btn_next)
+	modal_ref[0] = _open_modal(content, "🏛 SISTEMA DE GOVERNO", Vector2(620, 580), false)
+
+func _show_takeover_step_3(country_code: String) -> void:
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 12)
+	content.mouse_filter = Control.MOUSE_FILTER_PASS
+	content.custom_minimum_size = Vector2(560, 0)
+	var step_lbl := Label.new()
+	step_lbl.text = "ETAPA 3 / 4 — DOUTRINA ECONÔMICA"
+	step_lbl.add_theme_color_override("font_color", Color(0, 0.95, 1, 0.85))
+	step_lbl.add_theme_font_size_override("font_size", 11)
+	step_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(step_lbl)
+	var intro := Label.new()
+	intro.text = "Sua filosofia econômica afeta crescimento, desigualdade e tesouro a longo prazo."
+	intro.add_theme_color_override("font_color", Color(0.85, 0.93, 1))
+	intro.add_theme_font_size_override("font_size", 12)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(intro)
+	content.add_child(HSeparator.new())
+	var doc_btns: Array = []
+	var doctrines := [
+		{"id": "livre_mercado", "label": "💹 Livre Mercado",      "tip": "+1% PIB/turno, +5 corrupção"},
+		{"id": "mista",         "label": "⚖ Economia Mista",      "tip": "Balanceada (atual)"},
+		{"id": "planejada",     "label": "🏭 Planejamento Estatal","tip": "+5% tesouro/turno, -0.5% PIB"},
+		{"id": "nordica",       "label": "🌲 Modelo Nórdico",      "tip": "+5 felicidade/turno, -1% PIB"},
+	]
+	for doc in doctrines:
+		var btn := Button.new()
+		btn.text = "  " + doc["label"]
+		btn.tooltip_text = doc["tip"]
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.toggle_mode = true
+		btn.button_pressed = (_takeover_state.get("economic_doctrine", "mista") == doc["id"])
+		btn.set_meta("doc_id", doc["id"])
+		btn.custom_minimum_size = Vector2(0, 40)
+		btn.add_theme_font_size_override("font_size", 12)
+		var did: String = doc["id"]
+		btn.pressed.connect(func():
+			_takeover_state["economic_doctrine"] = did
+			for b in doc_btns:
+				b.button_pressed = (b.get_meta("doc_id") == did))
+		content.add_child(btn)
+		doc_btns.append(btn)
+	# Nav
+	content.add_child(HSeparator.new())
+	var nav_row := HBoxContainer.new()
+	nav_row.alignment = BoxContainer.ALIGNMENT_END
+	nav_row.add_theme_constant_override("separation", 10)
+	content.add_child(nav_row)
+	var modal_ref: Array = [null]
+	var btn_back := _make_modal_button("◀ Voltar", false)
+	btn_back.custom_minimum_size = Vector2(120, 36)
+	btn_back.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_show_takeover_step_2(country_code))
+	nav_row.add_child(btn_back)
+	var btn_next := _make_modal_button("PRÓXIMO ▶", true)
+	btn_next.custom_minimum_size = Vector2(160, 36)
+	btn_next.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_show_takeover_step_4(country_code))
+	nav_row.add_child(btn_next)
+	modal_ref[0] = _open_modal(content, "💰 DOUTRINA ECONÔMICA", Vector2(620, 460), false)
+
+const TAKEOVER_FIRST_STEPS := [
+	{"id": "saude",       "label": "🏥 Investir em saúde pública",  "tip": "+8 felicidade, +5 apoio"},
+	{"id": "educacao",    "label": "🎓 Reforma educacional",         "tip": "+5 apoio, +3 burocracia"},
+	{"id": "militar",     "label": "⚔ Modernizar forças armadas",   "tip": "+5 poder militar"},
+	{"id": "diplomacia",  "label": "🤝 Diplomacia ofensiva",          "tip": "+10 relações com vizinhos"},
+	{"id": "estimulo",    "label": "💰 Pacote de estímulo fiscal",   "tip": "+2% PIB"},
+	{"id": "energia",     "label": "🛢 Reforma energética",           "tip": "+5 cada recurso"},
+	{"id": "digital",     "label": "📡 Modernização digital",         "tip": "+10% velocidade pesquisa"},
+	{"id": "infra",       "label": "🏗 Infraestrutura nacional",      "tip": "+1% PIB, +3 estabilidade"},
+]
+
+func _show_takeover_step_4(country_code: String) -> void:
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 10)
+	content.mouse_filter = Control.MOUSE_FILTER_PASS
+	content.custom_minimum_size = Vector2(560, 0)
+	var step_lbl := Label.new()
+	step_lbl.text = "ETAPA 4 / 4 — PRIMEIROS 100 DIAS"
+	step_lbl.add_theme_color_override("font_color", Color(0, 0.95, 1, 0.85))
+	step_lbl.add_theme_font_size_override("font_size", 11)
+	step_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(step_lbl)
+	var intro := Label.new()
+	intro.text = "Escolha 3 prioridades. Estas ações são GRATUITAS e aplicadas antes do turno 1."
+	intro.add_theme_color_override("font_color", Color(0.85, 0.93, 1))
+	intro.add_theme_font_size_override("font_size", 12)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(intro)
+	# Contador "X/3 escolhidas"
+	var counter_lbl := Label.new()
+	counter_lbl.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
+	counter_lbl.add_theme_font_size_override("font_size", 12)
+	counter_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(counter_lbl)
+	var update_counter := func():
+		var sel: Array = _takeover_state.get("first_steps", [])
+		counter_lbl.text = "  ◆ %d/3 prioridades escolhidas" % sel.size()
+	update_counter.call()
+	content.add_child(HSeparator.new())
+	# Lista de checkboxes (na verdade botões togglable)
+	var step_btns: Array = []
+	for step in TAKEOVER_FIRST_STEPS:
+		var btn := Button.new()
+		btn.text = "  " + step["label"]
+		btn.tooltip_text = step["tip"]
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.toggle_mode = true
+		var sel: Array = _takeover_state.get("first_steps", [])
+		btn.button_pressed = (step["id"] in sel)
+		btn.set_meta("step_id", step["id"])
+		btn.custom_minimum_size = Vector2(0, 36)
+		btn.add_theme_font_size_override("font_size", 11)
+		var sid: String = step["id"]
+		btn.pressed.connect(func():
+			var current: Array = _takeover_state.get("first_steps", [])
+			if sid in current:
+				current.erase(sid)
+				btn.button_pressed = false
+			else:
+				if current.size() >= 3:
+					# Já chegou ao limite — desselecionar este (foi visualmente toggled)
+					btn.button_pressed = false
+					return
+				current.append(sid)
+				btn.button_pressed = true
+			_takeover_state["first_steps"] = current
+			update_counter.call())
+		content.add_child(btn)
+		step_btns.append(btn)
+	# Nav
+	content.add_child(HSeparator.new())
+	var nav_row := HBoxContainer.new()
+	nav_row.alignment = BoxContainer.ALIGNMENT_END
+	nav_row.add_theme_constant_override("separation", 10)
+	content.add_child(nav_row)
+	var modal_ref: Array = [null]
+	var btn_back := _make_modal_button("◀ Voltar", false)
+	btn_back.custom_minimum_size = Vector2(120, 36)
+	btn_back.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_show_takeover_step_3(country_code))
+	nav_row.add_child(btn_back)
+	var btn_finish := _make_modal_button("⚡ INICIAR GOVERNO", true)
+	btn_finish.custom_minimum_size = Vector2(200, 38)
+	btn_finish.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_finalize_takeover())
+	nav_row.add_child(btn_finish)
+	modal_ref[0] = _open_modal(content, "🚀 PRIMEIROS 100 DIAS NO PODER", Vector2(620, 620), false)
+
+# Aplica todas as escolhas do wizard ao Nation e inicia o jogo
+func _finalize_takeover() -> void:
+	var country_code: String = _takeover_state.get("country_code", preview_code)
+	if country_code == "" or not GameEngine.nations.has(country_code):
+		return
+	# Spinner
+	_show_spinner("Iniciando governo…")
 	var t0_ms := Time.get_ticks_msec()
-	# Espera 1 frame pra spinner pintar antes do trabalho síncrono
 	await get_tree().process_frame
-	GameEngine.confirm_player_nation(preview_code)
-	player_code = preview_code
-	# Fecha TODOS os modais abertos (dossiê, seleção, etc)
+	# Confirma a nação como jogadora
+	GameEngine.confirm_player_nation(country_code)
+	player_code = country_code
+	var n = GameEngine.player_nation
+	# Aplica escolhas do wizard
+	_apply_takeover_choices(n)
+	# Fecha modais abertos
 	while not _modal_stack.is_empty():
 		_close_top_modal()
-	# Ativa game overlay e mostra a action bar
+	# Ativa overlay e action bar
 	if game_overlay and game_overlay.has_method("activate"):
 		game_overlay.activate()
 	_show_action_bar(true)
 	_repaint_map()
 	_zoom_camera_to_country(player_code)
 	_refresh_top_bar()
-	_log_ticker("🔬 SISTEMA", "Comando assumido: %s. Tier %s. Boa sorte." %
-		[GameEngine.player_nation.nome, GameEngine.player_nation.tier_dificuldade], Color(0, 0.823, 1))
+	# Log dramatic
+	var leader: String = String(_takeover_state.get("leader_name", "Líder"))
+	var motto: String = String(_takeover_state.get("leader_motto", ""))
+	var motto_str: String = " — \"%s\"" % motto if motto != "" else ""
+	_log_ticker("🎭 NOVO GOVERNO", "%s assume o comando de %s%s" % [leader, n.nome, motto_str], Color(1, 0.85, 0.3))
 	# Garante visibilidade mínima do spinner
 	var elapsed: int = Time.get_ticks_msec() - t0_ms
-	if elapsed < 400:
-		await get_tree().create_timer((400 - elapsed) / 1000.0).timeout
+	if elapsed < 500:
+		await get_tree().create_timer((500 - elapsed) / 1000.0).timeout
 	_hide_spinner()
-	# Mostra tutorial na primeira partida (configurável)
+	# Tutorial se primeira partida
 	var cfg = ConfigFile.new()
 	if cfg.load("user://settings.cfg") != OK:
 		_show_tutorial()
@@ -2187,6 +2548,71 @@ func _on_confirm_pressed() -> void:
 		_show_tutorial()
 		cfg.set_value("tutorial", "shown", true)
 		cfg.save("user://settings.cfg")
+
+func _apply_takeover_choices(n) -> void:
+	# Salva metadados pro game over usar
+	n.set_meta("leader_name", _takeover_state.get("leader_name", "Líder"))
+	n.set_meta("leader_age", _takeover_state.get("leader_age", 50))
+	n.set_meta("leader_background", _takeover_state.get("leader_background", "politico"))
+	n.set_meta("leader_motto", _takeover_state.get("leader_motto", ""))
+	n.set_meta("economic_doctrine", _takeover_state.get("economic_doctrine", "mista"))
+	# Background do líder
+	match String(_takeover_state.get("leader_background", "politico")):
+		"militar":
+			if n.militar:
+				n.militar["poder_militar_global"] = float(n.militar.get("poder_militar_global", 0)) + 5.0
+		"empresario":
+			n.tesouro += 50.0
+		"academico":
+			n.velocidade_pesquisa = n.velocidade_pesquisa * 1.10
+		"politico":
+			n.estabilidade_politica = clamp(n.estabilidade_politica + 5.0, 0.0, 100.0)
+	# Mudança de regime (custa $50B + -10 estab se diferente)
+	var new_gov: String = String(_takeover_state.get("government_type", "manter"))
+	if new_gov != "manter" and new_gov != n.regime_politico:
+		n.regime_politico = new_gov
+		n.tesouro = max(0.0, n.tesouro - 50.0)
+		n.estabilidade_politica = clamp(n.estabilidade_politica - 10.0, 0.0, 100.0)
+	# Doutrina econômica (efeitos aplicados gradualmente em end_turn — só armazena estado por enquanto)
+	# Os efeitos serão aplicados em GameEngine se essa meta existir
+	# Primeiros passos (3 ações grátis sem custar tesouro nem ações)
+	var steps: Array = _takeover_state.get("first_steps", [])
+	for sid in steps:
+		_apply_first_step(n, String(sid))
+
+func _apply_first_step(n, step_id: String) -> void:
+	match step_id:
+		"saude":
+			n.felicidade = clamp(n.felicidade + 8.0, 0.0, 100.0)
+			n.apoio_popular = clamp(n.apoio_popular + 5.0, 0.0, 100.0)
+		"educacao":
+			n.apoio_popular = clamp(n.apoio_popular + 5.0, 0.0, 100.0)
+			n.burocracia_eficiencia = clamp(n.burocracia_eficiencia + 3.0, 0.0, 100.0)
+		"militar":
+			if n.militar:
+				n.militar["poder_militar_global"] = float(n.militar.get("poder_militar_global", 0)) + 5.0
+		"diplomacia":
+			# +10 relações com 3 vizinhos do mesmo continente
+			var added: int = 0
+			for code in GameEngine.nations.keys():
+				if added >= 3: break
+				if code == n.codigo_iso: continue
+				var other = GameEngine.nations[code]
+				if other.continente == n.continente:
+					n.relacoes[code] = clamp(float(n.relacoes.get(code, 0)) + 10.0, -100.0, 100.0)
+					other.relacoes[n.codigo_iso] = clamp(float(other.relacoes.get(n.codigo_iso, 0)) + 10.0, -100.0, 100.0)
+					added += 1
+		"estimulo":
+			n.apply_pib_multiplier(1.02)
+		"energia":
+			if n.recursos:
+				for k in n.recursos.keys():
+					n.recursos[k] = min(100.0, float(n.recursos[k]) + 5.0)
+		"digital":
+			n.velocidade_pesquisa = n.velocidade_pesquisa * 1.10
+		"infra":
+			n.apply_pib_multiplier(1.01)
+			n.estabilidade_politica = clamp(n.estabilidade_politica + 3.0, 0.0, 100.0)
 
 # ─────────────────────────────────────────────────────────────────
 # TUTORIAL
