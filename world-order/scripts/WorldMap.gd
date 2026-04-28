@@ -116,8 +116,17 @@ const PAN_INERTIA_MIN: float = 8.0   # px/s — abaixo disso considera parado
 # Layout (sincronizado com .tscn) — agora sem painéis laterais (estilo AoE)
 const LEFT_PANEL_W: float = 0.0
 const RIGHT_PANEL_W: float = 0.0
-const TOP_BAR_H: float = 54.0
-const BOTTOM_BAR_H: float = 148.0
+# Heights — modo compact (1366×768 e menores) reduz padding pra dar mais espaço pro mapa
+const TOP_BAR_H_NORMAL: float = 54.0
+const TOP_BAR_H_COMPACT: float = 46.0
+const BOTTOM_BAR_H_NORMAL: float = 148.0
+const BOTTOM_BAR_H_COMPACT: float = 116.0
+# Threshold: viewports com altura ≤ 800 entram em modo compact
+const COMPACT_VIEWPORT_HEIGHT: float = 800.0
+# Resolved values (preenchido em _ready conforme viewport)
+var TOP_BAR_H: float = TOP_BAR_H_NORMAL
+var BOTTOM_BAR_H: float = BOTTOM_BAR_H_NORMAL
+var compact_mode: bool = false
 
 # ─────────────────────────────────────────────────────────────────
 # READY
@@ -131,6 +140,7 @@ func _ready() -> void:
 	# Spinner aparece já — esconde só quando tudo carregar
 	_show_spinner("Carregando mundo…")
 	await get_tree().process_frame
+	_detect_compact_mode()
 	_build_legacy_nodes()
 	_load_world_data()
 	_setup_camera()
@@ -3662,19 +3672,33 @@ func _maybe_show_contextual_tip() -> void:
 	cfg.set_value("tips", "shown_turns", shown_turns)
 	cfg.save("user://settings.cfg")
 
+# Detecta se está em viewport compacto (laptop 1366x768) e ajusta layout
+func _detect_compact_mode() -> void:
+	var vp_size := get_viewport_rect().size
+	compact_mode = vp_size.y <= COMPACT_VIEWPORT_HEIGHT
+	if compact_mode:
+		TOP_BAR_H = TOP_BAR_H_COMPACT
+		BOTTOM_BAR_H = BOTTOM_BAR_H_COMPACT
+		# Ajusta altura visual da bottom bar
+		var bb := get_node_or_null("HUD/BottomBar")
+		if bb is Control:
+			(bb as Control).custom_minimum_size = Vector2(0, BOTTOM_BAR_H)
+		var tb := get_node_or_null("HUD/TopBar")
+		if tb is Control:
+			(tb as Control).custom_minimum_size = Vector2(0, TOP_BAR_H)
+		# Reduz altura do mapa de recursos e action row
+		var rb := get_node_or_null("HUD/BottomBar/V/ResourceBar")
+		if rb is Control:
+			(rb as Control).custom_minimum_size = Vector2(0, 22)
+		print("[LAYOUT] Modo compacto ativo (viewport=%dx%d)" % [vp_size.x, vp_size.y])
+	else:
+		TOP_BAR_H = TOP_BAR_H_NORMAL
+		BOTTOM_BAR_H = BOTTOM_BAR_H_NORMAL
+
 func _show_tutorial_toast(text: String) -> void:
 	var toast := PanelContainer.new()
 	toast.name = "TutorialToast_%d" % Time.get_ticks_msec()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.04, 0.08, 0.14, 0.96)
-	sb.border_color = Color(1, 0.85, 0.3, 0.85)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(10)
-	sb.content_margin_left = 16
-	sb.content_margin_right = 16
-	sb.content_margin_top = 10
-	sb.content_margin_bottom = 10
-	toast.add_theme_stylebox_override("panel", sb)
+	toast.add_theme_stylebox_override("panel", UIStyles.toast("warning"))
 	var lbl := Label.new()
 	lbl.text = text
 	lbl.add_theme_color_override("font_color", Color(1, 0.95, 0.7))
@@ -4009,9 +4033,21 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 		_clear_hover()
 		hover_code = hit
 		_update_hover_label(event.position)
+		_apply_hover_highlight(hit)
 	elif hover_label != null:
 		# Mantém label seguindo o cursor com offset
 		hover_label.position = event.position + Vector2(14, -28)
+
+# Pinta o país sob hover com cor mais clara (lerp + branco) — sem mudar
+# o estado real. Repintar o país via _repaint_country_state restaura o
+# original quando o mouse sai.
+func _apply_hover_highlight(code: String) -> void:
+	if code == "" or code == player_code: return
+	var entry = countries.get(code)
+	if entry == null: return
+	for child in entry["node"].get_children():
+		if child is Polygon2D:
+			child.color = child.color.lerp(Color(1, 1, 1, 1), 0.30)
 
 func _update_hover_label(screen_pos: Vector2) -> void:
 	if not GameEngine.nations.has(hover_code):
@@ -4035,6 +4071,9 @@ func _update_hover_label(screen_pos: Vector2) -> void:
 	tw.tween_property(hover_label, "modulate:a", 1.0, 0.12)
 
 func _clear_hover() -> void:
+	if hover_code != "" and hover_code != player_code:
+		# Restaura cor original do país
+		_repaint_country_state(hover_code)
 	hover_code = ""
 	if hover_label != null and is_instance_valid(hover_label):
 		hover_label.queue_free()

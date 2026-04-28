@@ -327,16 +327,7 @@ func _show_main_menu_confirm(title: String, msg: String, on_confirm: Callable) -
 	modal.add_child(center)
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(480, 240)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.10, 0.04, 0.04, 0.99)
-	sb.border_color = Color(1, 0.4, 0.4, 0.85)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(12)
-	sb.content_margin_left = 24
-	sb.content_margin_right = 24
-	sb.content_margin_top = 22
-	sb.content_margin_bottom = 22
-	card.add_theme_stylebox_override("panel", sb)
+	card.add_theme_stylebox_override("panel", UIStyles.modal_panel("danger"))
 	center.add_child(card)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 14)
@@ -436,16 +427,7 @@ func _show_progression_modal() -> void:
 	modal.add_child(center)
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(720, 640)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.035, 0.06, 0.10, 0.99)
-	sb.border_color = Color(1, 0.85, 0.2, 0.85)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(14)
-	sb.content_margin_left = 26
-	sb.content_margin_right = 26
-	sb.content_margin_top = 22
-	sb.content_margin_bottom = 22
-	card.add_theme_stylebox_override("panel", sb)
+	card.add_theme_stylebox_override("panel", UIStyles.modal_panel("warning", 2, 14))
 	center.add_child(card)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
@@ -453,7 +435,7 @@ func _show_progression_modal() -> void:
 	# Título
 	var title := Label.new()
 	title.text = "⭐ PROGRESSO ENTRE PARTIDAS"
-	title.add_theme_color_override("font_color", Color(1, 0.85, 0.2))
+	title.add_theme_color_override("font_color", UIStyles.WARNING_BRIGHT)
 	title.add_theme_font_size_override("font_size", 22)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(title)
@@ -486,23 +468,8 @@ func _show_progression_modal() -> void:
 		var active: bool = perk_id in meta.active_perks
 		var cost: int = int(p.get("cost", 0))
 		var row := PanelContainer.new()
-		var rsb := StyleBoxFlat.new()
-		if active:
-			rsb.bg_color = Color(0.08, 0.15, 0.05, 0.95)
-			rsb.border_color = Color(0.4, 1, 0.5, 0.85)
-		elif owned:
-			rsb.bg_color = Color(0.06, 0.10, 0.16, 0.95)
-			rsb.border_color = Color(0, 0.7, 1, 0.6)
-		else:
-			rsb.bg_color = Color(0.05, 0.06, 0.10, 0.95)
-			rsb.border_color = Color(0.4, 0.4, 0.5, 0.5)
-		rsb.set_border_width_all(1)
-		rsb.set_corner_radius_all(8)
-		rsb.content_margin_left = 12
-		rsb.content_margin_right = 12
-		rsb.content_margin_top = 8
-		rsb.content_margin_bottom = 8
-		row.add_theme_stylebox_override("panel", rsb)
+		var card_state: String = "selected" if active else ("highlighted" if owned else "disabled")
+		row.add_theme_stylebox_override("panel", UIStyles.card(card_state))
 		list.add_child(row)
 		var hb := HBoxContainer.new()
 		hb.add_theme_constant_override("separation", 12)
@@ -597,16 +564,7 @@ func _show_credits_modal() -> void:
 	modal.add_child(center)
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(620, 580)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.035, 0.06, 0.10, 0.99)
-	sb.border_color = Color(0, 0.823, 1, 0.85)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(14)
-	sb.content_margin_left = 30
-	sb.content_margin_right = 30
-	sb.content_margin_top = 26
-	sb.content_margin_bottom = 26
-	card.add_theme_stylebox_override("panel", sb)
+	card.add_theme_stylebox_override("panel", UIStyles.modal_panel("default", 2, 14))
 	center.add_child(card)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
