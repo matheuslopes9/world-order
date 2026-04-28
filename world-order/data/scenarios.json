@@ -1,0 +1,85 @@
+{
+  "_meta": {
+    "description": "Cenários de jogo. Cada um define ano de início, ano de fim, descrição e modificadores. O cenário 'campanha' é o default (2000-2100). Outros cenários podem alterar janela temporal, restringir eventos e dar bônus iniciais.",
+    "version": "1.0.0"
+  },
+  "scenarios": [
+    {
+      "id": "campanha",
+      "name": "Campanha 100 Anos",
+      "icon": "🏛",
+      "subtitle": "2000 → 2100",
+      "description": "A experiência completa. Comece com líderes reais de 2000 (Putin, Lula, Bush, Mubarak) e atravesse 100 anos de história simulada com 30 eventos âncora + 28 megatrends.",
+      "start_year": 2000,
+      "end_year": 2100,
+      "default_mode": "inspirado",
+      "tier": "completo",
+      "estimated_turns": 400,
+      "estimated_hours": "8-12h",
+      "unlocked_by_default": true
+    },
+    {
+      "id": "decada_critica",
+      "name": "Década Crítica",
+      "icon": "🌪",
+      "subtitle": "2010 → 2024",
+      "description": "Os 14 anos mais turbulentos do século XXI: Primavera Árabe, Crimeia, ISIS, Brexit, Trump, COVID, Ucrânia. Cenário curto e intenso, ideal pra primeira partida ou speedrun.",
+      "start_year": 2010,
+      "end_year": 2024,
+      "default_mode": "inspirado",
+      "tier": "intermediario",
+      "estimated_turns": 56,
+      "estimated_hours": "1-2h",
+      "starting_pib_bonus": 1.4,
+      "unlocked_by_default": true
+    },
+    {
+      "id": "guerra_fria_2",
+      "name": "Guerra Fria 2.0",
+      "icon": "⚔",
+      "subtitle": "2025 → 2050",
+      "description": "Uma corrida tecnológica pelo domínio. AGI, fusão nuclear, espaço, ciberataques. EUA e China dominam — você decide quem alia, quem desafia, quem subverte.",
+      "start_year": 2025,
+      "end_year": 2050,
+      "default_mode": "livre",
+      "tier": "intermediario",
+      "estimated_turns": 100,
+      "estimated_hours": "3-4h",
+      "starting_pib_bonus": 1.8,
+      "starting_tech_bonus": 5,
+      "unlocked_by_default": true
+    },
+    {
+      "id": "apocalipse_climatico",
+      "name": "Apocalipse Climático",
+      "icon": "🌍",
+      "subtitle": "2030 → 2080",
+      "description": "Crises climáticas extremas. Refugiados, secas, ondas de calor letais, geoengenharia desesperada. Sobreviver é vencer. Cenário com 3x os eventos climáticos.",
+      "start_year": 2030,
+      "end_year": 2080,
+      "default_mode": "livre",
+      "tier": "dificil",
+      "estimated_turns": 200,
+      "estimated_hours": "5-7h",
+      "climate_event_multiplier": 3.0,
+      "unlocked_by_default": false,
+      "unlock_condition": "Complete 1 cenário qualquer"
+    },
+    {
+      "id": "sandbox",
+      "name": "Modo Sandbox",
+      "icon": "🎲",
+      "subtitle": "Sem objetivos, sem fim",
+      "description": "Sem condições de vitória, sem game over por instabilidade, sem eventos forçados. Construa sua nação como quiser, na velocidade que quiser. Ideal pra experimentar mecânicas.",
+      "start_year": 2000,
+      "end_year": 9999,
+      "default_mode": "livre",
+      "tier": "casual",
+      "estimated_turns": null,
+      "estimated_hours": "Livre",
+      "no_game_over": true,
+      "no_endgame": true,
+      "unlocked_by_default": true
+    }
+  ]
+}

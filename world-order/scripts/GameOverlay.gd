@@ -1042,6 +1042,9 @@ func _log_global_news(title: String, body: String, color: Color = Color(0.7, 0.8
 func _check_endgame() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
+	# Sandbox: cenário desabilita game over completamente
+	if GameEngine.has_method("is_no_game_over") and GameEngine.is_no_game_over():
+		return
 	# Lua de mel: primeiros 5 turnos não pode perder (proteção pra países começando em crise)
 	var honeymoon: bool = GameEngine.current_turn <= 5
 	if n.apoio_popular < 20: n.revolucao_turnos += 1

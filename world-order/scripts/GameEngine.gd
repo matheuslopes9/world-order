@@ -90,8 +90,14 @@ var settings: Dictionary = {
 	# Modo da campanha:
 	#   "inspirado" — eventos históricos disparam em janelas reais (11/9 em 2001, etc)
 	#   "livre"     — eventos disparam com janelas alargadas, IA reage sem constraint histórico
-	"mode": "inspirado"
+	"mode": "inspirado",
+	# Cenário ativo (id em data/scenarios.json). Default = campanha 2000-2100
+	"scenario": "campanha"
 }
+
+# Definição do cenário ativo carregada de data/scenarios.json (preenchida em apply_scenario)
+var active_scenario: Dictionary = {}
+var scenarios_data: Array = []
 
 # ── Dados estáticos ──────────────────────────────────────────────
 var difficulty_tiers: Dictionary = {}    # code → tier
@@ -124,6 +130,8 @@ func _load_all_data() -> void:
 	events_data        = events_raw.get("eventos", []) if events_raw else []
 	tech_data          = _load_json("res://data/tech.json")
 	personalities_data = _load_json("res://data/personalities.json")
+	var scenarios_raw  = _load_json("res://data/scenarios.json")
+	scenarios_data     = scenarios_raw.get("scenarios", []) if scenarios_raw else []
 	var nations_raw    = _load_json("res://data/nations.json")
 	if nations_raw:
 		var ns_dict: Dictionary = nations_raw.get("nations", {})
@@ -135,6 +143,9 @@ func _load_all_data() -> void:
 	# Se a campanha começa em 2000, aplica overrides daquele ano
 	if date_year <= 2000:
 		_apply_year_2000_overrides()
+	# Aplica cenário ativo (default = campanha 2000-2100, se outro for escolhido
+	# no MainMenu, será reaplicado no início do WorldMap)
+	apply_scenario(String(settings.get("scenario", "campanha")))
 	var t1 := Time.get_ticks_msec()
 	print("[ENGINE] %d nações + %d eventos + %d alianças carregados em %d ms" %
 		[nations.size(), events_data.size(), alliances_data.size(), t1 - t0])
@@ -185,6 +196,54 @@ func _apply_year_2000_overrides() -> void:
 		# Antes: usava difficulty_tiers.json (que reflete cenário 2024) — gerava inversão NORMAL>DIFICIL
 		n.tier_dificuldade = n._compute_difficulty_tier()
 	print("[2000] Overrides aplicados: %d explícitos + %d via escala global" % [changed_explicit, changed_global])
+
+# Aplica um cenário (carregado de scenarios.json). Deve ser chamado ANTES
+# do jogo iniciar — define start_year, end_year, bônus, regras.
+func apply_scenario(scenario_id: String) -> void:
+	var found: Dictionary = {}
+	for s in scenarios_data:
+		if s.get("id", "") == scenario_id:
+			found = s
+			break
+	if found.is_empty():
+		print("[SCENARIO] %s não encontrado, mantendo campanha padrão" % scenario_id)
+		return
+	active_scenario = found
+	settings["scenario"] = scenario_id
+	# Define ano de início conforme cenário
+	date_year = int(found.get("start_year", 2000))
+	date_quarter = 1
+	# Modo padrão sugerido pelo cenário (jogador pode trocar via mode toggle)
+	if found.has("default_mode"):
+		settings["mode"] = String(found.get("default_mode"))
+	# Aplica bônus iniciais ao mundo se houver
+	var pib_bonus: float = float(found.get("starting_pib_bonus", 1.0))
+	var tech_bonus: int = int(found.get("starting_tech_bonus", 0))
+	if pib_bonus != 1.0:
+		for code in nations.keys():
+			nations[code].pib_bilhoes_usd *= pib_bonus
+			nations[code].pib_inicial = nations[code].pib_bilhoes_usd
+	if tech_bonus > 0 and tech and tech_data.has("tecnologias"):
+		# Dá tech_bonus tecnologias aleatórias pra cada nação grande (PIB > 500B)
+		var all_tech_ids: Array = []
+		for cat in tech_data.get("tecnologias", {}).values():
+			for t in cat:
+				all_tech_ids.append(t.get("id", ""))
+		for code in nations.keys():
+			var n = nations[code]
+			if n.pib_bilhoes_usd >= 500.0:
+				for i in tech_bonus:
+					var rand_id: String = String(all_tech_ids[randi() % all_tech_ids.size()])
+					if rand_id != "" and not (rand_id in n.tecnologias_concluidas):
+						n.tecnologias_concluidas.append(rand_id)
+	print("[SCENARIO] %s aplicado: %d → %d (modo: %s)" % [scenario_id, int(found.get("start_year", 2000)), int(found.get("end_year", 2100)), settings.get("mode", "?")])
+
+# Verifica se cenário atual desabilita game over (sandbox)
+func is_no_game_over() -> bool:
+	return bool(active_scenario.get("no_game_over", false))
+
+func is_no_endgame() -> bool:
+	return bool(active_scenario.get("no_endgame", false))
 
 func _load_json(path: String) -> Variant:
 	var f := FileAccess.open(path, FileAccess.READ)

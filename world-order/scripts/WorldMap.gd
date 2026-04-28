@@ -686,6 +686,11 @@ func _open_historic_decision_modal(event: Dictionary) -> void:
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(body)
 
+	# Bloco de CONSELHEIROS (cada um recomenda 1 choice, com viés diferente)
+	var choices_for_recommend: Array = event.get("choices", [])
+	if choices_for_recommend.size() >= 2:
+		_render_advisor_panel(content, choices_for_recommend, event)
+
 	# Pergunta
 	var prompt := Label.new()
 	prompt.text = "Qual será sua resposta como líder?"
@@ -2800,6 +2805,63 @@ func _make_modal_button(label: String, primary: bool = false) -> Button:
 # Reutilizável: passe título, mensagem, callback quando confirmado.
 # Inclui label de "consequência irreversível" e estilo amarelo de alerta.
 # ─────────────────────────────────────────────────────────────────
+
+# Renderiza painel com 4 conselheiros recomendando choices.
+# Cada conselheiro tem viés (Diplomata/Militar/Economista/Mídia) e sugere
+# uma das choices baseado em palavras-chave + efeitos numéricos.
+const AdvisorScript = preload("res://scripts/AdvisorManager.gd")
+
+func _render_advisor_panel(parent: Control, choices: Array, event: Dictionary) -> void:
+	var section := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.07, 0.10, 0.85)
+	sb.border_color = Color(0.30, 0.55, 0.85, 0.6)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	section.add_theme_stylebox_override("panel", sb)
+	parent.add_child(section)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	section.add_child(v)
+	var title := Label.new()
+	title.text = "💬 SEU GABINETE RECOMENDA"
+	title.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.85))
+	title.add_theme_font_size_override("font_size", 11)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(title)
+	var recs: Array = AdvisorScript.get_all_recommendations(choices, event)
+	for r in recs:
+		var entry: Dictionary = r
+		var rec: Dictionary = entry.get("recommendation", {})
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		v.add_child(row)
+		# Ícone + nome
+		var icon_lbl := Label.new()
+		icon_lbl.text = String(entry.get("advisor_icon", "👤"))
+		icon_lbl.add_theme_font_size_override("font_size", 14)
+		icon_lbl.custom_minimum_size = Vector2(28, 0)
+		row.add_child(icon_lbl)
+		var name_lbl := Label.new()
+		name_lbl.text = String(entry.get("advisor_name", "?"))
+		name_lbl.add_theme_color_override("font_color", entry.get("advisor_color", Color(0.7, 0.85, 1)))
+		name_lbl.add_theme_font_size_override("font_size", 11)
+		name_lbl.custom_minimum_size = Vector2(140, 0)
+		row.add_child(name_lbl)
+		# Recomendação
+		var rec_lbl := Label.new()
+		var choice_label: String = String(rec.get("choice_label", "?")).strip_edges()
+		rec_lbl.text = "→ " + choice_label
+		rec_lbl.add_theme_color_override("font_color", Color(0.92, 0.96, 1))
+		rec_lbl.add_theme_font_size_override("font_size", 11)
+		rec_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		rec_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		rec_lbl.tooltip_text = String(rec.get("reason", ""))
+		row.add_child(rec_lbl)
 
 # Mostra toast (notificação canto da tela) quando achievement é desbloqueado.
 # Não-bloqueante: aparece, fica 4s, fade out automático.
