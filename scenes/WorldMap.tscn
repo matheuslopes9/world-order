@@ -133,6 +133,25 @@ vertical_alignment = 1
 
 [node name="VSep6" type="VSeparator" parent="HUD/TopBar/HBox"]
 
+[node name="RankBlock" type="HBoxContainer" parent="HUD/TopBar/HBox"]
+theme_override_constants/separation = 6
+
+[node name="RankCap" type="Label" parent="HUD/TopBar/HBox/RankBlock"]
+theme_override_colors/font_color = Color(0.45, 0.55, 0.7, 1)
+theme_override_font_sizes/font_size = 10
+text = "PODER"
+vertical_alignment = 1
+
+[node name="RankLabel" type="Label" parent="HUD/TopBar/HBox/RankBlock"]
+unique_name_in_owner = true
+theme_override_colors/font_color = Color(0, 0.823, 1, 1)
+theme_override_font_sizes/font_size = 14
+tooltip_text = "Posição no ranking mundial de poder (métrica de vitória) — detalhes no painel Situação"
+text = "🌍 #—"
+vertical_alignment = 1
+
+[node name="VSep6b" type="VSeparator" parent="HUD/TopBar/HBox"]
+
 [node name="ActionsBlock" type="HBoxContainer" parent="HUD/TopBar/HBox"]
 theme_override_constants/separation = 6
 

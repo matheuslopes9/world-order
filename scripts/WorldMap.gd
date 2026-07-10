@@ -36,6 +36,7 @@ const MARKER_TTL_DEFAULT: int = 4  # turnos que o marker fica visível
 @onready var treasury_label: Label = %TreasuryLabel
 @onready var defcon_label: Label = %DefconLabel
 @onready var score_label: Label = %ScoreLabel
+@onready var rank_label: Label = %RankLabel
 @onready var actions_label: Label = %ActionsLabel
 @onready var menu_button: Button = %MenuButton
 
@@ -1121,8 +1122,8 @@ func _refresh_resource_bar() -> void:
 		pop_str = "%dM" % (n.populacao / 1_000_000)
 	else:
 		pop_str = "%d" % n.populacao
-	# Poder militar
-	var pm: float = n.militar.get("poder_militar_global", 0.0) if n.militar else 0.0
+	# Poder militar efetivo (derivado dos dados reais: orçamento, unidades, arsenal)
+	var pm: float = n.get_military_power()
 	# Tech
 	var tech_count: int = n.tecnologias_concluidas.size()
 	var values := {
@@ -1211,7 +1212,7 @@ func _style_hero_buttons() -> void:
 
 # Aplica fonte mono Cascadia + glow a labels numéricas da topbar
 func _apply_mono_to_topbar() -> void:
-	for lbl in [date_label, turn_label, treasury_label, defcon_label, score_label, actions_label]:
+	for lbl in [date_label, turn_label, treasury_label, defcon_label, score_label, rank_label, actions_label]:
 		if lbl == null: continue
 		lbl.add_theme_font_override("font", MONO_FONT)
 		lbl.add_theme_font_size_override("font_size", 15)
@@ -2074,11 +2075,9 @@ func _fill_preview_panel(code: String) -> void:
 			top.append("%s %.0f" % [pairs[i][0].capitalize(), pairs[i][1]])
 		rec_str = "  ·  ".join(top)
 
-	# Poder militar
-	var pm: float = 0.0
-	if n.militar:
-		pm = float(n.militar.get("poder_militar_global", 0))
-	var mil_str: String = "%.1f" % pm
+	# Poder militar efetivo (derivado dos dados reais: orçamento, unidades, arsenal)
+	var pm: float = n.get_military_power()
+	var mil_str: String = "%.0f" % pm
 
 	var stats := [
 		["Capital",      n.capital],
@@ -2168,6 +2167,19 @@ func _paint_flag(panel: Control, iso2: String, continente: String) -> void:
 	if panel == null: return
 	# Limpa filhos antigos
 	for c in panel.get_children(): c.queue_free()
+	# 1) Bandeira OFICIAL (SVG em domínio público, res://flags/) — nítida em
+	# qualquer escala. Fallback abaixo cobre códigos sem arquivo.
+	var flag_path := "res://flags/%s.svg" % iso2.to_lower()
+	if ResourceLoader.exists(flag_path):
+		var tex := TextureRect.new()
+		tex.texture = load(flag_path)
+		tex.set_anchors_preset(Control.PRESET_FULL_RECT)
+		tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex.stretch_mode = TextureRect.STRETCH_SCALE
+		tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(tex)
+		return
+	# 2) Fallback: listras aproximadas por FlagData
 	var data: Dictionary = FlagData.get_flag(iso2, continente)
 	var colors: Array = data.get("colors", [])
 	var layout: String = data.get("layout", "h")
@@ -2247,15 +2259,13 @@ func _compute_pros_cons(n) -> Dictionary:
 		pros.append("Inflação controlada")
 	elif n.inflacao >= 25:
 		cons.append("Inflação alta destrói poder de compra")
-	# Militar
-	var pm: float = 0.0
-	if n.militar:
-		pm = float(n.militar.get("poder_militar_global", 0))
-	if pm >= 70:
+	# Militar (poder efetivo derivado dos dados; escala: EUA ~550, regional ~30-150)
+	var pm: float = n.get_military_power()
+	if pm >= 200:
 		pros.append("Forças armadas dominantes globalmente")
-	elif pm >= 40:
+	elif pm >= 30:
 		pros.append("Capacidade militar regional sólida")
-	elif pm < 15:
+	elif pm < 8:
 		cons.append("Militar fraco — vulnerável a ameaças externas")
 	# Recursos naturais (média alta)
 	if n.recursos and n.recursos.size() > 0:
@@ -3716,6 +3726,30 @@ func _refresh_top_bar() -> void:
 		score_label.text = "%04d" % score
 	elif score_label:
 		score_label.text = "0000"
+	# Posição no ranking mundial de poder (a métrica de vitória, sempre à vista)
+	# Lê do histórico registrado pelo engine a cada turno — custo zero aqui.
+	if GameEngine.player_nation and rank_label:
+		var hist: Array = GameEngine.player_power_rank_history
+		var rank: int
+		if hist.size() > 0:
+			rank = int(hist[hist.size() - 1])
+		else:
+			GameEngine._refresh_world_maxima()
+			rank = GameEngine.get_power_rank(GameEngine.player_nation.codigo_iso)
+		var arrow := ""
+		if hist.size() >= 2:
+			var prev: int = int(hist[hist.size() - 2])
+			if rank < prev: arrow = " ▲"
+			elif rank > prev: arrow = " ▼"
+		rank_label.text = "🌍 #%d%s" % [rank, arrow]
+		var rank_color: Color
+		if rank == 1: rank_color = Color(1, 0.85, 0.2)
+		elif rank <= 5: rank_color = Color(0.4, 1, 0.6)
+		elif rank <= 20: rank_color = Color(0, 0.823, 1)
+		else: rank_color = Color(0.75, 0.85, 1)
+		rank_label.add_theme_color_override("font_color", rank_color)
+	elif rank_label:
+		rank_label.text = "🌍 #—"
 
 func _on_turn_advanced(_t: int) -> void:
 	_repaint_map()
