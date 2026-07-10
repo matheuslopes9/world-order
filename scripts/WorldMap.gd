@@ -1307,7 +1307,10 @@ func _create_country(feature: Dictionary) -> void:
 		if ring.size() < 3: continue
 		var poly := Polygon2D.new()
 		poly.polygon = ring
-		poly.color = COUNTRY_FILL
+		# Base BRANCA: a cor visível vem de self_modulate (modular não
+		# re-triangula o mesh — setar .color re-triangulava 548k vértices)
+		poly.color = Color.WHITE
+		poly.self_modulate = COUNTRY_FILL
 		country_node.add_child(poly)
 		var line := Line2D.new()
 		var ring_closed := PackedVector2Array(ring)
@@ -3681,9 +3684,16 @@ func _top_resource(n) -> Dictionary:
 func _paint_country(code: String, color: Color) -> void:
 	var entry = countries.get(code)
 	if entry == null: return
+	# CRÍTICO DE PERFORMANCE: pintar TODOS os países todo turno marcava
+	# ~3000 Polygon2D como sujos → re-triangulação de 548k vértices no
+	# frame seguinte = ~9 SEGUNDOS DE CONGELAMENTO POR TURNO (medido em
+	# Vulkan e headless). Cache da última cor: só repinta quem MUDOU.
+	if entry.get("last_color", Color(-1, -1, -1)) == color:
+		return
+	entry["last_color"] = color
 	for child in entry["node"].get_children():
 		if child is Polygon2D:
-			child.color = color
+			child.self_modulate = color
 
 # ─────────────────────────────────────────────────────────────────
 # TOP BAR REFRESH
@@ -3772,14 +3782,16 @@ func _maybe_show_contextual_tip() -> void:
 	var shown_turns: Array = cfg.get_value("tips", "shown_turns", [])
 	if t in shown_turns: return
 	var tip: String = ""
+	# Turnos 2-6: o handler roda APÓS current_turn++ — o turno "1" nunca
+	# chega aqui (a dica antiga do turno 1 era inalcançável)
 	match t:
-		1:
-			tip = "💡 DICA: Você tem 3 ações por turno. Use os 9 painéis (G, M, E, etc) para agir antes de avançar com SPACE."
 		2:
-			tip = "💡 DICA: Clique em qualquer país no mapa para ver detalhes e abrir ações diplomáticas (embaixada, sanção, tratado)."
+			tip = "💡 DICA: Você tem 3 ações por turno. Use os 9 painéis (G, M, E, etc) para agir antes de avançar com SPACE."
 		3:
+			tip = "💡 DICA: Clique em qualquer país no mapa para ver detalhes e abrir ações diplomáticas (embaixada, sanção, tratado)."
+		4:
 			tip = "💡 DICA: Acompanhe a barra de notícias no rodapé — eventos históricos podem disparar decisões importantes."
-		5:
+		6:
 			tip = "💡 DICA: Sua relação com outros países muda com tempo. Quem cair abaixo de -50 vira rival declarado."
 	if tip == "":
 		return
@@ -3815,16 +3827,20 @@ func _show_tutorial_toast(text: String) -> void:
 	var toast := PanelContainer.new()
 	toast.name = "TutorialToast_%d" % Time.get_ticks_msec()
 	toast.add_theme_stylebox_override("panel", UIStyles.toast("warning"))
+	# CRÍTICO: a largura fixa vai no CONTAINER, nunca no label — Label com
+	# autowrap + minimum size dentro de PanelContainer auto-fit criava LOOP
+	# INFINITO DE LAYOUT (resize↔rewrap no mesmo frame), CONGELANDO O JOGO
+	# no exato turno da 1ª dica contextual (turnos 2/3/5 de toda partida nova).
+	toast.custom_minimum_size = Vector2(470, 0)
 	var lbl := Label.new()
 	lbl.text = text
 	lbl.add_theme_color_override("font_color", Color(1, 0.95, 0.7))
 	lbl.add_theme_font_size_override("font_size", 12)
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl.custom_minimum_size = Vector2(420, 0)
 	toast.add_child(lbl)
 	add_child(toast)
 	# Posiciona no topo-centro
-	toast.position = Vector2(get_viewport_rect().size.x * 0.5 - 230, 110)
+	toast.position = Vector2(get_viewport_rect().size.x * 0.5 - 235, 110)
 	toast.modulate = Color(1, 1, 1, 0)
 	var tw := create_tween()
 	tw.tween_property(toast, "modulate:a", 1.0, 0.4)
@@ -4084,8 +4100,13 @@ func _update_news_ticker() -> void:
 			[int(n.pib_bilhoes_usd), int(n.tesouro), n.inflacao, int(n.estabilidade_politica)],
 			Color(0.6, 0.8, 1))
 	# Limita ticker a 12 itens (FIFO)
+	# CRÍTICO: queue_free() NÃO remove o filho no mesmo frame — o count não
+	# cai e o while congelava O JOGO INTEIRO quando o ticker passava de 12
+	# (turno ~2-6 de qualquer partida). remove_child imediato + free depois.
 	while ticker_inner.get_child_count() > 12:
-		ticker_inner.get_child(0).queue_free()
+		var oldest := ticker_inner.get_child(0)
+		ticker_inner.remove_child(oldest)
+		oldest.queue_free()
 	GameEngine.recent_events.clear()
 
 func _log_ticker(category: String, headline: String, color: Color) -> void:
@@ -4274,7 +4295,7 @@ func _apply_hover_highlight(code: String) -> void:
 	if entry == null: return
 	for child in entry["node"].get_children():
 		if child is Polygon2D:
-			child.color = child.color.lerp(Color(1, 1, 1, 1), 0.30)
+			child.self_modulate = child.self_modulate.lerp(Color(1, 1, 1, 1), 0.30)
 
 func _update_hover_label(screen_pos: Vector2) -> void:
 	if not GameEngine.nations.has(hover_code):

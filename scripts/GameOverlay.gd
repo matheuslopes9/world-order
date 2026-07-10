@@ -1004,11 +1004,26 @@ func _on_endgame_reached(result: Dictionary) -> void:
 
 func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	if endgame_triggered: return
-	if get_node_or_null("/root/EndgameOverlay") != null:
+	# INDEPENDENTE DE ÁRVORE: este overlay vive FORA da árvore quando nenhum
+	# painel está aberto (padrão legacy de re-parent). get_tree() aqui era
+	# null e o modal de vitória/derrota simplesmente NUNCA aparecia em
+	# gameplay real — bug descoberto pelo GameplayTest.
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree == null: return
+	# Ancora no modal_layer do WorldMap (CanvasLayer da UI — escala correta
+	# em qualquer resolução); fallback pra root se o WorldMap não existir
+	var host: Node = tree.root.get_node_or_null("WorldMap")
+	var modal_parent: Node = tree.root
+	if host != null and host.get("modal_layer") != null:
+		modal_parent = host.modal_layer
+	if modal_parent.get_node_or_null("EndgameOverlay") != null:
 		return
+	# O modal_layer fica invisível sem modais abertos — liga pra exibir
+	if modal_parent is CanvasItem:
+		(modal_parent as CanvasItem).visible = true
 	endgame_triggered = true
 	# Pausa o jogo
-	get_tree().paused = false  # reseta caso houvesse
+	tree.paused = false  # reseta caso houvesse
 	# Concede XP de meta-progressão (persiste entre saves)
 	var xp_earned: int = 0
 	if GameEngine.meta_progression:
@@ -1026,16 +1041,20 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	modal.color = Color(0, 0, 0, 0.94)
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
-	get_tree().root.add_child(modal)
-	# Fade-in cinematográfico — cor já está no ColorRect, modula sobre o card
+	modal_parent.add_child(modal)
+	# Fade-in cinematográfico — tween criado NO MODAL (que está na árvore;
+	# este overlay pode estar destacado e create_tween() falharia aqui)
 	modal.modulate = Color(1, 1, 1, 0)
-	var tw_fade := create_tween()
+	var tw_fade := modal.create_tween()
 	tw_fade.tween_property(modal, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_CUBIC)
 	# Card central com tema visual diferente pra vitória vs derrota
+	# (CenterContainer full-rect: centraliza correto em qualquer resolução —
+	# o position manual antigo saía da tela em janelas menores que 1080p)
+	var centerc := CenterContainer.new()
+	centerc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	modal.add_child(centerc)
 	var box := PanelContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.custom_minimum_size = Vector2(640, 480)
-	box.position = Vector2(-320, -240)
 	var sb := StyleBoxFlat.new()
 	if victory:
 		sb.bg_color = Color(0.05, 0.10, 0.05, 0.99)
@@ -1050,7 +1069,7 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	sb.content_margin_top = 28
 	sb.content_margin_bottom = 28
 	box.add_theme_stylebox_override("panel", sb)
-	modal.add_child(box)
+	centerc.add_child(box)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	box.add_child(v)
@@ -1161,6 +1180,10 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 		btn_continue.pressed.connect(func():
 			modal.queue_free()
 			endgame_triggered = false
+			# Esconde o layer se não sobrou nenhum modal do WorldMap aberto
+			if host != null and modal_parent != tree.root and modal_parent is CanvasItem:
+				if host.get("_modal_stack") != null and host._modal_stack.is_empty():
+					(modal_parent as CanvasItem).visible = false
 			GameEngine.resume_after_endgame())
 		btn_row.add_child(btn_continue)
 		var btn_newgame := Button.new()
@@ -1178,15 +1201,18 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	btn_row.add_child(btn_menu)
 
 # Transição com fade-out do modal + change_scene
+# (independente de árvore: usa o main loop, não o get_tree deste overlay)
 func _transition_to_scene(modal: Node, scene_path: String) -> void:
-	if modal != null and is_instance_valid(modal):
-		var tw := create_tween()
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree == null: return
+	if modal != null and is_instance_valid(modal) and modal.is_inside_tree():
+		var tw := modal.create_tween()
 		tw.tween_property(modal, "modulate:a", 0.0, 0.18)
 		tw.tween_callback(func():
 			if is_instance_valid(modal): modal.queue_free()
-			get_tree().change_scene_to_file(scene_path))
+			tree.change_scene_to_file(scene_path))
 	else:
-		get_tree().change_scene_to_file(scene_path)
+		tree.change_scene_to_file(scene_path)
 
 # Título conferido na vitória, baseado em qual estatística mais se destacou.
 # Usa thresholds escaláveis em vez de checagem fixa pra dar variedade.
