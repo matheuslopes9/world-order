@@ -123,78 +123,19 @@ func _render_governo() -> void:
 	_add_bar("Inflação", min(100.0, n.inflacao * 2.0), false, "%.1f%%" % n.inflacao)
 	_add_separator()
 	_add_section_title("AÇÕES DE GOVERNO")
-	var actions := [
-		{"id": "propaganda",         "label": "📢 PROPAGANDA",       "cost": 10, "desc": "Apoio +10%"},
-		{"id": "combater_corrupcao", "label": "⚖ ANTI-CORRUPÇÃO",   "cost": 20, "desc": "Corrupção -15%"},
-		{"id": "reforma_politica",   "label": "🏛 REFORMA POLÍTICA", "cost": 30, "desc": "Estab +12, Felic +5"},
-		{"id": "investir_saude",     "label": "🏥 SAÚDE",            "cost": 20, "desc": "Felic +4, Apoio +2"},
-		{"id": "investir_educacao",  "label": "📚 EDUCAÇÃO",         "cost": 20, "desc": "Pesquisa +5%"},
-		{"id": "investir_seguranca", "label": "👮 SEGURANÇA",        "cost": 20, "desc": "Estab +3, Corrup -2"},
-		{"id": "investir_previdencia","label":"👵 PREVIDÊNCIA",      "cost": 20, "desc": "Apoio +3"},
-		{"id": "estimulo_fiscal",    "label": "💰 ESTÍMULO FISCAL",  "cost": 80, "desc": "PIB +2%, Felic +5"},
-	]
-	for a in actions:
-		_add_action_button(a.id, a.label, a.cost, a.desc, _on_governo_action.bind(a.id, a.cost))
+	for a in GameEngine.get_panel_actions("governo"):
+		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "governo", Color(0, 0.823, 1)))
 
-func _on_governo_action(action_id: String, cost: int) -> void:
-	var n = GameEngine.player_nation
-	if n == null: return
-	if n.tesouro < cost:
-		_log_global_news("⚠ FUNDOS INSUFICIENTES",
-			"Necessário $%dB, disponível $%dB" % [cost, int(n.tesouro)], Color(1, 0.4, 0.4))
+# Executa ação via API central do GameEngine (catálogo único).
+# Toda a lógica de custo/efeito vive em GameEngine.player_panel_action.
+func _run_panel_action(action_id: String, panel_id: String, color: Color) -> void:
+	var res: Dictionary = GameEngine.player_panel_action(action_id)
+	if not res.get("ok", false):
+		_log_global_news("⚠ AÇÃO INDISPONÍVEL", String(res.get("reason", "")), Color(1, 0.6, 0.4))
 		return
-	if not GameEngine._consume_action():
-		_log_global_news("⏳ SEM AÇÕES",
-			"Aguarde o próximo turno (limite: %d/turno)" % GameEngine.PLAYER_ACTIONS_PER_TURN, Color(1, 0.7, 0.4))
-		return
-	n.tesouro -= cost
-	var mult: float = n.get_action_multiplier()
-	var msg := ""
-	match action_id:
-		"propaganda":
-			var v: float = 10.0 * mult
-			n.apoio_popular = min(100.0, n.apoio_popular + v)
-			msg = "Apoio +%d%%" % int(v)
-		"combater_corrupcao":
-			var v: float = 15.0 * mult
-			n.corrupcao = max(0.0, n.corrupcao - v)
-			msg = "Corrupção -%d%%" % int(v)
-		"reforma_politica":
-			var ve: float = 12.0 * mult
-			var vf: float = 5.0 * mult
-			n.estabilidade_politica = min(100.0, n.estabilidade_politica + ve)
-			n.felicidade = min(100.0, n.felicidade + vf)
-			msg = "Estab +%d, Felic +%d" % [int(ve), int(vf)]
-		"investir_saude":
-			n.gasto_social["saude"] = n.gasto_social.get("saude", 0) + 20
-			var vf: float = 4.0 * mult
-			var va: float = 2.0 * mult
-			n.felicidade = min(100.0, n.felicidade + vf)
-			n.apoio_popular = min(100.0, n.apoio_popular + va)
-			msg = "Felic +%d, Apoio +%d" % [int(vf), int(va)]
-		"investir_educacao":
-			n.gasto_social["educacao"] = n.gasto_social.get("educacao", 0) + 20
-			n.velocidade_pesquisa = min(3.0, n.velocidade_pesquisa + 0.05)
-			msg = "Pesquisa +5%"
-		"investir_seguranca":
-			n.gasto_social["seguranca"] = n.gasto_social.get("seguranca", 0) + 20
-			var ve: float = 3.0 * mult
-			var vc: float = 2.0 * mult
-			n.estabilidade_politica = min(100.0, n.estabilidade_politica + ve)
-			n.corrupcao = max(0.0, n.corrupcao - vc)
-			msg = "Estab +%d, Corrup -%d" % [int(ve), int(vc)]
-		"investir_previdencia":
-			n.gasto_social["previdencia"] = n.gasto_social.get("previdencia", 0) + 20
-			var va: float = 3.0 * mult
-			n.apoio_popular = min(100.0, n.apoio_popular + va)
-			msg = "Apoio +%d" % int(va)
-		"estimulo_fiscal":
-			n.apply_pib_multiplier(1.02)
-			n.felicidade = min(100.0, n.felicidade + 5.0)
-			n.corrupcao = min(100.0, n.corrupcao + 2.0)
-			msg = "PIB +2%, Felic +5"
-	_log_global_news(action_id.replace("_", " ").to_upper(), msg + "  •  -$%dB" % cost, Color(0, 0.823, 1))
-	_render_panel("governo")
+	_log_global_news(action_id.replace("_", " ").to_upper(),
+		String(res.get("msg", "")) + "  •  -$%dB" % int(res.get("cost", 0)), color)
+	_render_panel(panel_id)
 	_refresh_top_bar_external()
 
 # ─────────────────────────────────────────────────────────────────
@@ -216,57 +157,8 @@ func _render_militar() -> void:
 	_add_data_row("Navios", _fmt_thousands(u.get("navios", 0)))
 	_add_separator()
 	_add_section_title("OPERAÇÕES MILITARES")
-	var actions := [
-		{"id": "recrutar_infantaria", "label": "🪖 RECRUTAR INFANTARIA", "cost": 5,  "desc": "+10.000 soldados"},
-		{"id": "recrutar_tanques",    "label": "🛡 RECRUTAR TANQUES",    "cost": 15, "desc": "+200 tanques"},
-		{"id": "recrutar_avioes",     "label": "✈ RECRUTAR AVIÕES",     "cost": 25, "desc": "+50 aviões"},
-		{"id": "recrutar_navios",     "label": "⚓ RECRUTAR NAVIOS",     "cost": 30, "desc": "+5 navios"},
-		{"id": "construir_base",      "label": "🏗 CONSTRUIR BASE",      "cost": 40, "desc": "Poder +10"},
-		{"id": "aumentar_orcamento",  "label": "💰 +20% ORÇAMENTO MIL.", "cost": 20, "desc": "Orçamento permanente +20%"},
-	]
-	for a in actions:
-		_add_action_button(a.id, a.label, a.cost, a.desc, _on_militar_action.bind(a.id, a.cost))
-
-func _on_militar_action(action_id: String, cost: int) -> void:
-	var n = GameEngine.player_nation
-	if n == null: return
-	if n.tesouro < cost:
-		_log_global_news("⚠ FUNDOS INSUFICIENTES",
-			"Necessário $%dB, disponível $%dB" % [cost, int(n.tesouro)], Color(1, 0.4, 0.4))
-		return
-	if not GameEngine._consume_action():
-		_log_global_news("⏳ SEM AÇÕES",
-			"Aguarde o próximo turno (limite: %d/turno)" % GameEngine.PLAYER_ACTIONS_PER_TURN, Color(1, 0.7, 0.4))
-		return
-	n.tesouro -= cost
-	var u: Dictionary = n.militar.get("unidades", {})
-	if u.is_empty():
-		u = {"infantaria": 0, "tanques": 0, "avioes": 0, "navios": 0}
-		n.militar["unidades"] = u
-	var msg := ""
-	match action_id:
-		"recrutar_infantaria":
-			u["infantaria"] = u.get("infantaria", 0) + 10000
-			msg = "+10.000 soldados"
-		"recrutar_tanques":
-			u["tanques"] = u.get("tanques", 0) + 200
-			msg = "+200 tanques"
-		"recrutar_avioes":
-			u["avioes"] = u.get("avioes", 0) + 50
-			msg = "+50 aviões"
-		"recrutar_navios":
-			u["navios"] = u.get("navios", 0) + 5
-			msg = "+5 navios"
-		"construir_base":
-			n.militar["poder_militar_global"] = float(n.militar.get("poder_militar_global", 0)) + 10
-			n.estabilidade_politica = max(0.0, n.estabilidade_politica - 2.0)
-			msg = "Poder Militar +10 • Estab -2"
-		"aumentar_orcamento":
-			n.militar["orcamento_militar_bilhoes"] = float(n.militar.get("orcamento_militar_bilhoes", 0)) * 1.2
-			msg = "Orçamento militar +20%"
-	_log_global_news(action_id.replace("_", " ").to_upper(), msg + "  •  -$%dB" % cost, Color(1, 0.5, 0.5))
-	_render_panel("militar")
-	_refresh_top_bar_external()
+	for a in GameEngine.get_panel_actions("militar"):
+		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "militar", Color(1, 0.5, 0.5)))
 
 # ─────────────────────────────────────────────────────────────────
 # PAINEL: ECONOMIA
@@ -296,54 +188,8 @@ func _render_economia() -> void:
 			_add_bar(k.replace("_", " ").capitalize(), float(rec[k]), true)
 	_add_separator()
 	_add_section_title("AÇÕES ECONÔMICAS")
-	var actions := [
-		{"id": "infra_basica",     "label": "🏗 INFRAESTRUTURA",      "cost": 50,  "desc": "PIB +1%"},
-		{"id": "infra_megaprojeto","label": "🌉 MEGAPROJETO",         "cost": 100, "desc": "PIB +2.5%, Estab -2"},
-		{"id": "subsidios",        "label": "💵 SUBSÍDIOS SETORIAIS", "cost": 40,  "desc": "PIB +1.5%, Corrup +3"},
-		{"id": "explorar_recurso", "label": "⛏ EXPLORAR RECURSOS",   "cost": 20,  "desc": "Recurso escasso +15%"},
-	]
-	for a in actions:
-		_add_action_button(a.id, a.label, a.cost, a.desc, _on_economia_action.bind(a.id, a.cost))
-
-func _on_economia_action(action_id: String, cost: int) -> void:
-	var n = GameEngine.player_nation
-	if n == null: return
-	if n.tesouro < cost:
-		_log_global_news("⚠ FUNDOS INSUFICIENTES", "$%dB necessários" % cost, Color(1, 0.4, 0.4))
-		return
-	if not GameEngine._consume_action():
-		_log_global_news("⏳ SEM AÇÕES",
-			"Aguarde o próximo turno (limite: %d/turno)" % GameEngine.PLAYER_ACTIONS_PER_TURN, Color(1, 0.7, 0.4))
-		return
-	n.tesouro -= cost
-	var msg := ""
-	match action_id:
-		"infra_basica":
-			n.apply_pib_multiplier(1.01)
-			msg = "PIB +1%"
-		"infra_megaprojeto":
-			n.apply_pib_multiplier(1.025)
-			n.estabilidade_politica = max(0.0, n.estabilidade_politica - 2.0)
-			msg = "PIB +2.5%, Estab -2"
-		"subsidios":
-			n.apply_pib_multiplier(1.015)
-			n.corrupcao = min(100.0, n.corrupcao + 3.0)
-			msg = "PIB +1.5%, Corrup +3"
-		"explorar_recurso":
-			# Aumenta o recurso mais escasso
-			var rec: Dictionary = n.recursos
-			var min_k := ""
-			var min_v: float = 999.0
-			for k in rec:
-				if float(rec[k]) < min_v:
-					min_v = float(rec[k])
-					min_k = k
-			if min_k != "":
-				rec[min_k] = min(100.0, float(rec[min_k]) + 15.0)
-				msg = "%s +15%%" % min_k.capitalize()
-	_log_global_news(action_id.to_upper(), msg + "  •  -$%dB" % cost, Color(0, 1, 0.5))
-	_render_panel("economia")
-	_refresh_top_bar_external()
+	for a in GameEngine.get_panel_actions("economia"):
+		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "economia", Color(0, 1, 0.5)))
 
 # ─────────────────────────────────────────────────────────────────
 # PAINEL: DIPLOMACIA
@@ -1046,7 +892,9 @@ func _check_endgame() -> void:
 	if GameEngine.has_method("is_no_game_over") and GameEngine.is_no_game_over():
 		return
 	# Lua de mel: primeiros 5 turnos não pode perder (proteção pra países começando em crise)
-	var honeymoon: bool = GameEngine.current_turn <= 5
+	# Perk "Lua de Mel Estendida" adiciona turnos extras de imunidade
+	var honeymoon_turns: int = 5 + int(n.get_meta("perk_honeymoon_extra", 0))
+	var honeymoon: bool = GameEngine.current_turn <= honeymoon_turns
 	if n.apoio_popular < 20: n.revolucao_turnos += 1
 	else: n.revolucao_turnos = 0
 	if n.tesouro <= 0: n.falencia_turnos += 1

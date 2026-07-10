@@ -697,7 +697,7 @@ func _add_mode_selector() -> void:
 	mode_box.add_child(hint)
 
 func _play_entrance_animation() -> void:
-	var box := get_node_or_null("CenterContainer/MainBox")
+	var box := get_node_or_null("Center/Card/MainBox")
 	if box == null: return
 	box.modulate = Color(1, 1, 1, 0)
 	box.position += Vector2(0, 30)
@@ -706,7 +706,7 @@ func _play_entrance_animation() -> void:
 	tw.tween_property(box, "position", box.position - Vector2(0, 30), 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _start_brand_pulse() -> void:
-	var brand := get_node_or_null("CenterContainer/MainBox/TitleSection/Brand")
+	var brand := get_node_or_null("Center/Card/MainBox/TitleSection/Brand")
 	if brand == null: return
 	var tw := create_tween().set_loops()
 	tw.tween_property(brand, "modulate:a", 0.55, 1.6).set_trans(Tween.TRANS_SINE)

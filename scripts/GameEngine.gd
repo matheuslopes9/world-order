@@ -297,6 +297,15 @@ func confirm_player_nation(code: String) -> void:
 	var extra_actions: int = int(player_nation.get_meta("perk_extra_actions", 0))
 	if extra_actions > 0:
 		player_actions_remaining = PLAYER_ACTIONS_PER_TURN + extra_actions
+	# Perk "Carisma Natural": +relação inicial com TODOS os países (nos 2 sentidos)
+	# (antes: o meta era gravado mas nunca lido — perk de 200 XP não fazia nada)
+	var rel_boost: float = float(player_nation.get_meta("perk_global_relations", 0))
+	if rel_boost > 0.0:
+		for other_code in nations:
+			if other_code == code: continue
+			var other = nations[other_code]
+			player_nation.relacoes[other_code] = clamp(float(player_nation.relacoes.get(other_code, 0)) + rel_boost, -100.0, 100.0)
+			other.relacoes[code] = clamp(float(other.relacoes.get(code, 0)) + rel_boost, -100.0, 100.0)
 	current_turn = 1
 	emit_signal("player_confirmed", code)
 	print("[ENGINE] Comando assumido: %s (Tier: %s, Tesouro: $%dB | mult=%.2f×%.2f)" %
@@ -365,7 +374,9 @@ func end_turn() -> void:
 	_update_player_nemesis()
 
 	# Reset de ações do jogador para o novo turno
-	player_actions_remaining = PLAYER_ACTIONS_PER_TURN
+	# (inclui perk "Equipe Eficiente" — antes o bônus era perdido após o turno 1)
+	var extra_actions: int = int(player_nation.get_meta("perk_extra_actions", 0)) if player_nation else 0
+	player_actions_remaining = PLAYER_ACTIONS_PER_TURN + extra_actions
 	emit_signal("player_actions_changed", player_actions_remaining)
 
 	emit_signal("turn_advanced", current_turn)
@@ -865,6 +876,166 @@ func _process_active_sanctions() -> void:
 		if entry["turns_remaining"] > 0:
 			still_active.append(entry)
 	active_sanctions = still_active
+
+# ─────────────────────────────────────────────────────────────────
+# AÇÕES DE PAINEL — catálogo ÚNICO (fonte de verdade)
+# GameOverlay (botões) e BotPlayer (IA espectador) chamam a MESMA API.
+# Antes: efeitos duplicados na UI e no bot, com custos/valores divergentes.
+# ─────────────────────────────────────────────────────────────────
+
+const PANEL_ACTIONS := {
+	# ── GOVERNO (efeitos escalam com get_action_multiplier) ──
+	"propaganda":           {"panel": "governo",  "cost": 10,  "label": "📢 PROPAGANDA",        "desc": "Apoio +10%"},
+	"combater_corrupcao":   {"panel": "governo",  "cost": 20,  "label": "⚖ ANTI-CORRUPÇÃO",    "desc": "Corrupção -15%"},
+	"reforma_politica":     {"panel": "governo",  "cost": 30,  "label": "🏛 REFORMA POLÍTICA",  "desc": "Estab +12, Felic +5"},
+	"investir_saude":       {"panel": "governo",  "cost": 20,  "label": "🏥 SAÚDE",             "desc": "Felic +4, Apoio +2"},
+	"investir_educacao":    {"panel": "governo",  "cost": 20,  "label": "📚 EDUCAÇÃO",          "desc": "Pesquisa +5%"},
+	"investir_seguranca":   {"panel": "governo",  "cost": 20,  "label": "👮 SEGURANÇA",         "desc": "Estab +3, Corrup -2"},
+	"investir_previdencia": {"panel": "governo",  "cost": 20,  "label": "👵 PREVIDÊNCIA",       "desc": "Apoio +3"},
+	"estimulo_fiscal":      {"panel": "governo",  "cost": 80,  "label": "💰 ESTÍMULO FISCAL",   "desc": "PIB +2%, Felic +5"},
+	# ── MILITAR ──
+	"recrutar_infantaria":  {"panel": "militar",  "cost": 5,   "label": "🪖 RECRUTAR INFANTARIA", "desc": "+10.000 soldados"},
+	"recrutar_tanques":     {"panel": "militar",  "cost": 15,  "label": "🛡 RECRUTAR TANQUES",    "desc": "+200 tanques"},
+	"recrutar_avioes":      {"panel": "militar",  "cost": 25,  "label": "✈ RECRUTAR AVIÕES",     "desc": "+50 aviões"},
+	"recrutar_navios":      {"panel": "militar",  "cost": 30,  "label": "⚓ RECRUTAR NAVIOS",     "desc": "+5 navios"},
+	"construir_base":       {"panel": "militar",  "cost": 40,  "label": "🏗 CONSTRUIR BASE",      "desc": "Poder +10"},
+	"aumentar_orcamento":   {"panel": "militar",  "cost": 20,  "label": "💰 +20% ORÇAMENTO MIL.", "desc": "Orçamento permanente +20%"},
+	# ── ECONOMIA ──
+	"infra_basica":         {"panel": "economia", "cost": 50,  "label": "🏗 INFRAESTRUTURA",      "desc": "PIB +1%"},
+	"infra_megaprojeto":    {"panel": "economia", "cost": 100, "label": "🌉 MEGAPROJETO",         "desc": "PIB +2.5%, Estab -2"},
+	"subsidios":            {"panel": "economia", "cost": 40,  "label": "💵 SUBSÍDIOS SETORIAIS", "desc": "PIB +1.5%, Corrup +3"},
+	"explorar_recurso":     {"panel": "economia", "cost": 20,  "label": "⛏ EXPLORAR RECURSOS",   "desc": "Recurso escasso +15%"},
+}
+
+# Lista ordenada das ações de um painel (pra UI montar os botões)
+func get_panel_actions(panel_id: String) -> Array:
+	var out: Array = []
+	for id in PANEL_ACTIONS:
+		var meta: Dictionary = PANEL_ACTIONS[id]
+		if meta.get("panel", "") == panel_id:
+			var entry: Dictionary = meta.duplicate()
+			entry["id"] = id
+			out.append(entry)
+	return out
+
+# Executa uma ação de painel para o JOGADOR.
+# Valida custo/ações ANTES de consumir. Retorna {ok, msg|reason, cost}.
+# Presentação (ticker, som, re-render) fica a cargo de quem chama.
+func player_panel_action(action_id: String) -> Dictionary:
+	var n = player_nation
+	if n == null:
+		return {"ok": false, "reason": "Sem nação"}
+	if not PANEL_ACTIONS.has(action_id):
+		return {"ok": false, "reason": "Ação desconhecida: %s" % action_id}
+	var meta: Dictionary = PANEL_ACTIONS[action_id]
+	var cost: int = int(meta.get("cost", 0))
+	if n.tesouro < cost:
+		return {"ok": false, "reason": "Fundos insuficientes: $%dB necessários, $%dB disponíveis" % [cost, int(n.tesouro)]}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno (limite: %d)" % PLAYER_ACTIONS_PER_TURN}
+	n.tesouro -= cost
+	var msg: String = _apply_panel_action(n, action_id)
+	return {"ok": true, "msg": msg, "cost": cost}
+
+# Aplica o efeito da ação na nação. Mantém os valores calibrados
+# que antes viviam em GameOverlay (governo escala com mult; militar/economia não).
+func _apply_panel_action(n, action_id: String) -> String:
+	var mult: float = n.get_action_multiplier()
+	match action_id:
+		# ── GOVERNO ──
+		"propaganda":
+			var v: float = 10.0 * mult
+			n.apoio_popular = min(100.0, n.apoio_popular + v)
+			return "Apoio +%d%%" % int(v)
+		"combater_corrupcao":
+			var v: float = 15.0 * mult
+			n.corrupcao = max(0.0, n.corrupcao - v)
+			return "Corrupção -%d%%" % int(v)
+		"reforma_politica":
+			var ve: float = 12.0 * mult
+			var vf: float = 5.0 * mult
+			n.estabilidade_politica = min(100.0, n.estabilidade_politica + ve)
+			n.felicidade = min(100.0, n.felicidade + vf)
+			return "Estab +%d, Felic +%d" % [int(ve), int(vf)]
+		"investir_saude":
+			n.gasto_social["saude"] = n.gasto_social.get("saude", 0) + 20
+			var vf: float = 4.0 * mult
+			var va: float = 2.0 * mult
+			n.felicidade = min(100.0, n.felicidade + vf)
+			n.apoio_popular = min(100.0, n.apoio_popular + va)
+			return "Felic +%d, Apoio +%d" % [int(vf), int(va)]
+		"investir_educacao":
+			n.gasto_social["educacao"] = n.gasto_social.get("educacao", 0) + 20
+			n.velocidade_pesquisa = min(3.0, n.velocidade_pesquisa + 0.05)
+			return "Pesquisa +5%"
+		"investir_seguranca":
+			n.gasto_social["seguranca"] = n.gasto_social.get("seguranca", 0) + 20
+			var ve: float = 3.0 * mult
+			var vc: float = 2.0 * mult
+			n.estabilidade_politica = min(100.0, n.estabilidade_politica + ve)
+			n.corrupcao = max(0.0, n.corrupcao - vc)
+			return "Estab +%d, Corrup -%d" % [int(ve), int(vc)]
+		"investir_previdencia":
+			n.gasto_social["previdencia"] = n.gasto_social.get("previdencia", 0) + 20
+			var va: float = 3.0 * mult
+			n.apoio_popular = min(100.0, n.apoio_popular + va)
+			return "Apoio +%d" % int(va)
+		"estimulo_fiscal":
+			n.apply_pib_multiplier(1.02)
+			n.felicidade = min(100.0, n.felicidade + 5.0)
+			n.corrupcao = min(100.0, n.corrupcao + 2.0)
+			return "PIB +2%, Felic +5"
+		# ── MILITAR ──
+		"recrutar_infantaria", "recrutar_tanques", "recrutar_avioes", "recrutar_navios":
+			var u: Dictionary = n.militar.get("unidades", {})
+			if u.is_empty():
+				u = {"infantaria": 0, "tanques": 0, "avioes": 0, "navios": 0}
+				n.militar["unidades"] = u
+			match action_id:
+				"recrutar_infantaria":
+					u["infantaria"] = u.get("infantaria", 0) + 10000
+					return "+10.000 soldados"
+				"recrutar_tanques":
+					u["tanques"] = u.get("tanques", 0) + 200
+					return "+200 tanques"
+				"recrutar_avioes":
+					u["avioes"] = u.get("avioes", 0) + 50
+					return "+50 aviões"
+				_:
+					u["navios"] = u.get("navios", 0) + 5
+					return "+5 navios"
+		"construir_base":
+			n.militar["poder_militar_global"] = float(n.militar.get("poder_militar_global", 0)) + 10
+			n.estabilidade_politica = max(0.0, n.estabilidade_politica - 2.0)
+			return "Poder Militar +10 • Estab -2"
+		"aumentar_orcamento":
+			n.militar["orcamento_militar_bilhoes"] = float(n.militar.get("orcamento_militar_bilhoes", 0)) * 1.2
+			return "Orçamento militar +20%"
+		# ── ECONOMIA ──
+		"infra_basica":
+			n.apply_pib_multiplier(1.01)
+			return "PIB +1%"
+		"infra_megaprojeto":
+			n.apply_pib_multiplier(1.025)
+			n.estabilidade_politica = max(0.0, n.estabilidade_politica - 2.0)
+			return "PIB +2.5%, Estab -2"
+		"subsidios":
+			n.apply_pib_multiplier(1.015)
+			n.corrupcao = min(100.0, n.corrupcao + 3.0)
+			return "PIB +1.5%, Corrup +3"
+		"explorar_recurso":
+			var rec: Dictionary = n.recursos
+			var min_k := ""
+			var min_v: float = 999.0
+			for k in rec:
+				if float(rec[k]) < min_v:
+					min_v = float(rec[k])
+					min_k = k
+			if min_k != "":
+				rec[min_k] = min(100.0, float(rec[min_k]) + 15.0)
+				return "%s +15%%" % min_k.capitalize()
+			return "Sem recursos mapeados"
+	return "OK"
 
 # Espionagem: player executa op
 func player_execute_spy(op_id: String, target_code: String) -> Dictionary:

@@ -3,8 +3,11 @@ extends RefCounted
 ## Bot de IA que joga como o jogador humano em tempo real.
 ## Usa árvore de decisão ponderada: avalia todas as ações possíveis,
 ## pontua cada uma por impacto esperado nos indicadores vitais,
-## escolhe a melhor e a executa. Repete até esgotar as 3 ações do turno,
+## escolhe a melhor e a executa. Repete até esgotar as ações do turno,
 ## depois avança o turno automaticamente.
+##
+## As ações de painel passam por GameEngine.player_panel_action — a MESMA
+## API usada pelos botões da UI (catálogo único, custos/efeitos idênticos).
 ##
 ## O raciocínio é exposto em tempo real via signal "thinking" pra UI
 ## mostrar num painel "O que o bot está pensando".
@@ -59,17 +62,24 @@ func _run_loop() -> void:
 		_think("=== Turno %d — Analisando situação... ===" % _engine.current_turn)
 		await _delay(turn_delay * 0.5)
 
-		# Executa até 3 ações por turno
+		# Executa ações até esgotar o orçamento do turno
 		var actions_this_turn: int = 0
-		var max_actions: int = _engine.PLAYER_ACTIONS_PER_TURN
+		var failed_streak: int = 0
 		while _engine.player_actions_remaining > 0 and enabled:
 			var best := _choose_best_action()
 			if best.is_empty():
 				_think("Sem ações rentáveis disponíveis. Poupando ações.")
 				break
 			await _delay(speed_delay)
-			_execute_action(best)
-			actions_this_turn += 1
+			if _execute_action(best):
+				actions_this_turn += 1
+				failed_streak = 0
+			else:
+				# Falha sem consumir ação → evita loop infinito na mesma escolha
+				failed_streak += 1
+				if failed_streak >= 2:
+					_think("Ações falhando em sequência — encerrando turno.")
+					break
 			await _delay(0.3)
 
 		# Aceita propostas diplomáticas pendentes (grátis)
@@ -126,54 +136,50 @@ func _choose_best_action() -> Dictionary:
 	return candidates[0]
 
 # ── Geração de candidatos ─────────────────────────────────────────
+# IDs de ação = catálogo GameEngine.PANEL_ACTIONS (custos reais do jogo).
 
 func _generate_economy_actions(n) -> Array:
 	var out: Array = []
-	var stab: float = float(n.estabilidade_politica)
-	var apoio: float = float(n.apoio_popular)
 	var inflacao: float = float(n.inflacao)
 	var tesouro: float = float(n.tesouro)
-	var pib: float = float(n.pib_bilhoes_usd)
 
-	# Estímulo fiscal — ótimo quando PIB crescimento lento
-	if tesouro >= 30:
-		var growth_est: float = pib * 0.01  # estimativa
+	# Estímulo fiscal (+2% PIB, custo 80)
+	if tesouro >= 110:
 		var score: float = 40.0
-		if inflacao > 25: score -= 20.0  # inflação alta penaliza estímulo
-		if tesouro < 60: score -= 10.0
+		if inflacao > 25: score -= 15.0          # economia superaquecida
+		if float(n.corrupcao) > 60: score -= 10.0
 		out.append({
-			"type": "panel_action", "panel": "economia", "action": "estimulo",
+			"type": "panel_action", "action": "estimulo_fiscal",
 			"score": score, "category": "economia",
 			"reason": "Estímulo fiscal (+2%% PIB) — tesouro=$%.0fB" % tesouro
 		})
 
-	# Reforma educacional — apoio + burocracia
-	if apoio < 70 or n.burocracia_eficiencia < 60:
-		var score: float = 30.0 + (70.0 - apoio) * 0.5
+	# Infraestrutura básica (+1% PIB, custo 50)
+	if tesouro >= 80:
 		out.append({
-			"type": "panel_action", "panel": "governo", "action": "educacao",
-			"score": score, "category": "social",
-			"reason": "Reforma educacional — apoio=%.0f%%, burocracia=%.0f%%" % [apoio, float(n.burocracia_eficiencia)]
-		})
-
-	# Infraestrutura — PIB sustentável
-	if tesouro >= 40 and pib < 3000:
-		out.append({
-			"type": "panel_action", "panel": "economia", "action": "infra",
+			"type": "panel_action", "action": "infra_basica",
 			"score": 35.0, "category": "economia",
-			"reason": "Infraestrutura (+1%% PIB, +3 estab)"
+			"reason": "Infraestrutura (+1%% PIB)"
 		})
 
-	# Energia — recursos
-	if tesouro >= 25:
+	# Megaprojeto (+2.5% PIB, custo 100) — só quando rico e estável
+	if tesouro >= 200 and float(n.estabilidade_politica) >= 55:
+		out.append({
+			"type": "panel_action", "action": "infra_megaprojeto",
+			"score": 38.0, "category": "economia",
+			"reason": "Megaprojeto (+2.5%% PIB, Estab -2)"
+		})
+
+	# Explorar recurso mais escasso (custo 20)
+	if tesouro >= 40 and not n.recursos.is_empty():
 		var min_res: float = 100.0
 		for v in n.recursos.values():
 			min_res = minf(min_res, float(v))
 		if min_res < 60:
 			out.append({
-				"type": "panel_action", "panel": "governo", "action": "energia",
+				"type": "panel_action", "action": "explorar_recurso",
 				"score": 28.0 + (60.0 - min_res) * 0.3, "category": "economia",
-				"reason": "Reforma energética — recurso mín=%.0f" % min_res
+				"reason": "Explorar recursos — recurso mín=%.0f" % min_res
 			})
 
 	return out
@@ -186,39 +192,46 @@ func _generate_social_actions(n) -> Array:
 	var corrupcao: float = float(n.corrupcao)
 	var tesouro: float = float(n.tesouro)
 
-	# Saúde pública — felicidade e apoio
-	if felicidade < 65 or apoio < 65:
+	# Saúde pública — felicidade e apoio (custo 20)
+	if (felicidade < 65 or apoio < 65) and tesouro >= 30:
 		var score: float = 50.0 + (65.0 - felicidade) * 0.8 + (65.0 - apoio) * 0.5
 		out.append({
-			"type": "panel_action", "panel": "governo", "action": "saude",
+			"type": "panel_action", "action": "investir_saude",
 			"score": score, "category": "social",
 			"reason": "Saúde pública — felicidade=%.0f%%, apoio=%.0f%%" % [felicidade, apoio]
 		})
 
-	# Combate à corrupção — urgente se > 50
-	if corrupcao > 40 and tesouro >= 20:
+	# Combate à corrupção — urgente se > 40 (custo 20)
+	if corrupcao > 40 and tesouro >= 30:
 		var score: float = 35.0 + (corrupcao - 40) * 1.2
 		out.append({
-			"type": "panel_action", "panel": "governo", "action": "anticorrupcao",
+			"type": "panel_action", "action": "combater_corrupcao",
 			"score": score, "category": "social",
 			"reason": "Anti-corrupção — corrupção=%.0f%%" % corrupcao
 		})
 
-	# Estabilidade crítica — reforma política
-	if stab < 50:
+	# Estabilidade crítica — reforma política (custo 30)
+	if stab < 50 and tesouro >= 40:
 		var score: float = 60.0 + (50.0 - stab) * 1.5
 		out.append({
-			"type": "panel_action", "panel": "governo", "action": "reforma_politica",
+			"type": "panel_action", "action": "reforma_politica",
 			"score": score, "category": "social",
 			"reason": "URGENTE: Reforma política — estab=%.0f%%" % stab
 		})
 
-	# Gasto social se apoio muito baixo (risco de revolução)
-	if apoio < 35:
+	# Apoio crítico — propaganda é a ação mais forte de apoio (custo 10)
+	if apoio < 35 and tesouro >= 15:
 		out.append({
-			"type": "panel_action", "panel": "governo", "action": "gasto_social",
+			"type": "panel_action", "action": "propaganda",
 			"score": 80.0 + (35.0 - apoio) * 2.0, "category": "social",
 			"reason": "CRÍTICO: Apoio popular em %.0f%% — risco revolução!" % apoio
+		})
+	# Apoio moderadamente baixo — previdência (custo 20)
+	elif apoio < 55 and tesouro >= 30:
+		out.append({
+			"type": "panel_action", "action": "investir_previdencia",
+			"score": 25.0 + (55.0 - apoio) * 0.5, "category": "social",
+			"reason": "Previdência — apoio=%.0f%%" % apoio
 		})
 
 	return out
@@ -226,25 +239,22 @@ func _generate_social_actions(n) -> Array:
 func _generate_tech_actions(n) -> Array:
 	var out: Array = []
 	if _engine.tech == null: return out
-
-	var pesquisa: String = String(n.pesquisa_atual)
 	# Já pesquisando — não precisamos iniciar nova
-	if pesquisa != "" and pesquisa != "null":
-		_think("Pesquisa em andamento: %s" % pesquisa)
+	if n.pesquisa_atual != null:
 		return out
 
-	# Escolhe melhor tech disponível pra pesquisar
-	var available := _engine.tech.get_available_techs(n)
+	# Escolhe melhor tech disponível pra pesquisar (checks reais do TechManager)
+	var available: Array = _engine.tech.get_available_techs(n)
 	if available.is_empty(): return out
 
-	# Prioridade por categoria conforme personalidade
-	var prio := {"economia": 1.2, "militar": 0.9, "social": 1.0, "tech": 1.1, "diplomacia": 0.8}
+	# Prioridade por categoria (categorias reais do tech.json)
+	var prio := {"MILITAR": 0.9, "DIGITAL": 1.2, "ENERGIA": 1.1, "SOCIAL": 1.0, "ESPACIAL": 0.8}
 	var best_tech: Dictionary = {}
 	var best_score: float = -1.0
 	for t in available:
-		var cat: String = String(t.get("categoria", "economia"))
-		var base: float = float(t.get("research_cost", 50))
-		var score: float = (100.0 / max(1.0, base)) * float(prio.get(cat, 1.0)) * 20.0
+		var cat: String = String(t.get("categoria", "")).to_upper()
+		var custo: float = float(t.get("custo", 50))
+		var score: float = (100.0 / max(1.0, custo)) * float(prio.get(cat, 1.0)) * 20.0
 		if score > best_score:
 			best_score = score
 			best_tech = t
@@ -253,7 +263,7 @@ func _generate_tech_actions(n) -> Array:
 	out.append({
 		"type": "research", "tech_id": String(best_tech.get("id", "")),
 		"score": best_score + 25.0, "category": "tech",
-		"reason": "Pesquisar '%s' (cat: %s)" % [String(best_tech.get("name", "?")), String(best_tech.get("categoria", "?"))]
+		"reason": "Pesquisar '%s' (cat: %s)" % [String(best_tech.get("nome", "?")), String(best_tech.get("categoria", "?"))]
 	})
 	return out
 
@@ -286,12 +296,12 @@ func _generate_diplomacy_actions(n) -> Array:
 			"reason": "Propor %s a %s (rel=%.0f)" % [treaty_type, _engine.nations[best_partner].nome if _engine.nations.has(best_partner) else best_partner, best_rel]
 		})
 
-	# Digital — pesquisa acelerada
-	if tesouro >= 25 and n.velocidade_pesquisa < 2.0:
+	# Educação — acelera pesquisa (custo 20)
+	if tesouro >= 30 and n.velocidade_pesquisa < 2.0:
 		out.append({
-			"type": "panel_action", "panel": "governo", "action": "digital",
+			"type": "panel_action", "action": "investir_educacao",
 			"score": 22.0, "category": "tech",
-			"reason": "Modernização digital (+10%% pesquisa)"
+			"reason": "Investir em educação (+5%% pesquisa)"
 		})
 
 	return out
@@ -312,13 +322,13 @@ func _generate_military_actions(n) -> Array:
 				"reason": "Propor paz — stab=%.0f%%, tesouro=%.0fB" % [stab, tesouro]
 			})
 
-	# Modernizar forças armadas se poder militar baixo e tem dinheiro
+	# Construir base se poder militar baixo e tem dinheiro (custo 40)
 	var poder: float = float(n.militar.get("poder_militar_global", 0)) if n.militar else 0.0
-	if poder < 40 and tesouro >= 50:
+	if poder < 40 and tesouro >= 60:
 		out.append({
-			"type": "panel_action", "panel": "militar", "action": "modernizar",
+			"type": "panel_action", "action": "construir_base",
 			"score": 18.0 + (40.0 - poder) * 0.5, "category": "military",
-			"reason": "Modernizar militar — poder=%.0f" % poder
+			"reason": "Construir base militar — poder=%.0f" % poder
 		})
 
 	return out
@@ -361,7 +371,8 @@ func _generate_trade_actions(n) -> Array:
 	return out
 
 # ── Executor de ações ─────────────────────────────────────────────
-func _execute_action(action: Dictionary) -> void:
+# Retorna true se a ação foi executada (consumiu ação do turno).
+func _execute_action(action: Dictionary) -> bool:
 	var atype: String = String(action.get("type", ""))
 	var reason: String = String(action.get("reason", ""))
 	_think("▶ EXECUTANDO: %s" % reason)
@@ -369,79 +380,49 @@ func _execute_action(action: Dictionary) -> void:
 
 	match atype:
 		"panel_action":
-			_do_panel_action(String(action.get("panel", "")), String(action.get("action", "")))
+			return _do_panel_action(String(action.get("action", "")))
 		"research":
-			var res := _engine.player_start_research(String(action.get("tech_id", "")))
+			var res: Dictionary = _engine.player_start_research(String(action.get("tech_id", "")))
 			if not bool(res.get("ok", false)):
 				_think("  ✗ Pesquisa falhou: %s" % String(res.get("reason", "")))
+				return false
+			return true
 		"treaty":
-			var res := _engine.player_propose_treaty(String(action.get("target", "")), String(action.get("treaty_type", "livre_comercio")))
-			if not bool(res.get("ok", false)):
-				_think("  ✗ Tratado falhou: %s" % String(res.get("reason", "")))
+			# player_propose_treaty devolve o dict da proposta em sucesso
+			# (sem chave "ok") ou {"ok": false, reason} em falha de validação
+			var res: Dictionary = _engine.player_propose_treaty(String(action.get("target", "")), String(action.get("treaty_type", "livre_comercio")))
+			if res.is_empty() or res.get("ok", true) == false:
+				_think("  ✗ Tratado falhou: %s" % String(res.get("reason", "proposta inválida")))
+				return false
+			return true
 		"peace":
 			if not _engine.player_propose_peace(String(action.get("target", ""))):
 				_think("  ✗ Paz falhou")
+				return false
+			return true
 		"trade":
-			var res := _engine.player_export_resource(String(action.get("target", "")), String(action.get("resource", "")))
+			var res: Dictionary = _engine.player_export_resource(String(action.get("target", "")), String(action.get("resource", "")))
 			if not bool(res.get("ok", false)):
 				_think("  ✗ Comércio falhou: %s" % String(res.get("reason", "")))
+				return false
+			return true
+	return false
 
-func _do_panel_action(panel: String, action_id: String) -> void:
-	# Aplica o efeito diretamente no Nation do jogador, espelhando
-	# o que cada botão de painel faz em WorldMap/_apply_panel_action_effect
+# Executa ação de painel via API central — a MESMA usada pelos botões da UI.
+# (antes: efeitos duplicados aqui com custos divergentes e bug de multiplicador)
+func _do_panel_action(action_id: String) -> bool:
+	var res: Dictionary = _engine.player_panel_action(action_id)
+	if not res.get("ok", false):
+		_think("  ✗ %s" % String(res.get("reason", "ação falhou")))
+		return false
 	var n = _engine.player_nation
-	if n == null: return
-	var mult: float = n.get_action_multiplier() if n.has_method("get_action_multiplier") else 1.0
-	# Consome ação (se não conseguir, aborta)
-	if not _engine._consume_action(): return
-
-	match action_id:
-		"saude":
-			n.felicidade = clamp(n.felicidade + 8.0 * mult, 0, 100)
-			n.apoio_popular = clamp(n.apoio_popular + 4.0 * mult, 0, 100)
-			n.tesouro -= 20.0
-		"educacao":
-			n.apoio_popular = clamp(n.apoio_popular + 5.0 * mult, 0, 100)
-			n.burocracia_eficiencia = clamp(n.burocracia_eficiencia + 3.0 * mult, 0, 100)
-			n.tesouro -= 15.0
-		"anticorrupcao":
-			n.corrupcao = clamp(n.corrupcao - 8.0 * mult, 0, 100)
-			n.apoio_popular = clamp(n.apoio_popular + 3.0 * mult, 0, 100)
-			n.tesouro -= 20.0
-		"reforma_politica":
-			n.estabilidade_politica = clamp(n.estabilidade_politica + 10.0 * mult, 0, 100)
-			n.tesouro -= 30.0
-		"gasto_social":
-			n.apoio_popular = clamp(n.apoio_popular + 12.0 * mult, 0, 100)
-			n.felicidade = clamp(n.felicidade + 6.0 * mult, 0, 100)
-			n.tesouro -= 25.0
-		"estimulo":
-			n.apply_pib_multiplier(1.02 * mult) if n.has_method("apply_pib_multiplier") else null
-			n.inflacao = clamp(n.inflacao + 1.5, 0, 100)
-		"infra":
-			n.apply_pib_multiplier(1.01 * mult) if n.has_method("apply_pib_multiplier") else null
-			n.estabilidade_politica = clamp(n.estabilidade_politica + 3.0 * mult, 0, 100)
-			n.tesouro -= 40.0
-		"energia":
-			if n.recursos:
-				for k in n.recursos.keys():
-					n.recursos[k] = min(100.0, float(n.recursos[k]) + 5.0 * mult)
-			n.tesouro -= 25.0
-		"digital":
-			n.velocidade_pesquisa *= (1.0 + 0.10 * mult)
-			n.tesouro -= 25.0
-		"modernizar":
-			if n.militar:
-				n.militar["poder_militar_global"] = float(n.militar.get("poder_militar_global", 0)) + 5.0 * mult
-			n.tesouro -= 30.0
-
-	# Reporta no ticker de notícias do jogo
 	_engine._log_news({
 		"type": "bot_action",
-		"headline": "🤖 BOT: %s → %s" % [panel.capitalize(), action_id.replace("_", " ").capitalize()],
+		"headline": "🤖 BOT: %s — %s" % [action_id.replace("_", " ").capitalize(), String(res.get("msg", ""))],
 		"body": "",
 		"color": Color(0.4, 0.85, 1),
-	}, [n.codigo_iso], n.continente)
+	}, [n.codigo_iso] if n != null else [], n.continente if n != null else "")
+	return true
 
 # ── Propostas diplomáticas ────────────────────────────────────────
 func _handle_pending_proposals() -> void:

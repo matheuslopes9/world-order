@@ -269,7 +269,10 @@ func process_turn_finances() -> void:
 			tesouro -= pagamento
 			divida_publica = max(0.0, divida_publica - pagamento)
 		default_turnos = 0
-	tesouro = min(tesouro, pib_bilhoes_usd * 0.25)
+	# Cap anti-acúmulo infinito, com PISO de $150B: sem o piso, o boost de
+	# tesouro dado a nações pequenas (tier difícil) era apagado no 1º turno
+	# (ex.: PIB $10B → cap $2.5B destruía os $200B+ de boost inicial).
+	tesouro = min(tesouro, max(150.0, pib_bilhoes_usd * 0.25))
 
 	# Inflação dinâmica
 	var gdp_q: float = max(1.0, pib_bilhoes_usd / 4.0)
@@ -281,6 +284,11 @@ func process_turn_finances() -> void:
 	for v in gasto_social.values(): social_sum += float(v)
 	var social_pressure: float = max(0.0, (social_sum / gdp_q) - 0.5)
 	var inflacao_target: float = 2.0 + deficit_ratio * 25.0 + mil_pressure * 1.5 + war_pressure + social_pressure * 10.0
+	# Perk "Banco Central Sólido": subidas de inflação são amortecidas em N%
+	# (quedas passam na íntegra — o perk só protege contra alta)
+	var decay_pct: float = float(get_meta("perk_inflation_decay", 0)) / 100.0
+	if decay_pct > 0.0 and inflacao_target > inflacao:
+		inflacao_target = inflacao + (inflacao_target - inflacao) * (1.0 - decay_pct)
 	var shock: float = (randf() - 0.5) * 2.0
 	inflacao = clamp(inflacao * 0.80 + inflacao_target * 0.20 + shock, 0.0, 100.0)
 

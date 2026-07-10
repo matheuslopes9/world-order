@@ -213,3 +213,7 @@ func _apply_perk_effects(n, effects: Dictionary) -> void:
 				n.recursos[k] = min(100.0, float(n.recursos[k]) + bonus)
 	if effects.has("actions_per_turn"):
 		n.set_meta("perk_extra_actions", int(effects["actions_per_turn"]))
+	if effects.has("honeymoon_extra"):
+		n.set_meta("perk_honeymoon_extra", int(effects["honeymoon_extra"]))
+	if effects.has("inflation_decay"):
+		n.set_meta("perk_inflation_decay", float(effects["inflation_decay"]))

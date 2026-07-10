@@ -36,6 +36,15 @@ func get_techs_by_category(cat: String) -> Array:
 func get_tech(id: String) -> Dictionary:
 	return tech_index.get(id, {})
 
+# Lista techs que a nação pode pesquisar AGORA (todos os checks de can_research OK).
+# Usado pelo BotPlayer (antes chamava este método sem ele existir → crash).
+func get_available_techs(nation) -> Array:
+	var out: Array = []
+	for id in tech_index:
+		if can_research(nation, id).get("ok", false):
+			out.append(tech_index[id])
+	return out
+
 # Verifica se uma nação pode pesquisar uma tech
 func can_research(nation, tech_id: String) -> Dictionary:
 	var tech: Dictionary = tech_index.get(tech_id, {})
