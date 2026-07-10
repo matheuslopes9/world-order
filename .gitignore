@@ -6,7 +6,7 @@
 Godot_*.exe
 
 # Cache de import do Godot (gerado automaticamente pelo editor)
-world-order/.godot/
+.godot/
 
 # Logs temporários (testes, playtest, etc)
 *.log
