@@ -192,7 +192,9 @@ func calc_receita() -> float:
 
 func calc_despesas() -> float:
 	var mil_budget: float = float(militar.get("orcamento_militar_bilhoes", 0)) / 4.0
-	var gov_spend: float = pib_bilhoes_usd * 0.10 / 4.0
+	# 8% do PIB (antes 10%): com 10%, potências com orçamento militar alto
+	# (EUA) tinham déficit ESTRUTURAL e faliam até sem fazer nada
+	var gov_spend: float = pib_bilhoes_usd * 0.08 / 4.0
 	var interest: float = divida_publica * 0.025
 	var social_sum: float = 0.0
 	for v in gasto_social.values(): social_sum += float(v)
@@ -202,46 +204,69 @@ func calc_despesas() -> float:
 func calc_saldo() -> float:
 	return calc_receita() - calc_despesas()
 
+# PIB per capita em dólares (proxy de nível de desenvolvimento)
+func pib_per_capita() -> float:
+	if populacao <= 0:
+		return 0.0
+	return pib_bilhoes_usd * 1_000_000_000.0 / float(populacao)
+
+# MODELO DE CRESCIMENTO POR CONVERGÊNCIA (economia real de catch-up):
+# países longe da fronteira tecnológica mundial crescem MAIS rápido — SE
+# tiverem instituições decentes (China 1990-2020, Coreia 1960-2000).
+# Países já na fronteira crescem devagar (economias maduras).
+# Isso substitui o antigo soft-cap sobre pib_inicial, que impedia qualquer
+# nação de crescer mais que ~4-6× — matando a fantasia central do jogo
+# ("investimentos corretos podem construir uma potência mundial").
+# frontier_pib_pc é cacheado pelo GameEngine a cada turno.
+var frontier_pib_pc: float = 0.0
+
 func update_pib(global_factor: float = 1.0) -> void:
 	var stab: float = estabilidade_politica / 100.0
 	var happy: float = felicidade / 100.0
 	var corr: float = corrupcao / 100.0
 	var bur: float = burocracia_eficiencia / 100.0
 	var wars: int = em_guerra.size()
+	# Base institucional (qualidade do governo determina o crescimento estrutural)
 	var growth: float = 0.008 * global_factor * (0.5 + stab * 0.5 + happy * 0.3 + bur * 0.2 - corr * 0.4)
+	# Convergência: bônus de catch-up proporcional à distância da fronteira
+	# e à qualidade institucional — até +1.0%/trimestre (milagre econômico)
+	if frontier_pib_pc > 0.0:
+		var gap: float = clamp(1.0 - pib_per_capita() / frontier_pib_pc, 0.0, 1.0)
+		var inst_quality: float = clamp(stab * 0.5 + bur * 0.3 + (1.0 - corr) * 0.4 - 0.2, 0.0, 1.0)
+		growth += gap * 0.010 * inst_quality
+		# Na fronteira (gap < 15%): economia madura desacelera
+		if gap < 0.15:
+			growth *= 0.75
 	growth -= wars * 0.005
 	if inflacao > 15.0: growth -= (inflacao - 15.0) * 0.0008
 	if tesouro <= 0.0: growth -= 0.003
 	if divida_publica > pib_bilhoes_usd * 1.5: growth -= 0.004
 	growth += min(0.005, tecnologias_concluidas.size() * 0.0003)
-	growth = clamp(growth, -0.03, 0.025)
-
-	# Soft cap: crescimento decai quando PIB supera 2x o inicial; ~0 em 4x
-	if pib_inicial > 0.0 and growth > 0.0:
-		var ratio: float = pib_bilhoes_usd / pib_inicial
-		if ratio > 2.0:
-			var damp: float = clamp(1.0 - (ratio - 2.0) / 2.0, 0.0, 1.0)
-			growth *= damp
-
+	growth = clamp(growth, -0.03, 0.035)
 	pib_bilhoes_usd *= (1.0 + growth)
 
-# Helper público: aplica multiplicador no PIB respeitando o soft cap.
-# Usar isto em ações/eventos que multiplicam pib_bilhoes_usd, ao invés
-# de fazer "n.pib_bilhoes_usd *= fator" direto (que ignora o cap).
+	# Crescimento populacional (transição demográfica: pobres crescem mais)
+	if populacao > 0:
+		var pop_rate: float = 0.004  # ~1.6%/ano em países pobres
+		if frontier_pib_pc > 0.0:
+			var wealth: float = clamp(pib_per_capita() / frontier_pib_pc, 0.0, 1.0)
+			pop_rate = lerpf(0.004, 0.0003, wealth)  # ricos ~0.12%/ano
+		populacao = int(populacao * (1.0 + pop_rate))
+
+# Helper público: aplica multiplicador no PIB com retornos decrescentes
+# perto da fronteira (estímulos rendem menos em economias já maduras).
+# Perdas (fator <= 1.0) passam na íntegra.
 func apply_pib_multiplier(fator: float) -> void:
-	if pib_inicial <= 0.0 or fator <= 1.0:
-		# Pequenas perdas e crescimento mínimo passam direto
+	if fator <= 1.0:
 		pib_bilhoes_usd *= fator
 		return
-	var ratio: float = pib_bilhoes_usd / pib_inicial
-	# Cap composto: em 4× já não cresce; em 6× há ligeira retração
-	var hard_cap: float = pib_inicial * 6.0
-	if pib_bilhoes_usd >= hard_cap:
-		return  # ignora ganhos extras
 	var growth_pct: float = fator - 1.0
-	if ratio > 2.0:
-		var damp: float = clamp(1.0 - (ratio - 2.0) / 4.0, 0.0, 1.0)
-		growth_pct *= damp
+	if frontier_pib_pc > 0.0:
+		var gap: float = clamp(1.0 - pib_per_capita() / frontier_pib_pc, 0.0, 1.0)
+		# gap 0 (fronteira) → 12% do efeito; gap ≥ 0.67 → efeito integral.
+		# Piso duro: sem ele, spam de estímulos compunha PIB a +20%/ano
+		# eternamente (Japão chegou a 309.000× no playtest automatizado)
+		growth_pct *= lerpf(0.12, 1.0, clamp(gap * 1.5, 0.0, 1.0))
 	pib_bilhoes_usd *= (1.0 + growth_pct)
 
 func process_turn_finances() -> void:
@@ -282,8 +307,10 @@ func process_turn_finances() -> void:
 	var war_pressure: float = em_guerra.size() * 3.0
 	var social_sum: float = 0.0
 	for v in gasto_social.values(): social_sum += float(v)
+	# Pressão social suavizada (×4, antes ×10): com gasto social escalado ao PIB
+	# a pressão vira um custo gerenciável, não uma sentença de hiperinflação
 	var social_pressure: float = max(0.0, (social_sum / gdp_q) - 0.5)
-	var inflacao_target: float = 2.0 + deficit_ratio * 25.0 + mil_pressure * 1.5 + war_pressure + social_pressure * 10.0
+	var inflacao_target: float = 2.0 + deficit_ratio * 25.0 + mil_pressure * 1.5 + war_pressure + social_pressure * 4.0
 	# Perk "Banco Central Sólido": subidas de inflação são amortecidas em N%
 	# (quedas passam na íntegra — o perk só protege contra alta)
 	var decay_pct: float = float(get_meta("perk_inflation_decay", 0)) / 100.0
@@ -341,6 +368,27 @@ func update_approval() -> void:
 	apoio_popular = clamp(apoio_popular * 0.8 + target * 0.2, 0.0, 100.0)
 
 # ─────────────────────────────────────────────────────────────────
+# MILITAR
+# ─────────────────────────────────────────────────────────────────
+
+# Poder militar efetivo derivado dos DADOS REAIS (orçamento, unidades,
+# arsenal). O campo "poder_militar_global" não existe em nations.json —
+# antes só o jogador o populava via ações, distorcendo o ranking de poder.
+func get_military_power() -> float:
+	var explicit: float = float(militar.get("poder_militar_global", 0))
+	var budget: float = float(militar.get("orcamento_militar_bilhoes", 0))
+	var nukes: float = float(militar.get("armas_nucleares", 0))
+	var carriers: float = float(militar.get("porta_avioes", 0))
+	var u: Dictionary = militar.get("unidades", {})
+	var units_score: float = (
+		float(u.get("infantaria", 0)) / 100_000.0
+		+ float(u.get("tanques", 0)) / 1_000.0
+		+ float(u.get("avioes", 0)) / 500.0
+		+ float(u.get("navios", 0)) / 100.0
+	)
+	return explicit + budget * 0.5 + nukes * 0.01 + carriers * 2.0 + units_score
+
+# ─────────────────────────────────────────────────────────────────
 # ELEIÇÕES
 # ─────────────────────────────────────────────────────────────────
 
@@ -362,8 +410,10 @@ func trigger_election() -> void:
 		apoio_popular += 5
 		estabilidade_politica += 10
 	else:
-		apoio_popular -= 20
-		estabilidade_politica -= 15
+		# Derrota eleitoral dói, mas não é sentença de morte
+		# (antes -20/-15 criava espiral fatal para nações frágeis)
+		apoio_popular -= 15
+		estabilidade_politica -= 10
 	apoio_popular = clamp(apoio_popular, 0.0, 100.0)
 	estabilidade_politica = clamp(estabilidade_politica, 0.0, 100.0)
 

@@ -111,6 +111,16 @@ func _fire_trigger(arc: Dictionary) -> void:
 func apply_storyline_choice(storyline_id: String, choice_id: String) -> void:
 	var arc: Dictionary = _find_arc(storyline_id)
 	if arc.is_empty(): return
+	# Registra no log de decisões (conta pra conquista "Forjador da História")
+	if engine and engine.timeline:
+		engine.timeline.decision_log.append({
+			"event_id": "storyline_%s" % storyline_id,
+			"event_headline": arc.get("trigger_event", {}).get("headline", storyline_id),
+			"choice_id": choice_id,
+			"choice_label": "",
+			"turn": engine.current_turn,
+			"year": engine.date_year,
+		})
 	# Acha qual choice foi (do trigger ou de algum node ativo)
 	var trigger: Dictionary = arc.get("trigger_event", {})
 	var choices: Array = trigger.get("choices", [])

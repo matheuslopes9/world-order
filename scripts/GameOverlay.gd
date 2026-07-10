@@ -38,6 +38,8 @@ func activate() -> void:
 		GameEngine.turn_advanced.connect(_on_turn_advanced)
 	if GameEngine.has_signal("player_event_triggered"):
 		GameEngine.player_event_triggered.connect(_on_player_event)
+	if GameEngine.has_signal("endgame_reached"):
+		GameEngine.endgame_reached.connect(_on_endgame_reached)
 	_build_tabs()
 	_render_panel("governo")
 	_refresh_header()
@@ -85,7 +87,6 @@ func _refresh_header() -> void:
 func _on_turn_advanced(_t: int) -> void:
 	_refresh_header()
 	_render_panel(current_panel)
-	_check_endgame()
 
 func _on_player_event(event_data: Dictionary) -> void:
 	_show_event_modal(event_data)
@@ -885,36 +886,10 @@ func _log_global_news(title: String, body: String, color: Color = Color(0.7, 0.8
 # ENDGAME + MODAL DE EVENTO
 # ─────────────────────────────────────────────────────────────────
 
-func _check_endgame() -> void:
-	var n = GameEngine.player_nation
-	if n == null: return
-	# Sandbox: cenário desabilita game over completamente
-	if GameEngine.has_method("is_no_game_over") and GameEngine.is_no_game_over():
-		return
-	# Lua de mel: primeiros 5 turnos não pode perder (proteção pra países começando em crise)
-	# Perk "Lua de Mel Estendida" adiciona turnos extras de imunidade
-	var honeymoon_turns: int = 5 + int(n.get_meta("perk_honeymoon_extra", 0))
-	var honeymoon: bool = GameEngine.current_turn <= honeymoon_turns
-	if n.apoio_popular < 20: n.revolucao_turnos += 1
-	else: n.revolucao_turnos = 0
-	if n.tesouro <= 0: n.falencia_turnos += 1
-	else: n.falencia_turnos = 0
-	if honeymoon: return  # imunidade nos 5 primeiros turnos
-	if n.revolucao_turnos >= 3:
-		_show_endgame("💀 REVOLUÇÃO", "Apoio popular abaixo de 20%% por 3 turnos.", false)
-	elif n.falencia_turnos >= 4:
-		_show_endgame("💀 FALÊNCIA NACIONAL", "Tesouro zerado por 4 turnos. Colapso fiscal.", false)
-	elif n.estabilidade_politica < 8:
-		_show_endgame("💀 GOLPE DE ESTADO", "Estabilidade colapsou abaixo de 8%%. Você foi deposto.", false)
-	elif n.inflacao > 80:
-		_show_endgame("💀 HIPERINFLAÇÃO", "Inflação acima de 80%%. Economia em ruínas.", false)
-	var win_cond: bool = n.apoio_popular >= 65 and n.estabilidade_politica >= 65 and n.inflacao <= 15 and n.tesouro > 0
-	if win_cond:
-		n.set_meta("victory_streak", n.get_meta("victory_streak", 0) + 1)
-	else:
-		n.set_meta("victory_streak", 0)
-	if n.get_meta("victory_streak", 0) >= 20 and GameEngine.current_turn >= 20:
-		_show_endgame("🏆 HEGEMONIA GLOBAL", "20 turnos com indicadores ótimos. Você dominou o mundo.", true)
+# A lógica de vitória/derrota vive no GameEngine (evaluate_endgame).
+# A UI apenas escuta o sinal e apresenta o modal.
+func _on_endgame_reached(result: Dictionary) -> void:
+	_show_endgame(String(result.get("title", "")), String(result.get("msg", "")), bool(result.get("victory", false)))
 
 func _show_endgame(title: String, msg: String, victory: bool) -> void:
 	if endgame_triggered: return
@@ -1074,7 +1049,8 @@ func _show_endgame(title: String, msg: String, victory: bool) -> void:
 		btn_continue.custom_minimum_size = Vector2(200, 44)
 		btn_continue.pressed.connect(func():
 			modal.queue_free()
-			endgame_triggered = false)
+			endgame_triggered = false
+			GameEngine.resume_after_endgame())
 		btn_row.add_child(btn_continue)
 		var btn_newgame := Button.new()
 		btn_newgame.text = "🔄 NOVA CAMPANHA"

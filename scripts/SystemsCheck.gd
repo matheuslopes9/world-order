@@ -73,7 +73,7 @@ func _run() -> void:
 
 	# ── 3. Catálogo central de ações ──
 	print("[3] Catálogo central de ações (PANEL_ACTIONS)")
-	_check(E.get_panel_actions("governo").size() == 8, "8 ações de governo")
+	_check(E.get_panel_actions("governo").size() == 9, "9 ações de governo (inclui aperto monetário)")
 	_check(E.get_panel_actions("militar").size() == 6, "6 ações militares")
 	_check(E.get_panel_actions("economia").size() == 4, "4 ações econômicas")
 	var apoio_antes: float = E.player_nation.apoio_popular
@@ -108,6 +108,14 @@ func _run() -> void:
 	_check(dt < 12000, "performance: 12 turnos em %d ms" % dt)
 	_check(E.player_nation.tesouro >= 0.0, "tesouro não-negativo: $%.0fB" % E.player_nation.tesouro)
 	_check(E.player_nation.pib_bilhoes_usd > 0.0, "PIB positivo")
+
+	# ── 5b. Ranking de poder global (base das novas vitórias) ──
+	print("[5b] Ranking de poder global")
+	E._refresh_world_maxima()
+	var us_rank: int = E.get_power_rank("US")
+	_check(us_rank == 1, "EUA é a potência #1 no início do século (rank %d)" % us_rank)
+	var player_rank: int = E.get_power_rank("BR")
+	_check(player_rank > 1 and player_rank < 60, "Brasil em posição intermediária (rank %d)" % player_rank)
 
 	# ── 6. Cap de tesouro com piso (nações pequenas) ──
 	print("[6] Cap de tesouro")

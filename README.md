@@ -117,17 +117,35 @@ Taxa de sucesso ajustada por Intel Score vs Segurança do alvo. Falha causa cris
 
 ## 🏆 Condições de Vitória/Derrota
 
-**Vitória**: 20 turnos consecutivos com:
-- Apoio Popular ≥ 65%
-- Estabilidade ≥ 65%
-- Inflação ≤ 15%
-- Tesouro > 0
+O jogo mede seu lugar no MUNDO através do **ranking de poder composto**:
+economia 40% · militar 25% · tecnologia 20% · diplomacia 15%.
+
+**🏆 HEGEMONIA GLOBAL** — seja o **#1 do ranking mundial de poder** por 16
+turnos consecutivos (4 anos), com país estável (apoio/estab ≥ 55) e economia
+relevante (≥ 50% da maior do mundo). Disponível a partir do turno 60.
+
+**🏛 POTÊNCIA DO SÉCULO** — chegue ao ano 2100 entre as **5 maiores
+potências mundiais**. A campanha inteira importa.
+
+**🌟 NAÇÃO MODELO** (marco, não encerra o jogo) — 20 turnos consecutivos com
+Apoio ≥ 65%, Estabilidade ≥ 65%, Inflação ≤ 15% e Tesouro > 0.
+
+**📜 LEGADO DO SÉCULO** — sobreviveu aos 100 anos sem entrar no top-5:
+fim neutro com avaliação de legado (XP de meta-progressão mantido).
 
 **Derrotas** (após 5 turnos de "lua de mel"):
 - 💀 **Revolução**: Apoio Popular < 20% por 3 turnos
 - 💀 **Falência Nacional**: Tesouro = 0 por 4 turnos
 - 💀 **Golpe de Estado**: Estabilidade < 8%
-- 💀 **Hiperinflação**: Inflação > 80%
+- 💀 **Hiperinflação**: Inflação > 80% (contra-ataque: ação 🏦 Aperto Monetário)
+
+### 📈 Economia de convergência
+O crescimento usa o modelo real de **catch-up**: países longe da fronteira
+tecnológica mundial crescem mais rápido — SE tiverem instituições decentes
+(estabilidade, burocracia, baixa corrupção). Um país pobre bem administrado
+pode crescer >10%/ano por décadas (China 1990-2020) e **genuinamente virar
+potência mundial em 100 anos**. Economias maduras desaceleram. Validado por
+simulação massiva: Vietnã ativo sobe do rank 76 → 19; Nigéria 58 → 14.
 
 ---
 

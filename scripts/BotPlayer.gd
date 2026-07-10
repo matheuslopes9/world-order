@@ -22,6 +22,7 @@ signal game_over_detected()
 var speed_delay: float = 2.0   # segundos entre ações (jogador vê acontecer)
 var turn_delay: float  = 1.5   # segundos antes de avançar turno
 var enabled: bool      = false
+var verbose: bool      = true  # false = sem prints no console (usado pelo BalanceSim)
 
 # ── Estado ───────────────────────────────────────────────────────
 var _engine              # referência ao GameEngine (autoload)
@@ -143,6 +144,14 @@ func _generate_economy_actions(n) -> Array:
 	var inflacao: float = float(n.inflacao)
 	var tesouro: float = float(n.tesouro)
 
+	# Inflação alta — aperto monetário URGENTE (nova ferramenta anti-inflação)
+	if inflacao > 30 and tesouro >= 40:
+		out.append({
+			"type": "panel_action", "action": "aperto_monetario",
+			"score": 55.0 + (inflacao - 30.0) * 1.8, "category": "economia",
+			"reason": "URGENTE: Aperto monetário — inflação=%.0f%%" % inflacao
+		})
+
 	# Estímulo fiscal (+2% PIB, custo 80)
 	if tesouro >= 110:
 		var score: float = 40.0
@@ -192,8 +201,13 @@ func _generate_social_actions(n) -> Array:
 	var corrupcao: float = float(n.corrupcao)
 	var tesouro: float = float(n.tesouro)
 
+	# Disciplina fiscal: investimentos que criam GASTO PERMANENTE
+	# (saúde/educação/previdência) só com saldo trimestral positivo —
+	# sem isto o bot cavava déficit eterno em países ricos
+	var saldo_ok: bool = n.calc_saldo() > 0.0
+
 	# Saúde pública — felicidade e apoio (custo 20)
-	if (felicidade < 65 or apoio < 65) and tesouro >= 30:
+	if (felicidade < 65 or apoio < 65) and tesouro >= 30 and saldo_ok:
 		var score: float = 50.0 + (65.0 - felicidade) * 0.8 + (65.0 - apoio) * 0.5
 		out.append({
 			"type": "panel_action", "action": "investir_saude",
@@ -226,8 +240,8 @@ func _generate_social_actions(n) -> Array:
 			"score": 80.0 + (35.0 - apoio) * 2.0, "category": "social",
 			"reason": "CRÍTICO: Apoio popular em %.0f%% — risco revolução!" % apoio
 		})
-	# Apoio moderadamente baixo — previdência (custo 20)
-	elif apoio < 55 and tesouro >= 30:
+	# Apoio moderadamente baixo — previdência (custo 20, gasto permanente)
+	elif apoio < 55 and tesouro >= 30 and saldo_ok:
 		out.append({
 			"type": "panel_action", "action": "investir_previdencia",
 			"score": 25.0 + (55.0 - apoio) * 0.5, "category": "social",
@@ -296,8 +310,8 @@ func _generate_diplomacy_actions(n) -> Array:
 			"reason": "Propor %s a %s (rel=%.0f)" % [treaty_type, _engine.nations[best_partner].nome if _engine.nations.has(best_partner) else best_partner, best_rel]
 		})
 
-	# Educação — acelera pesquisa (custo 20)
-	if tesouro >= 30 and n.velocidade_pesquisa < 2.0:
+	# Educação — acelera pesquisa (custo 20, gasto permanente)
+	if tesouro >= 30 and n.velocidade_pesquisa < 2.0 and n.calc_saldo() > 0.0:
 		out.append({
 			"type": "panel_action", "action": "investir_educacao",
 			"score": 22.0, "category": "tech",
@@ -442,7 +456,8 @@ func _handle_pending_proposals() -> void:
 # ── Helpers ───────────────────────────────────────────────────────
 func _think(msg: String) -> void:
 	emit_signal("thinking", msg)
-	print("[BOT] %s" % msg)
+	if verbose:
+		print("[BOT] %s" % msg)
 
 func _delay(seconds: float) -> Signal:
 	return _tree.create_timer(seconds).timeout

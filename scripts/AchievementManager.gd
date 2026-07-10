@@ -35,6 +35,7 @@ const ACHIEVEMENTS := [
 	# ─── HISTÓRICO/EVENTOS ───
 	{"id": "history_maker",     "name": "Forjador da História",    "desc": "Tome 10 decisões em eventos históricos",   "icon": "🕰"},
 	{"id": "convergent",        "name": "Espelho da Realidade",    "desc": "Tome 5 decisões alinhadas com a história", "icon": "📖"},
+	{"id": "model_nation",      "name": "Nação Modelo",            "desc": "20 turnos consecutivos com indicadores excelentes", "icon": "🌟"},
 	# ─── DESAFIO ───
 	{"id": "underdog",          "name": "Davi vs Golias",          "desc": "Vença com nação tier MUITO_DIFICIL ou QUASE_IMPOSSIVEL", "icon": "💪"},
 ]
@@ -105,6 +106,8 @@ func update() -> void:
 	# Tech
 	if n.tecnologias_concluidas.size() >= 1: _try_unlock("first_tech")
 	if n.tecnologias_concluidas.size() >= 25: _try_unlock("tech_wizard")
+	# Nação Modelo (marco definido pelo engine em evaluate_endgame)
+	if bool(n.get_meta("model_nation_done", false)): _try_unlock("model_nation")
 	# Histórico de decisões
 	if engine.timeline != null:
 		var dlog_size: int = engine.timeline.decision_log.size()

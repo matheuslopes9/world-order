@@ -45,6 +45,8 @@ func can_player_act() -> bool:
 	return player_actions_remaining > 0
 var defcon: int = 5
 var game_state: String = "MENU"           # MENU, SELECTING, PLAYING, ENDGAME
+var victory_achieved: bool = false        # vitória já celebrada (evita re-disparo em modo livre)
+var _turns_since_war: int = 0             # p/ recuperação gradual de DEFCON
 var recent_events: Array = []
 # Histórico persistente de notícias com metadados pra filtros (até 500 entradas)
 # Cada entry: { turn, type, headline, body, color, involves: [iso_codes], region, scope }
@@ -206,6 +208,10 @@ func _apply_year_2000_overrides() -> void:
 		# Recalcula tier de dificuldade SEMPRE (mundo de 2000 é diferente de 2024)
 		# Antes: usava difficulty_tiers.json (que reflete cenário 2024) — gerava inversão NORMAL>DIFICIL
 		n.tier_dificuldade = n._compute_difficulty_tier()
+		# Snapshot do PIB APÓS o override — pib_inicial deve refletir o ponto
+		# de partida real da campanha (antes guardava o valor de 2024, gerando
+		# caps e títulos de legado inconsistentes)
+		n.pib_inicial = n.pib_bilhoes_usd
 	print("[2000] Overrides aplicados: %d explícitos + %d via escala global" % [changed_explicit, changed_global])
 
 # Aplica um cenário (carregado de scenarios.json). Deve ser chamado ANTES
@@ -321,9 +327,18 @@ func end_turn() -> void:
 	if date_quarter > 4:
 		date_quarter = 1
 		date_year += 1
+	# Fronteira tecnológica mundial (maior PIB per capita entre economias
+	# relevantes) — alimenta o modelo de crescimento por convergência.
+	# Filtros evitam micro-estados/paraísos fiscais como referência.
+	var frontier_pc: float = 0.0
+	for code in nations:
+		var nf = nations[code]
+		if nf.pib_bilhoes_usd >= 100.0 and nf.populacao >= 5_000_000:
+			frontier_pc = max(frontier_pc, nf.pib_per_capita())
 	# Processa todas as nações
 	for code in nations:
 		var n = nations[code]
+		n.frontier_pib_pc = frontier_pc
 		n.update_pib(1.0)
 		n.update_government(0.02)
 		n.update_approval()
@@ -373,13 +388,175 @@ func end_turn() -> void:
 	# Atualiza tracking de antagonista (nação rival recorrente)
 	_update_player_nemesis()
 
+	# Recuperação de DEFCON: 4 turnos sem nova guerra → tensão mundial alivia
+	# (antes o DEFCON só descia — o mundo travava em alerta nuclear permanente)
+	_turns_since_war += 1
+	if _turns_since_war >= 4 and defcon < 5:
+		defcon += 1
+		_turns_since_war = 0
+		_log_news({
+			"type": "defcon",
+			"headline": "🕊️ Tensão mundial alivia — DEFCON sobe para %d" % defcon,
+			"body": "Período prolongado sem novos conflitos.",
+			"involves_player": false,
+			"color": Color(0.5, 1, 0.7),
+		})
+
 	# Reset de ações do jogador para o novo turno
 	# (inclui perk "Equipe Eficiente" — antes o bônus era perdido após o turno 1)
 	var extra_actions: int = int(player_nation.get_meta("perk_extra_actions", 0)) if player_nation else 0
 	player_actions_remaining = PLAYER_ACTIONS_PER_TURN + extra_actions
 	emit_signal("player_actions_changed", player_actions_remaining)
 
+	# Avalia vitória/derrota (lógica vive no motor; a UI só apresenta o modal)
+	evaluate_endgame()
+
 	emit_signal("turn_advanced", current_turn)
+
+# ─────────────────────────────────────────────────────────────────
+# PODER GLOBAL — score composto usado por ranking e vitórias
+# economia 40% · militar 25% · tecnologia 20% · diplomacia 15%
+# ─────────────────────────────────────────────────────────────────
+
+var _world_max_pib: float = 1.0
+var _world_max_mil: float = 1.0
+var _world_max_tech: float = 1.0
+
+func _refresh_world_maxima() -> void:
+	_world_max_pib = 1.0
+	_world_max_mil = 1.0
+	_world_max_tech = 6.0  # piso: evita "winner-take-all" no início (1 tech = 100%)
+	for code in nations:
+		var n = nations[code]
+		_world_max_pib = max(_world_max_pib, n.pib_bilhoes_usd)
+		_world_max_mil = max(_world_max_mil, n.get_military_power())
+		_world_max_tech = max(_world_max_tech, float(n.tecnologias_concluidas.size()))
+
+func compute_power_score(n) -> float:
+	var pib_norm: float = n.pib_bilhoes_usd / _world_max_pib
+	var mil_norm: float = n.get_military_power() / _world_max_mil
+	var tech_norm: float = float(n.tecnologias_concluidas.size()) / _world_max_tech
+	var rel_sum: float = 0.0
+	var rel_n: int = 0
+	for c in n.relacoes:
+		rel_sum += float(n.relacoes[c])
+		rel_n += 1
+	var rel_norm: float = ((rel_sum / rel_n) + 100.0) / 200.0 if rel_n > 0 else 0.5
+	return 40.0 * pib_norm + 25.0 * mil_norm + 20.0 * tech_norm + 15.0 * rel_norm
+
+# Posição da nação no ranking mundial de poder (1 = líder mundial)
+func get_power_rank(code: String) -> int:
+	if not nations.has(code):
+		return 999
+	var my_score: float = compute_power_score(nations[code])
+	var rank: int = 1
+	for c in nations:
+		if c != code and compute_power_score(nations[c]) > my_score:
+			rank += 1
+	return rank
+
+# ─────────────────────────────────────────────────────────────────
+# ENDGAME — vitória/derrota avaliadas no motor
+# (a UI escuta endgame_reached e apenas apresenta o modal)
+#
+# Design:
+#  🏛 POTÊNCIA DO SÉCULO — chegar a 2100 no top-5 do ranking de poder
+#  🏆 HEGEMONIA GLOBAL   — ser o #1 do ranking por 12 turnos (3 anos)
+#  🌟 NAÇÃO MODELO       — 20 turnos de indicadores excelentes (marco,
+#                          celebra e CONTINUA — não encerra a campanha)
+#  💀 derrotas            — revolução, falência, golpe, hiperinflação
+# ─────────────────────────────────────────────────────────────────
+
+signal endgame_reached(result: Dictionary)
+
+func evaluate_endgame() -> void:
+	if player_nation == null or game_state != "PLAYING":
+		return
+	var n = player_nation
+	_refresh_world_maxima()
+	# ── Fim da campanha (end_year do cenário, ex: 2100) — avaliação de legado ──
+	# (dispara UMA vez; quem "continuar livre" após 2100 não revê o modal)
+	if not is_no_endgame() and not bool(n.get_meta("century_end_fired", false)):
+		var end_year: int = int(active_scenario.get("end_year", 2100)) if not active_scenario.is_empty() else 2100
+		if date_year >= end_year:
+			n.set_meta("century_end_fired", true)
+			var final_rank: int = get_power_rank(n.codigo_iso)
+			if final_rank <= 5 or victory_achieved:
+				victory_achieved = true
+				if achievements:
+					achievements.on_victory(n.tier_dificuldade)
+				_fire_endgame(true, "🏛 POTÊNCIA DO SÉCULO",
+					"Você atravessou 100 anos de história e terminou como %dª potência mundial. Seu nome está gravado no século." % final_rank)
+			else:
+				_fire_endgame(false, "📜 LEGADO DO SÉCULO",
+					"Seu governo atravessou o século inteiro e terminou como %dª potência. Sobreviver a 100 anos já é história — mas o mundo seguiu liderado por outros." % final_rank)
+			return
+	if is_no_game_over():
+		return
+	# ── Derrotas ──
+	var honeymoon_turns: int = 5 + int(n.get_meta("perk_honeymoon_extra", 0))
+	var honeymoon: bool = current_turn <= honeymoon_turns
+	if n.apoio_popular < 20:
+		n.revolucao_turnos += 1
+	else:
+		n.revolucao_turnos = 0
+	if n.tesouro <= 0:
+		n.falencia_turnos += 1
+	else:
+		n.falencia_turnos = 0
+	if not honeymoon:
+		if n.revolucao_turnos >= 3:
+			_fire_endgame(false, "💀 REVOLUÇÃO", "Apoio popular abaixo de 20%% por 3 turnos.")
+			return
+		if n.falencia_turnos >= 4:
+			_fire_endgame(false, "💀 FALÊNCIA NACIONAL", "Tesouro zerado por 4 turnos. Colapso fiscal.")
+			return
+		if n.estabilidade_politica < 8:
+			_fire_endgame(false, "💀 GOLPE DE ESTADO", "Estabilidade colapsou abaixo de 8%%. Você foi deposto.")
+			return
+		if n.inflacao > 80:
+			_fire_endgame(false, "💀 HIPERINFLAÇÃO", "Inflação acima de 80%%. Economia em ruínas.")
+			return
+	# ── Marco "Nação Modelo": 20 turnos de indicadores excelentes ──
+	# Celebra e CONTINUA (antes isto encerrava a campanha como "hegemonia"
+	# no ano ~2008, trivializando os outros 92 anos de jogo)
+	var win_cond: bool = n.apoio_popular >= 65 and n.estabilidade_politica >= 65 and n.inflacao <= 15 and n.tesouro > 0
+	n.set_meta("victory_streak", (int(n.get_meta("victory_streak", 0)) + 1) if win_cond else 0)
+	if int(n.get_meta("victory_streak", 0)) >= 20 and not bool(n.get_meta("model_nation_done", false)):
+		n.set_meta("model_nation_done", true)
+		_log_news({
+			"type": "marco",
+			"headline": "🌟 %s é reconhecida como NAÇÃO MODELO" % n.nome,
+			"body": "20 turnos de indicadores exemplares. O mundo observa seu governo como referência.",
+			"involves_player": true,
+			"color": Color(1, 0.9, 0.4),
+		}, [n.codigo_iso], n.continente)
+	# ── Vitória: HEGEMONIA GLOBAL — liderança real do ranking de poder ──
+	# Exige: #1 no poder composto + economia ≥ 50% da maior + país estável,
+	# sustentado por 16 turnos (4 anos), a partir do turno 60 (ano ~2015).
+	if victory_achieved:
+		return
+	var power_rank: int = get_power_rank(n.codigo_iso)
+	var econ_relevante: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.5
+	if power_rank == 1 and econ_relevante and n.apoio_popular >= 55.0 and n.estabilidade_politica >= 55.0:
+		n.set_meta("hegemony_streak", int(n.get_meta("hegemony_streak", 0)) + 1)
+	else:
+		n.set_meta("hegemony_streak", 0)
+	if int(n.get_meta("hegemony_streak", 0)) >= 16 and current_turn >= 60:
+		victory_achieved = true
+		if achievements:
+			achievements.on_victory(n.tier_dificuldade)
+		_fire_endgame(true, "🏆 HEGEMONIA GLOBAL",
+			"Sua nação lidera o ranking mundial de poder há 4 anos consecutivos. Economia, tecnologia, forças armadas e diplomacia — o século é seu.")
+
+func _fire_endgame(victory: bool, title: String, msg: String) -> void:
+	game_state = "ENDGAME"
+	emit_signal("endgame_reached", {"victory": victory, "title": title, "msg": msg})
+
+# "Continuar Livre" pós-vitória: retoma o jogo (vitória não re-dispara)
+func resume_after_endgame() -> void:
+	if game_state == "ENDGAME":
+		game_state = "PLAYING"
 
 # Identifica e mantém o "nêmesis" do jogador — nação com pior relação que cruzou ≤ -50.
 # Nemesis declarada gera notícias de provocação periódicas e tem maior chance de hostilidade.
@@ -487,14 +664,28 @@ func _ai_decide(n) -> void:
 				worst_code = candidates[randi() % candidates.size()]
 				worst_rel = -30.0  # tensão regional baseline
 		if worst_code != "":
-			# Chance baseada em agressividade: 0.5% (pacífico) até 5% (Putin/Kim) por turno
+			# Chance baseada em agressividade: ~0.3% (pacífico) até 3.5% (Putin/Kim) por turno
+			# (calibrado: 0.05 gerava guerra nova a cada ~2.5 turnos — 160 guerras/século
+			# e DEFCON travado em 2)
 			var rel_factor: float = clamp((100.0 + worst_rel) / 100.0 + 0.5, 0.3, 1.5)
-			var war_chance: float = aggro * 0.05 * rel_factor
+			var war_chance: float = aggro * 0.035 * rel_factor
 			if randf() < war_chance:
 				_declare_war(n.codigo_iso, worst_code)
 				return
 
-	# 3. AÇÃO TÁTICA simples (investe pequeno em saúde/propaganda)
+	# 3. PESQUISA — nações com folga desenvolvem tecnologia
+	# (sem isto o jogador monopolizava o eixo tecnológico do ranking de poder)
+	if tech != null and n.pesquisa_atual == null and n.tesouro >= 60.0 and randf() < 0.25:
+		var avail: Array = tech.get_available_techs(n)
+		if not avail.is_empty():
+			var cheapest: Dictionary = avail[0]
+			for t in avail:
+				if float(t.get("custo", 999)) < float(cheapest.get("custo", 999)):
+					cheapest = t
+			tech.start_research(n, String(cheapest.get("id", "")))
+			return
+
+	# 4. AÇÃO TÁTICA simples (investe pequeno em saúde/propaganda)
 	if treasury >= 20.0 and randf() < 0.4:
 		treasury -= 20.0
 		n.tesouro = treasury
@@ -530,6 +721,7 @@ func _declare_war(from_code: String, to_code: String) -> void:
 	attacker.relacoes[to_code] = -100
 	defender.relacoes[from_code] = -100
 	defcon = max(1, defcon - 2)
+	_turns_since_war = 0
 
 	# Reação de alianças (defesa coletiva)
 	var responders: Array = _trigger_collective_defense(from_code, to_code)
@@ -624,6 +816,25 @@ func _process_war_costs() -> void:
 		n.tesouro = max(0.0, n.tesouro - cost_per_war * wars)
 		n.apoio_popular = max(0.0, n.apoio_popular - 1.5 * wars)
 		n.felicidade = max(0.0, n.felicidade - 1.0 * wars)
+		# CAPITULAÇÃO AUTOMÁTICA: nação exausta (tesouro zerado + apoio em
+		# colapso) rende-se — guerras não se arrastam para sempre
+		if n.tesouro <= 0.0 and n.apoio_popular < 25.0 and randf() < 0.5:
+			var enemies: Array = n.em_guerra.duplicate()
+			for e_code in enemies:
+				if nations.has(e_code):
+					var e = nations[e_code]
+					e.em_guerra.erase(code)
+					e.relacoes[code] = clamp(float(e.relacoes.get(code, 0)) + 20, -100, 100)
+					n.relacoes[e_code] = -40
+			n.em_guerra.clear()
+			n.estabilidade_politica = max(0.0, n.estabilidade_politica - 5.0)
+			_log_news({
+				"type": "capitulacao",
+				"headline": "🏳️ %s capitula — exaustão de guerra" % n.nome,
+				"body": "Sem recursos e sem apoio interno, o governo aceita os termos de rendição.",
+				"involves_player": (player_nation != null and (code == player_nation.codigo_iso or player_nation.codigo_iso in enemies)),
+				"color": Color(0.9, 0.8, 0.5),
+			}, [code], n.continente)
 
 # ─────────────────────────────────────────────────────────────────
 # EVENTOS ALEATÓRIOS
@@ -661,6 +872,16 @@ func apply_event_choice(event: Dictionary, choice_idx: int) -> void:
 		return
 	var choice: Dictionary = choices[choice_idx]
 	_apply_event_effects(choice.get("efeitos", {}), player_nation)
+	# Registra no log de decisões (conta pra conquista "Forjador da História")
+	if timeline:
+		timeline.decision_log.append({
+			"event_id": event.get("id", event.get("nome", "evento")),
+			"event_headline": event.get("nome", ""),
+			"choice_id": str(choice_idx),
+			"choice_label": choice.get("label", choice.get("texto", "")),
+			"turn": current_turn,
+			"year": date_year,
+		})
 	var p_code2: String = player_nation.codigo_iso if player_nation else ""
 	_log_news({
 		"type": "evento_escolha",
@@ -893,6 +1114,7 @@ const PANEL_ACTIONS := {
 	"investir_seguranca":   {"panel": "governo",  "cost": 20,  "label": "👮 SEGURANÇA",         "desc": "Estab +3, Corrup -2"},
 	"investir_previdencia": {"panel": "governo",  "cost": 20,  "label": "👵 PREVIDÊNCIA",       "desc": "Apoio +3"},
 	"estimulo_fiscal":      {"panel": "governo",  "cost": 80,  "label": "💰 ESTÍMULO FISCAL",   "desc": "PIB +2%, Felic +5"},
+	"aperto_monetario":     {"panel": "governo",  "cost": 30,  "label": "🏦 APERTO MONETÁRIO",  "desc": "Inflação -12, PIB -0.5%"},
 	# ── MILITAR ──
 	"recrutar_infantaria":  {"panel": "militar",  "cost": 5,   "label": "🪖 RECRUTAR INFANTARIA", "desc": "+10.000 soldados"},
 	"recrutar_tanques":     {"panel": "militar",  "cost": 15,  "label": "🛡 RECRUTAR TANQUES",    "desc": "+200 tanques"},
@@ -958,25 +1180,25 @@ func _apply_panel_action(n, action_id: String) -> String:
 			n.felicidade = min(100.0, n.felicidade + vf)
 			return "Estab +%d, Felic +%d" % [int(ve), int(vf)]
 		"investir_saude":
-			n.gasto_social["saude"] = n.gasto_social.get("saude", 0) + 20
+			_add_social_spend(n, "saude")
 			var vf: float = 4.0 * mult
 			var va: float = 2.0 * mult
 			n.felicidade = min(100.0, n.felicidade + vf)
 			n.apoio_popular = min(100.0, n.apoio_popular + va)
 			return "Felic +%d, Apoio +%d" % [int(vf), int(va)]
 		"investir_educacao":
-			n.gasto_social["educacao"] = n.gasto_social.get("educacao", 0) + 20
+			_add_social_spend(n, "educacao")
 			n.velocidade_pesquisa = min(3.0, n.velocidade_pesquisa + 0.05)
 			return "Pesquisa +5%"
 		"investir_seguranca":
-			n.gasto_social["seguranca"] = n.gasto_social.get("seguranca", 0) + 20
+			_add_social_spend(n, "seguranca")
 			var ve: float = 3.0 * mult
 			var vc: float = 2.0 * mult
 			n.estabilidade_politica = min(100.0, n.estabilidade_politica + ve)
 			n.corrupcao = max(0.0, n.corrupcao - vc)
 			return "Estab +%d, Corrup -%d" % [int(ve), int(vc)]
 		"investir_previdencia":
-			n.gasto_social["previdencia"] = n.gasto_social.get("previdencia", 0) + 20
+			_add_social_spend(n, "previdencia")
 			var va: float = 3.0 * mult
 			n.apoio_popular = min(100.0, n.apoio_popular + va)
 			return "Apoio +%d" % int(va)
@@ -985,6 +1207,12 @@ func _apply_panel_action(n, action_id: String) -> String:
 			n.felicidade = min(100.0, n.felicidade + 5.0)
 			n.corrupcao = min(100.0, n.corrupcao + 2.0)
 			return "PIB +2%, Felic +5"
+		"aperto_monetario":
+			var vi: float = 12.0 * mult
+			n.inflacao = max(0.0, n.inflacao - vi)
+			n.apply_pib_multiplier(0.995)
+			n.felicidade = max(0.0, n.felicidade - 2.0)
+			return "Inflação -%d, PIB -0.5%%" % int(vi)
 		# ── MILITAR ──
 		"recrutar_infantaria", "recrutar_tanques", "recrutar_avioes", "recrutar_navios":
 			var u: Dictionary = n.militar.get("unidades", {})
@@ -1036,6 +1264,15 @@ func _apply_panel_action(n, action_id: String) -> String:
 				return "%s +15%%" % min_k.capitalize()
 			return "Sem recursos mapeados"
 	return "OK"
+
+# Gasto social permanente ESCALADO AO PIB (0.4% por investimento, teto 2%
+# do PIB por categoria). Antes: +$20B fixos — em um país de PIB $9B isso
+# era 60% do PIB em 3 cliques → hiperinflação em 6 turnos (morte garantida
+# de nações pequenas, detectada no BalanceSim).
+func _add_social_spend(n, key: String) -> void:
+	var inc: float = max(1.0, n.pib_bilhoes_usd * 0.004)
+	var cap: float = max(2.0, n.pib_bilhoes_usd * 0.02)
+	n.gasto_social[key] = min(cap, float(n.gasto_social.get(key, 0)) + inc)
 
 # Espionagem: player executa op
 func player_execute_spy(op_id: String, target_code: String) -> Dictionary:

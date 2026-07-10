@@ -28,6 +28,7 @@ static func save_game(engine) -> bool:
 		"storyline_started_arcs": engine.storylines.started_arcs if engine.storylines else [],
 		"player_nemesis": engine.player_nemesis,
 		"nemesis_declared": engine.nemesis_declared,
+		"victory_achieved": engine.victory_achieved,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
@@ -102,6 +103,8 @@ static func load_game(engine) -> bool:
 	# Restaura antagonista
 	engine.player_nemesis = String(data.get("player_nemesis", ""))
 	engine.nemesis_declared = bool(data.get("nemesis_declared", false))
+	# Restaura estado de vitória (evita re-disparo do modal em modo livre)
+	engine.victory_achieved = bool(data.get("victory_achieved", false))
 	print("[LOAD] Jogo carregado: turno %d, jogador %s" % [engine.current_turn, player_code])
 	return true
 
