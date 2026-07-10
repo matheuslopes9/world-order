@@ -10,10 +10,38 @@ var passed: int = 0
 var failed: int = 0
 var notes: Array = []
 
+# Protege os arquivos REAIS do usuário: o teste salva/joga por cima e
+# restaura no final (antes ele sobrescrevia o save real com a partida de teste!)
+var _backups: Dictionary = {}
+const PROTECTED := ["user://world_order_save.json", "user://achievements.json"]
+
+func _backup_user_files() -> void:
+	for path in PROTECTED:
+		if FileAccess.file_exists(path):
+			var f := FileAccess.open(path, FileAccess.READ)
+			_backups[path] = f.get_buffer(f.get_length())
+			f.close()
+		else:
+			_backups[path] = null
+
+func _restore_user_files() -> void:
+	for path in PROTECTED:
+		var data = _backups.get(path)
+		if data == null:
+			if FileAccess.file_exists(path):
+				DirAccess.remove_absolute(path)
+		else:
+			var f := FileAccess.open(path, FileAccess.WRITE)
+			if f:
+				f.store_buffer(data)
+				f.close()
+	print("[TEST] Arquivos user:// restaurados (save real preservado)")
+
 func _ready() -> void:
 	print("\n╔══════════════════════════════════════════════════════════════════")
 	print("║  WORLD ORDER — UI AUTOPLAY TEST")
 	print("╚══════════════════════════════════════════════════════════════════")
+	_backup_user_files()
 	# Aguarda 1 frame antes de manipular tree (Godot bloqueia add_child no _ready do root)
 	await get_tree().process_frame
 	# Carrega WorldMap como cena raiz
@@ -167,6 +195,7 @@ func _ready() -> void:
 		print("\nFALHAS:")
 		for n in notes:
 			print("  ✗ %s" % n)
+	_restore_user_files()
 	get_tree().quit(0 if failed == 0 else 1)
 
 func _test(name: String, condition: bool) -> void:

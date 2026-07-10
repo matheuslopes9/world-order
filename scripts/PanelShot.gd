@@ -5,9 +5,37 @@ extends Node
 ## Salva em user://panel_situacao.png e fecha sozinho (~6s).
 ## NÃO avança turnos (evita autosave/eventos) — semeia trajetória de exemplo.
 
+# Protege os arquivos reais do usuário (fluxos do WorldMap podem salvar)
+var _backups: Dictionary = {}
+const PROTECTED := ["user://world_order_save.json", "user://achievements.json"]
+
+func _backup_user_files() -> void:
+	for path in PROTECTED:
+		if FileAccess.file_exists(path):
+			var f := FileAccess.open(path, FileAccess.READ)
+			_backups[path] = f.get_buffer(f.get_length())
+			f.close()
+		else:
+			_backups[path] = null
+
+func _restore_user_files() -> void:
+	for path in PROTECTED:
+		var data = _backups.get(path)
+		if data == null:
+			if FileAccess.file_exists(path):
+				DirAccess.remove_absolute(path)
+		else:
+			var f := FileAccess.open(path, FileAccess.WRITE)
+			if f:
+				f.store_buffer(data)
+				f.close()
+
 func _ready() -> void:
-	# Kill-switch: encerra de qualquer forma após 25s
-	get_tree().create_timer(25.0).timeout.connect(func(): get_tree().quit(3))
+	_backup_user_files()
+	# Kill-switch: encerra de qualquer forma após 25s (restaurando saves)
+	get_tree().create_timer(25.0).timeout.connect(func():
+		_restore_user_files()
+		get_tree().quit(3))
 
 	await get_tree().process_frame
 	var packed: PackedScene = load("res://scenes/WorldMap.tscn")
@@ -32,11 +60,22 @@ func _ready() -> void:
 	GameEngine.player_power_rank_history = [14, 14, 13, 13, 12, 11, 11, 10, 9, 9, 8, 8, 7, 7]
 	GameEngine.player_nation.set_meta("victory_streak", 11)
 
-	# Abre o painel Situação e fotografa
+	# Shot 1: painel Situação
 	wm._open_overlay_modal("situacao")
 	await get_tree().create_timer(1.2).timeout
 	var img: Image = get_viewport().get_texture().get_image()
 	img.save_png("user://panel_situacao.png")
 	print("[SHOT] user://panel_situacao.png salvo (%dx%d)" % [img.get_width(), img.get_height()])
+	wm._close_top_modal()
+	await get_tree().process_frame
+
+	# Shot 2: dossiê de país (mostra a bandeira real)
+	wm._open_dossier_modal("US")
+	await get_tree().create_timer(1.0).timeout
+	var img2: Image = get_viewport().get_texture().get_image()
+	img2.save_png("user://panel_dossier.png")
+	print("[SHOT] user://panel_dossier.png salvo")
+
+	_restore_user_files()
 	await get_tree().process_frame
 	get_tree().quit()
