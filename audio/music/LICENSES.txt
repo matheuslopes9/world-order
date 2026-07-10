@@ -1,0 +1,19 @@
+LICENÇAS DAS FAIXAS DE MÚSICA
+==============================
+
+ambient_mysterious.mp3
+  Título:  Mysterious Ambience (song21)
+  Autor:   cynicmusic (pixelsphere.org)
+  Fonte:   https://opengameart.org/content/mysterious-ambience-song21
+  Licença: CC0 (domínio público) — uso comercial livre, sem atribuição obrigatória
+  Nota:    autor aprecia crédito a pixelsphere.org (recomendado nos créditos do jogo)
+
+ambient_dark_place.ogg
+  Título:  Dark Place (loop)
+  Autor:   SkyleTheFrench
+  Fonte:   https://opengameart.org/content/dark-place-loop
+  Licença: CC0 (domínio público) — uso comercial livre, sem atribuição obrigatória
+
+Estas faixas são detectadas e tocadas automaticamente pelo AudioManager
+(playlist embaralhada). Adicione mais .ogg/.mp3/.wav nesta pasta para
+expandir a playlist — nenhuma configuração necessária.
