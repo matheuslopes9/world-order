@@ -7,7 +7,7 @@ extends Node
 
 # Protege os arquivos reais do usuário (fluxos do WorldMap podem salvar)
 var _backups: Dictionary = {}
-const PROTECTED := ["user://world_order_save.json", "user://achievements.json"]
+const PROTECTED := ["user://world_order_save.json", "user://achievements.json", "user://settings.cfg"]
 
 func _backup_user_files() -> void:
 	for path in PROTECTED:
