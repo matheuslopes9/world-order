@@ -140,7 +140,6 @@ var compact_mode: bool = false
 # ─────────────────────────────────────────────────────────────────
 
 const MONO_FONT := preload("res://fonts/CascadiaMono.ttf")
-const EMOJI_FONT := preload("res://fonts/SegoeUIEmoji.ttf")
 
 func _ready() -> void:
 	var t0 := Time.get_ticks_msec()

@@ -599,9 +599,10 @@ func _show_credits_modal() -> void:
 			"Natural Earth Data — geometria dos países"
 		]},
 		{"title": "FONTES", "items": [
-			"Cascadia Mono (Microsoft) — texto monoespaçado",
-			"Segoe UI (Microsoft) — texto principal",
-			"Segoe UI Emoji — ícones e bandeiras"
+			"Inter (rsms.me, OFL) — texto principal",
+			"Noto Color Emoji (Google, OFL) — ícones",
+			"Cascadia Mono (Microsoft, OFL) — texto monoespaçado",
+			"Bandeiras: hampusborgos/country-flags (domínio público)"
 		]},
 		{"title": "AGRADECIMENTOS", "items": [
 			"Comunidade Godot pela documentação e exemplos",

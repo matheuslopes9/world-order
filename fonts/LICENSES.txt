@@ -1,0 +1,28 @@
+LICENÇAS DAS FONTES
+===================
+
+Todas as fontes embarcadas são SIL Open Font License 1.1 (OFL) —
+redistribuição comercial livre (Steam-safe).
+
+Inter-Variable.ttf
+  Autor:   Rasmus Andersson (rsms.me/inter)
+  Fonte:   https://github.com/rsms/inter (via google/fonts)
+  Licença: OFL 1.1
+  Uso:     fonte principal da UI (theme/game_theme.tres)
+
+NotoColorEmoji.ttf
+  Autor:   Google (noto-emoji)
+  Fonte:   https://github.com/googlefonts/noto-emoji
+  Licença: OFL 1.1
+  Uso:     fallback de emoji da fonte principal (ícones do jogo,
+           consistente em Windows/Linux/Steam Deck)
+
+CascadiaMono.ttf
+  Autor:   Microsoft (cascadia-code)
+  Fonte:   https://github.com/microsoft/cascadia-code
+  Licença: OFL 1.1
+  Uso:     números da top bar e valores monoespaçados
+
+HISTÓRICO: as fontes Segoe UI / Segoe UI Bold / Segoe UI Emoji foram
+REMOVIDAS do projeto — são proprietárias da Microsoft (licenciadas com
+o Windows) e não podem ser redistribuídas com um jogo comercial.

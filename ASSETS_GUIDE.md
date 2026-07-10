@@ -62,15 +62,18 @@ Ideia de design: 2 playlists — `paz` (ambient calmo) e `crise` (percussão ten
 
 O projeto embarca **Segoe UI / Segoe UI Bold / Segoe UI Emoji** (`fonts/`). Essas fontes são **proprietárias da Microsoft e NÃO podem ser redistribuídas** com um jogo comercial. Isso é um bloqueador real para o release na Steam.
 
-**Substitutas OFL (Open Font License — redistribuição comercial livre):**
+**✅ RESOLVIDO — troca completa aplicada:**
 
-| Fonte atual | Substituta | Status |
+| Fonte antiga (proprietária) | Substituta (OFL) | Status |
 |-------------|-----------|--------|
-| SegoeUI.ttf / SegoeUI-Bold.ttf | **Inter** (variável, ~860KB) | ✅ baixada em `fonts/Inter-Variable.ttf` |
-| SegoeUIEmoji.ttf (12MB!) | **Noto Emoji** ([github](https://github.com/googlefonts/noto-emoji)) | 📋 recomendada |
-| CascadiaMono.ttf | já é OFL ✅ | ok manter |
+| SegoeUI.ttf / SegoeUI-Bold.ttf | **Inter** variável (`fonts/Inter-Variable.ttf`) | ✅ ativa no theme |
+| SegoeUIEmoji.ttf (12MB) | **Noto Color Emoji** (`fonts/NotoColorEmoji.ttf`) | ✅ fallback da fonte principal |
+| CascadiaMono.ttf | já é OFL | ✅ mantida |
 
-Como trocar (quando decidir): no `theme/game_theme.tres`, apontar a font family default para `Inter-Variable.ttf` (a Inter cobre pesos 100-900 num arquivo só). Depois remover os Segoe*.ttf do repositório.
+As Segoe foram **removidas do repositório**. Bônus: com a Noto embarcada
+como fallback, os emojis (ícones do jogo) renderizam idênticos em
+Windows/Linux/**Steam Deck** — antes dependiam da fonte do sistema
+operacional (quebrariam fora do Windows). Licenças em `fonts/LICENSES.txt`.
 
 ---
 

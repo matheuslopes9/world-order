@@ -2,7 +2,7 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://bhjhowtqfjtyg"
+uid="uid://b2mptrfdkrkgt"
 path="res://.godot/imported/Inter-Variable.ttf-83877905ebf786c9db31eb5b26dfbeb8.fontdata"
 
 [deps]
@@ -27,7 +27,7 @@ subpixel_positioning=4
 keep_rounding_remainders=true
 oversampling=0.0
 Fallbacks=null
-fallbacks=[]
+fallbacks=[Resource("uid://duambu5e5qboq", "res://fonts/NotoColorEmoji.ttf")]
 Compress=null
 compress=true
 preload=[]
