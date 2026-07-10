@@ -603,31 +603,142 @@ func _render_intel() -> void:
 func _render_situacao() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
-	_add_section_title("RANKINGS GLOBAIS")
+
+	# ══ PODER GLOBAL — a métrica que define a vitória ══
+	GameEngine._refresh_world_maxima()
+	var my_rank: int = GameEngine.get_power_rank(n.codigo_iso)
+	var bd: Dictionary = GameEngine.get_power_breakdown(n)
+	_add_section_title("PODER GLOBAL — MÉTRICA DE VITÓRIA")
+
+	# Headline: posição com cor por faixa
+	var rank_color: Color
+	if my_rank == 1: rank_color = Color(1, 0.85, 0.2)        # ouro: líder
+	elif my_rank <= 5: rank_color = Color(0.4, 1, 0.6)       # verde: top-5 (Potência do Século)
+	elif my_rank <= 20: rank_color = Color(0, 0.823, 1)      # ciano: relevante
+	else: rank_color = Color(0.9, 0.95, 1)
+	var head := Label.new()
+	head.text = "🌍 #%d POTÊNCIA MUNDIAL  —  %.1f pts" % [my_rank, bd["total"]]
+	head.add_theme_color_override("font_color", rank_color)
+	head.add_theme_font_size_override("font_size", 19)
+	panel_content.add_child(head)
+
+	# Tendência (compara com ~2 anos atrás)
+	var hist: Array = GameEngine.player_power_rank_history
+	if hist.size() >= 2:
+		var lookback: int = mini(8, hist.size() - 1)
+		var delta: int = int(hist[hist.size() - 1 - lookback]) - my_rank
+		var tr := Label.new()
+		if delta > 0:
+			tr.text = "▲ subiu %d posiç%s nos últimos %d turnos" % [delta, "ão" if delta == 1 else "ões", lookback]
+			tr.add_theme_color_override("font_color", Color(0.4, 1, 0.6))
+		elif delta < 0:
+			tr.text = "▼ caiu %d posiç%s nos últimos %d turnos" % [-delta, "ão" if delta == -1 else "ões", lookback]
+			tr.add_theme_color_override("font_color", Color(1, 0.45, 0.4))
+		else:
+			tr.text = "• posição estável nos últimos %d turnos" % lookback
+			tr.add_theme_color_override("font_color", Color(0.6, 0.7, 0.85))
+		tr.add_theme_font_size_override("font_size", 10)
+		panel_content.add_child(tr)
+
+	# Trajetória (sparkline invertida: linha subindo = ranking melhorando)
+	if hist.size() >= 2:
+		var inv: Array = []
+		for r in hist:
+			inv.append(-float(r))
+		var hbox := HBoxContainer.new()
+		hbox.add_theme_constant_override("separation", 8)
+		var lbl := Label.new()
+		lbl.text = "Trajetória"
+		lbl.add_theme_color_override("font_color", Color(0.6, 0.7, 0.85))
+		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.custom_minimum_size = Vector2(110, 0)
+		hbox.add_child(lbl)
+		var spark := SparklineWidget.new()
+		spark.values = inv
+		spark.line_color = rank_color
+		spark.custom_minimum_size = Vector2(120, 28)
+		spark.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hbox.add_child(spark)
+		var v_lbl := Label.new()
+		v_lbl.text = "#%d" % my_rank
+		v_lbl.add_theme_color_override("font_color", rank_color)
+		v_lbl.add_theme_font_size_override("font_size", 11)
+		v_lbl.custom_minimum_size = Vector2(40, 0)
+		hbox.add_child(v_lbl)
+		panel_content.add_child(hbox)
+
+	# Composição do poder — mostra ONDE investir pra subir
+	_add_bar("Economia (40%)",   bd["economia"] / 40.0 * 100.0,   true, "%.1f/40" % bd["economia"])
+	_add_bar("Militar (25%)",    bd["militar"] / 25.0 * 100.0,    true, "%.1f/25" % bd["militar"])
+	_add_bar("Tecnologia (20%)", bd["tecnologia"] / 20.0 * 100.0, true, "%.1f/20" % bd["tecnologia"])
+	_add_bar("Diplomacia (15%)", bd["diplomacia"] / 15.0 * 100.0, true, "%.1f/15" % bd["diplomacia"])
+	_add_separator()
+
+	# ══ OBJETIVOS DE VITÓRIA ══
+	_add_section_title("OBJETIVOS DE VITÓRIA")
+	if GameEngine.victory_achieved:
+		_add_data_row("🏆 Hegemonia Global", "CONQUISTADA — modo livre", Color(1, 0.85, 0.2))
+	else:
+		var streak: int = int(n.get_meta("hegemony_streak", 0))
+		if my_rank == 1:
+			_add_data_row("🏆 Hegemonia Global", "líder há %d/16 turnos" % streak, Color(1, 0.85, 0.2))
+			var faltando: Array = []
+			if n.apoio_popular < 55.0: faltando.append("apoio ≥ 55")
+			if n.estabilidade_politica < 55.0: faltando.append("estabilidade ≥ 55")
+			if n.pib_bilhoes_usd < GameEngine._world_max_pib * 0.5: faltando.append("PIB ≥ 50% do líder")
+			if faltando.size() > 0:
+				_add_hint_label("⚠ Contagem pausada — falta: " + ", ".join(faltando))
+		else:
+			_add_data_row("🏆 Hegemonia Global", "torne-se o #1 em poder (você: #%d)" % my_rank)
+	var end_year: int = int(GameEngine.active_scenario.get("end_year", 2100)) if not GameEngine.active_scenario.is_empty() else 2100
+	if my_rank <= 5:
+		_add_data_row("🏛 Potência do Século", "top-5 em %d — NO CAMINHO ✓" % end_year, Color(0.4, 1, 0.6))
+	else:
+		_add_data_row("🏛 Potência do Século", "termine %d no top-5 (você: #%d)" % [end_year, my_rank], Color(1, 0.75, 0.4))
+	if bool(n.get_meta("model_nation_done", false)):
+		_add_data_row("🌟 Nação Modelo", "ALCANÇADA", Color(1, 0.9, 0.4))
+	else:
+		_add_data_row("🌟 Nação Modelo", "%d/20 turnos exemplares" % int(n.get_meta("victory_streak", 0)))
+	_add_separator()
+
+	# ══ TOP 10 PODER MUNDIAL ══
+	_add_section_title("TOP 10 — PODER MUNDIAL")
+	var by_power: Array = []
 	var by_pib: Array = []
 	var by_mil: Array = []
 	for code in GameEngine.nations:
 		var nat = GameEngine.nations[code]
+		by_power.append({"code": code, "v": GameEngine.compute_power_score(nat), "n": nat})
 		by_pib.append({"code": code, "v": nat.pib_bilhoes_usd, "n": nat})
-		by_mil.append({"code": code, "v": float(nat.militar.get("poder_militar_global", 0)), "n": nat})
+		by_mil.append({"code": code, "v": nat.get_military_power(), "n": nat})
+	by_power.sort_custom(func(a, b): return a["v"] > b["v"])
 	by_pib.sort_custom(func(a, b): return a["v"] > b["v"])
 	by_mil.sort_custom(func(a, b): return a["v"] > b["v"])
+	for i in range(mini(10, by_power.size())):
+		var b = by_power[i]
+		var color := Color(0, 1, 0.5) if b["code"] == n.codigo_iso else Color(1, 1, 1)
+		_add_data_row("#%d %s" % [i + 1, b["n"].nome], "%.1f pts" % b["v"], color)
+	if my_rank > 10:
+		_add_data_row("⋯", "")
+		_add_data_row("#%d %s" % [my_rank, n.nome], "%.1f pts" % bd["total"], Color(0, 1, 0.5))
+	_add_separator()
+
+	# ══ Rankings setoriais ══
 	var pib_rank := 0
 	var mil_rank := 0
 	for i in by_pib.size():
 		if by_pib[i]["code"] == n.codigo_iso: pib_rank = i + 1
 	for i in by_mil.size():
 		if by_mil[i]["code"] == n.codigo_iso: mil_rank = i + 1
-	_add_data_row("Ranking PIB", "#%d / %d" % [pib_rank, by_pib.size()])
-	_add_data_row("Ranking Militar", "#%d / %d" % [mil_rank, by_mil.size()])
-	_add_separator()
 	_add_section_title("TOP 5 ECONOMIAS")
+	_add_data_row("Seu ranking PIB", "#%d / %d" % [pib_rank, by_pib.size()], Color(0, 0.823, 1))
 	for i in range(min(5, by_pib.size())):
 		var b = by_pib[i]
 		var color := Color(1, 1, 1) if b["code"] != n.codigo_iso else Color(0, 1, 0.5)
 		_add_data_row("#%d %s" % [i+1, b["n"].nome], _money(b["v"]), color)
 	_add_separator()
 	_add_section_title("TOP 5 PODERES MILITARES")
+	_add_data_row("Seu ranking militar", "#%d / %d" % [mil_rank, by_mil.size()], Color(0, 0.823, 1))
 	for i in range(min(5, by_mil.size())):
 		var b = by_mil[i]
 		var color := Color(1, 1, 1) if b["code"] != n.codigo_iso else Color(0, 1, 0.5)

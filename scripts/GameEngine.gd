@@ -47,6 +47,9 @@ var defcon: int = 5
 var game_state: String = "MENU"           # MENU, SELECTING, PLAYING, ENDGAME
 var victory_achieved: bool = false        # vitória já celebrada (evita re-disparo em modo livre)
 var _turns_since_war: int = 0             # p/ recuperação gradual de DEFCON
+# Posição do jogador no ranking de poder, registrada por turno (sparkline da UI)
+var player_power_rank_history: Array = []
+const POWER_RANK_HISTORY_MAX: int = 60
 var recent_events: Array = []
 # Histórico persistente de notícias com metadados pra filtros (até 500 entradas)
 # Cada entry: { turn, type, headline, body, color, involves: [iso_codes], region, scope }
@@ -313,6 +316,7 @@ func confirm_player_nation(code: String) -> void:
 			player_nation.relacoes[other_code] = clamp(float(player_nation.relacoes.get(other_code, 0)) + rel_boost, -100.0, 100.0)
 			other.relacoes[code] = clamp(float(other.relacoes.get(code, 0)) + rel_boost, -100.0, 100.0)
 	current_turn = 1
+	player_power_rank_history.clear()
 	emit_signal("player_confirmed", code)
 	print("[ENGINE] Comando assumido: %s (Tier: %s, Tesouro: $%dB | mult=%.2f×%.2f)" %
 		[player_nation.nome, player_nation.tier_dificuldade, int(player_nation.tesouro), diff_mult, tier_mult])
@@ -411,6 +415,12 @@ func end_turn() -> void:
 	# Avalia vitória/derrota (lógica vive no motor; a UI só apresenta o modal)
 	evaluate_endgame()
 
+	# Registra a posição no ranking de poder (trajetória no painel Situação)
+	if player_nation != null:
+		player_power_rank_history.append(get_power_rank(player_nation.codigo_iso))
+		if player_power_rank_history.size() > POWER_RANK_HISTORY_MAX:
+			player_power_rank_history.pop_front()
+
 	emit_signal("turn_advanced", current_turn)
 
 # ─────────────────────────────────────────────────────────────────
@@ -443,6 +453,27 @@ func compute_power_score(n) -> float:
 		rel_n += 1
 	var rel_norm: float = ((rel_sum / rel_n) + 100.0) / 200.0 if rel_n > 0 else 0.5
 	return 40.0 * pib_norm + 25.0 * mil_norm + 20.0 * tech_norm + 15.0 * rel_norm
+
+# Decomposição do score de poder — a UI usa pra mostrar ONDE investir.
+# (mesma fórmula de compute_power_score; manter em sincronia)
+func get_power_breakdown(n) -> Dictionary:
+	var pib_norm: float = n.pib_bilhoes_usd / _world_max_pib
+	var mil_norm: float = n.get_military_power() / _world_max_mil
+	var tech_norm: float = float(n.tecnologias_concluidas.size()) / _world_max_tech
+	var rel_sum: float = 0.0
+	var rel_n: int = 0
+	for c in n.relacoes:
+		rel_sum += float(n.relacoes[c])
+		rel_n += 1
+	var rel_norm: float = ((rel_sum / rel_n) + 100.0) / 200.0 if rel_n > 0 else 0.5
+	var econ: float = 40.0 * pib_norm
+	var mil: float = 25.0 * mil_norm
+	var tech_pts: float = 20.0 * tech_norm
+	var dipl: float = 15.0 * rel_norm
+	return {
+		"economia": econ, "militar": mil, "tecnologia": tech_pts, "diplomacia": dipl,
+		"total": econ + mil + tech_pts + dipl,
+	}
 
 # Posição da nação no ranking mundial de poder (1 = líder mundial)
 func get_power_rank(code: String) -> int:

@@ -116,6 +116,10 @@ func _run() -> void:
 	_check(us_rank == 1, "EUA é a potência #1 no início do século (rank %d)" % us_rank)
 	var player_rank: int = E.get_power_rank("BR")
 	_check(player_rank > 1 and player_rank < 60, "Brasil em posição intermediária (rank %d)" % player_rank)
+	var bd: Dictionary = E.get_power_breakdown(E.nations["US"])
+	var soma: float = bd["economia"] + bd["militar"] + bd["tecnologia"] + bd["diplomacia"]
+	_check(abs(soma - float(bd["total"])) < 0.01, "breakdown de poder soma o total (%.1f pts)" % bd["total"])
+	_check(E.player_power_rank_history.size() > 0, "trajetória de rank registrada (%d entradas)" % E.player_power_rank_history.size())
 
 	# ── 6. Cap de tesouro com piso (nações pequenas) ──
 	print("[6] Cap de tesouro")

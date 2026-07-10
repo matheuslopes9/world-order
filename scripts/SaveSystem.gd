@@ -29,6 +29,7 @@ static func save_game(engine) -> bool:
 		"player_nemesis": engine.player_nemesis,
 		"nemesis_declared": engine.nemesis_declared,
 		"victory_achieved": engine.victory_achieved,
+		"power_rank_history": engine.player_power_rank_history,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
@@ -105,6 +106,8 @@ static func load_game(engine) -> bool:
 	engine.nemesis_declared = bool(data.get("nemesis_declared", false))
 	# Restaura estado de vitória (evita re-disparo do modal em modo livre)
 	engine.victory_achieved = bool(data.get("victory_achieved", false))
+	# Restaura trajetória do ranking de poder
+	engine.player_power_rank_history = data.get("power_rank_history", [])
 	print("[LOAD] Jogo carregado: turno %d, jogador %s" % [engine.current_turn, player_code])
 	return true
 
