@@ -231,9 +231,20 @@ func update_pib(global_factor: float = 1.0) -> void:
 	# Convergência: bônus de catch-up proporcional à distância da fronteira
 	# e à qualidade institucional — até +1.0%/trimestre (milagre econômico)
 	if frontier_pib_pc > 0.0:
-		var gap: float = clamp(1.0 - pib_per_capita() / frontier_pib_pc, 0.0, 1.0)
+		var pc_ratio: float = clamp(pib_per_capita() / frontier_pib_pc, 0.0, 1.0)
+		var gap: float = 1.0 - pc_ratio
 		var inst_quality: float = clamp(stab * 0.5 + bur * 0.3 + (1.0 - corr) * 0.4 - 0.2, 0.0, 1.0)
-		growth += gap * 0.010 * inst_quality
+		var conv: float = gap * 0.010 * inst_quality
+		# ARMADILHA DA RENDA MÉDIA: na faixa 30-70% da fronteira o catch-up
+		# enfraquece (até -60% no pico, aos 50%) — SALVO capacidade de
+		# inovação: 25+ techs escapam da armadilha (Coreia escapou;
+		# Brasil/México ficaram presos). Sem isto, "pobre + estável" era
+		# milagre infinito: Iêmen cresceu 29.000× em playtest de 1000 jogos.
+		if pc_ratio > 0.30 and pc_ratio < 0.70:
+			var depth: float = clamp(1.0 - abs(pc_ratio - 0.5) / 0.2, 0.0, 1.0)
+			var escape: float = clamp(tecnologias_concluidas.size() / 25.0, 0.0, 1.0)
+			conv *= 1.0 - 0.6 * depth * (1.0 - escape)
+		growth += conv
 		# Na fronteira (gap < 15%): economia madura desacelera
 		if gap < 0.15:
 			growth *= 0.75

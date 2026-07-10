@@ -4,6 +4,9 @@ Data: 2026-07-10 · Harness: `scenes/MegaSim.tscn` (4 shards paralelos × 250 jo
 Cobertura: **todas as 195 nações** × 4 personalidades de bot + 10% passivos (controle)
 Anomalias numéricas: **0** · Performance: ~33ms/turno (4 processos concorrentes)
 
+> **STATUS: os 10 fixes foram APLICADOS e re-validados com 300 novas
+> campanhas.** Tabela antes/depois no fim deste documento.
+
 ## Números-síntese
 
 | Grupo | Vitória | Fim neutro | Morte |
@@ -136,6 +139,37 @@ reduzem chance de ser atacado") — o sistema já existe, falta comunicá-lo.
 - Tier QUASE_IMPOSSÍVEL tem os maiores crescimentos (catch-up funciona)
 - DEFCON médio 3.11 (mundo tenso mas não apocalíptico)
 - Performance estável (sem degradação late-game detectável)
+
+## ✅ V1 → V2: os 10 fixes validados (300 novas campanhas)
+
+| Métrica | V1 (antes) | V2 (depois) | Fix |
+|---|---|---|---|
+| Micro-estados nas vitórias de século | 20% (Vaticano 3º!) | **0%** | F1 ✅ |
+| Qualquer nação termina top-5 poder | 83% | **31%** | F1 ✅ |
+| Curva de vitória por tier | quase plana (75-90%) | **87→43→50→19→9.5%** | F1 ✅ |
+| Mortes injustas (tiers médios) | até 15% | **0%** | F3 ✅ |
+| Nações fatais (RU/SA/UA/IQ/AO/EE) | 0% sobrevivência | **sobrevivem** | F3 ✅ |
+| Morte por hiperinflação herdada (t≤12) | 5 | **0** | F4 ✅ |
+| Máx tratados ativos | 91 | **≤10** (cap + fix no aceitar) | F5 ✅ |
+| Backlog de propostas (AFK) | 153 | **5** | F6 ✅ |
+| Pico de guerras simultâneas | 63 med / 143 máx | **34 med / 61 máx** | F7 ✅ |
+| Persona economic vs média | -29pp | **na média** | F8 ✅ |
+| Hegemonias | 19 (gate impossível p/ resto) | 3 em 272 (gate 35%) | F2 ✅ |
+
+**Ressalvas honestas (anotadas para o futuro):**
+- **F9 parcial**: o momentum de pesquisa não bastou — techs máx caiu p/ 29
+  (a Armadilha da Renda Média reduz tesouro → menos compras de tech).
+  Destravar o catálogo inteiro pede custo decrescente por era.
+- **Iêmen ainda cresce ~28.000×** — mas agora É design: o bot pesquisa 20+
+  techs e ESCAPA da armadilha (inovação = rota de fuga, como a Coreia real).
+  Quem não inova, trava na renda média.
+- **NORMAL (43%) ≈ DIFICIL (50%)**: inversão pequena persistente — o tier
+  NORMAL contém nações com dados-2000 espinhosos; ruído de amostra (n=21).
+- **Guerras do jogador 0.6 → 1.4/jogo**: efeito do armistício — guerras
+  eternas viraram ciclos curtos (cada retomada conta de novo). Guerra curta
+  e frequente > guerra zumbi eterna.
+- DEFCON médio 3.11 → 2.65 pelo mesmo motivo (mais declarações, menos
+  duração). Aceitável; reavaliar com o público.
 
 ## Como reproduzir
 

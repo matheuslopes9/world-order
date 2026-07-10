@@ -35,7 +35,9 @@ var personality: String = "balanced"
 
 const PERSONALITIES := {
 	"balanced":  {"economia": 1.0, "military": 0.8, "diplomacy": 0.8, "tech": 0.9, "social": 0.9},
-	"economic":  {"economia": 1.6, "military": 0.4, "diplomacy": 0.7, "tech": 1.1, "social": 0.8},
+	# economic rebalanceada (1000 jogos: 48% de vitória vs 83-90% das outras —
+	# o peso 1.6 em economia sufocava a pesquisa, e tech domina o longo prazo)
+	"economic":  {"economia": 1.4, "military": 0.4, "diplomacy": 0.7, "tech": 1.2, "social": 0.8},
 	"military":  {"economia": 0.7, "military": 1.8, "diplomacy": 0.5, "tech": 0.7, "social": 0.6},
 	"diplomat":  {"economia": 0.8, "military": 0.3, "diplomacy": 1.8, "tech": 0.8, "social": 1.2},
 }

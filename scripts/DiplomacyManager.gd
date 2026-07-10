@@ -52,8 +52,21 @@ var engine  # GameEngine
 var treaties: Array = []      # tratados ativos
 var proposals: Array = []     # propostas pendentes (pra player ou IA)
 
+# Limites anti-spam (playtest de 1000 jogos: um jogo terminou com 91
+# tratados ativos; jogadores AFK acumulavam 153 propostas na fila)
+const MAX_TREATIES_PER_NATION: int = 10
+const PROPOSAL_TTL_TURNS: int = 8
+
 func _init(eng) -> void:
 	engine = eng
+
+# Quantos tratados ativos uma nação assina
+func count_treaties_of(code: String) -> int:
+	var count := 0
+	for t in treaties:
+		if code in t.get("signatories", []):
+			count += 1
+	return count
 
 # ─────────────────────────────────────────────────────────────────
 # PROPOR TRATADO
@@ -65,6 +78,9 @@ func propose(proposer_code: String, target_code: String, treaty_type: String) ->
 	if not engine.nations.has(proposer_code) or not engine.nations.has(target_code):
 		return {}
 	if proposer_code == target_code:
+		return {}
+	# Cap de tratados por nação (anti-spam diplomático)
+	if count_treaties_of(proposer_code) >= MAX_TREATIES_PER_NATION or count_treaties_of(target_code) >= MAX_TREATIES_PER_NATION:
 		return {}
 	# Não propor se já existe tratado ativo do mesmo tipo
 	for t in treaties:
@@ -87,6 +103,13 @@ func process_pending_proposals() -> void:
 		var target_code: String = prop["target"]
 		var is_player_target: bool = engine.player_nation != null and target_code == engine.player_nation.codigo_iso
 		if is_player_target:
+			# Expira propostas ignoradas (antes acumulavam pra sempre — até
+			# 153 na fila de um jogador AFK). Ignorar ofertas ofende de leve.
+			if engine.current_turn - int(prop.get("turn_proposed", 0)) >= PROPOSAL_TTL_TURNS:
+				var proposer = engine.nations.get(prop["proposer"])
+				if proposer:
+					proposer.relacoes[target_code] = clamp(float(proposer.relacoes.get(target_code, 0)) - 2, -100, 100)
+				continue  # descarta
 			# Mantém proposta pendente — UI do jogador decide
 			remaining.append(prop)
 			continue
@@ -124,6 +147,9 @@ func player_accept(proposal_id: String) -> bool:
 	for i in proposals.size():
 		var p = proposals[i]
 		if p["id"] == proposal_id:
+			# Cap vale também ao aceitar (senão vazava: 12 tratados com cap 10)
+			if count_treaties_of(p["target"]) >= MAX_TREATIES_PER_NATION or count_treaties_of(p["proposer"]) >= MAX_TREATIES_PER_NATION:
+				return false
 			_create_treaty(p)
 			proposals.remove_at(i)
 			return true

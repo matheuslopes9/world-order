@@ -47,6 +47,10 @@ var defcon: int = 5
 var game_state: String = "MENU"           # MENU, SELECTING, PLAYING, ENDGAME
 var victory_achieved: bool = false        # vitória já celebrada (evita re-disparo em modo livre)
 var _turns_since_war: int = 0             # p/ recuperação gradual de DEFCON
+# Registro de início de guerras (par "A|B" → turno) — alimenta o armistício
+# automático por fadiga. Auto-regenera após load (pares órfãos re-registram).
+var _war_started: Dictionary = {}
+const WAR_FATIGUE_TURNS: int = 20         # guerras > 5 anos entram em fadiga
 # Posição do jogador no ranking de poder, registrada por turno (sparkline da UI)
 var player_power_rank_history: Array = []
 const POWER_RANK_HISTORY_MAX: int = 60
@@ -208,6 +212,12 @@ func _apply_year_2000_overrides() -> void:
 			while n.tecnologias_concluidas.size() > tech_max:
 				n.tecnologias_concluidas.pop_back()
 			changed_global += 1
+		# Orçamento militar sanizado pro ano 2000: os dados-base são de 2024
+		# (Ucrânia em guerra tinha orçamento maior que o PIB-2000 inteiro →
+		# pressão inflacionária de +200 e morte no turno 6). Clamp a 5% do PIB
+		# (mundo-2000 real: 2-4%), com piso simbólico.
+		var orc: float = float(n.militar.get("orcamento_militar_bilhoes", 0))
+		n.militar["orcamento_militar_bilhoes"] = min(orc, max(0.3, n.pib_bilhoes_usd * 0.05))
 		# Recalcula tier de dificuldade SEMPRE (mundo de 2000 é diferente de 2024)
 		# Antes: usava difficulty_tiers.json (que reflete cenário 2024) — gerava inversão NORMAL>DIFICIL
 		n.tier_dificuldade = n._compute_difficulty_tier()
@@ -354,6 +364,8 @@ func end_turn() -> void:
 	_run_ai_turn()
 	# Custos contínuos de guerra
 	_process_war_costs()
+	# Fadiga: guerras longas demais terminam em armistício
+	_process_war_fatigue()
 	# Sanções ativas: aplica penalidade nos alvos e decrementa duração
 	_process_active_sanctions()
 	# Comércio bilateral: transfere $ entre exportador/importador
@@ -442,16 +454,27 @@ func _refresh_world_maxima() -> void:
 		_world_max_mil = max(_world_max_mil, n.get_military_power())
 		_world_max_tech = max(_world_max_tech, float(n.tecnologias_concluidas.size()))
 
+# Tecnologia numa escala ABSOLUTA (40 techs = potência científica plena).
+# Antes era relativa ao máximo mundial — o jogador virava 1.0 cedo e o
+# monopólio de 20 pts levava micro-estados ao top-5 (Vaticano 3ª potência
+# em 1000 jogos simulados).
+const TECH_POWER_SCALE := 40.0
+# Diplomacia: qualidade × LARGURA da rede (25 relações = rede global).
+# Antes 3 tratados com +100 davam os 15 pts inteiros.
+const REL_BREADTH_SCALE := 25.0
+
 func compute_power_score(n) -> float:
 	var pib_norm: float = n.pib_bilhoes_usd / _world_max_pib
 	var mil_norm: float = n.get_military_power() / _world_max_mil
-	var tech_norm: float = float(n.tecnologias_concluidas.size()) / _world_max_tech
+	var tech_norm: float = clamp(float(n.tecnologias_concluidas.size()) / TECH_POWER_SCALE, 0.0, 1.0)
 	var rel_sum: float = 0.0
 	var rel_n: int = 0
 	for c in n.relacoes:
 		rel_sum += float(n.relacoes[c])
 		rel_n += 1
-	var rel_norm: float = ((rel_sum / rel_n) + 100.0) / 200.0 if rel_n > 0 else 0.5
+	var rel_quality: float = ((rel_sum / rel_n) + 100.0) / 200.0 if rel_n > 0 else 0.5
+	var rel_breadth: float = clamp(float(rel_n) / REL_BREADTH_SCALE, 0.0, 1.0)
+	var rel_norm: float = rel_quality * (0.3 + 0.7 * rel_breadth)
 	return 40.0 * pib_norm + 25.0 * mil_norm + 20.0 * tech_norm + 15.0 * rel_norm
 
 # Decomposição do score de poder — a UI usa pra mostrar ONDE investir.
@@ -459,13 +482,15 @@ func compute_power_score(n) -> float:
 func get_power_breakdown(n) -> Dictionary:
 	var pib_norm: float = n.pib_bilhoes_usd / _world_max_pib
 	var mil_norm: float = n.get_military_power() / _world_max_mil
-	var tech_norm: float = float(n.tecnologias_concluidas.size()) / _world_max_tech
+	var tech_norm: float = clamp(float(n.tecnologias_concluidas.size()) / TECH_POWER_SCALE, 0.0, 1.0)
 	var rel_sum: float = 0.0
 	var rel_n: int = 0
 	for c in n.relacoes:
 		rel_sum += float(n.relacoes[c])
 		rel_n += 1
-	var rel_norm: float = ((rel_sum / rel_n) + 100.0) / 200.0 if rel_n > 0 else 0.5
+	var rel_quality: float = ((rel_sum / rel_n) + 100.0) / 200.0 if rel_n > 0 else 0.5
+	var rel_breadth: float = clamp(float(rel_n) / REL_BREADTH_SCALE, 0.0, 1.0)
+	var rel_norm: float = rel_quality * (0.3 + 0.7 * rel_breadth)
 	var econ: float = 40.0 * pib_norm
 	var mil: float = 25.0 * mil_norm
 	var tech_pts: float = 20.0 * tech_norm
@@ -512,15 +537,25 @@ func evaluate_endgame() -> void:
 		if date_year >= end_year:
 			n.set_meta("century_end_fired", true)
 			var final_rank: int = get_power_rank(n.codigo_iso)
-			if final_rank <= 5 or victory_achieved:
+			# Relevância econômica obrigatória: sem ela, micro-estados com
+			# monopólio de tech/diplomacia viravam "potência" (Vaticano 3º
+			# em 1000 jogos simulados). Potência de verdade tem economia.
+			var pib_rank: int = 1
+			for c in nations:
+				if c != n.codigo_iso and nations[c].pib_bilhoes_usd > n.pib_bilhoes_usd:
+					pib_rank += 1
+			if (final_rank <= 5 and pib_rank <= 30) or victory_achieved:
 				victory_achieved = true
 				if achievements:
 					achievements.on_victory(n.tier_dificuldade)
 				_fire_endgame(true, "🏛 POTÊNCIA DO SÉCULO",
-					"Você atravessou 100 anos de história e terminou como %dª potência mundial. Seu nome está gravado no século." % final_rank)
+					"Você atravessou 100 anos de história e terminou como %dª potência mundial (%dª economia). Seu nome está gravado no século." % [final_rank, pib_rank])
 			else:
+				var extra: String = ""
+				if final_rank <= 5 and pib_rank > 30:
+					extra = " Influência e tecnologia impressionam (%dº em poder), mas sem peso econômico (%dª economia) o mundo não o reconhece como potência." % [final_rank, pib_rank]
 				_fire_endgame(false, "📜 LEGADO DO SÉCULO",
-					"Seu governo atravessou o século inteiro e terminou como %dª potência. Sobreviver a 100 anos já é história — mas o mundo seguiu liderado por outros." % final_rank)
+					("Seu governo atravessou o século inteiro e terminou como %dª potência. Sobreviver a 100 anos já é história — mas o mundo seguiu liderado por outros." % final_rank) + extra)
 			return
 	if is_no_game_over():
 		return
@@ -545,7 +580,10 @@ func evaluate_endgame() -> void:
 		if n.estabilidade_politica < 8:
 			_fire_endgame(false, "💀 GOLPE DE ESTADO", "Estabilidade colapsou abaixo de 8%%. Você foi deposto.")
 			return
-		if n.inflacao > 80:
+		# Graça estendida contra inflação HERDADA: alguns países começam o ano
+		# 2000 já em crise inflacionária (Angola 65%+) — 3 anos pra domar antes
+		# da derrota valer (a lua de mel padrão de 5 turnos não bastava).
+		if n.inflacao > 80 and current_turn > 12:
 			_fire_endgame(false, "💀 HIPERINFLAÇÃO", "Inflação acima de 80%%. Economia em ruínas.")
 			return
 	# ── Marco "Nação Modelo": 20 turnos de indicadores excelentes ──
@@ -568,7 +606,9 @@ func evaluate_endgame() -> void:
 	if victory_achieved:
 		return
 	var power_rank: int = get_power_rank(n.codigo_iso)
-	var econ_relevante: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.5
+	# 35% do líder (era 50% — inalcançável: a China da IA cresce ~200× e
+	# virava um teto impossível; 0 hegemonias em 900 jogos simulados)
+	var econ_relevante: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.35
 	if power_rank == 1 and econ_relevante and n.apoio_popular >= 55.0 and n.estabilidade_politica >= 55.0:
 		n.set_meta("hegemony_streak", int(n.get_meta("hegemony_streak", 0)) + 1)
 	else:
@@ -753,6 +793,7 @@ func _declare_war(from_code: String, to_code: String) -> void:
 	defender.relacoes[from_code] = -100
 	defcon = max(1, defcon - 2)
 	_turns_since_war = 0
+	_war_started[_war_key(from_code, to_code)] = current_turn
 
 	# Reação de alianças (defesa coletiva)
 	var responders: Array = _trigger_collective_defense(from_code, to_code)
@@ -785,6 +826,7 @@ func _propose_peace(from_code: String, to_code: String) -> void:
 	# Remove guerra
 	a.em_guerra.erase(to_code)
 	b.em_guerra.erase(from_code)
+	_war_started.erase(_war_key(from_code, to_code))
 	# Relações neutralizam parcialmente
 	a.relacoes[to_code] = -40
 	b.relacoes[from_code] = -40
@@ -804,21 +846,71 @@ func _trigger_collective_defense(attacker_code: String, defender_code: String) -
 			continue
 		if not alliance.get("artigo_defesa", false):
 			continue
-		var chance: float = float(alliance.get("reacao_agressao", {}).get("chance_intervencao", 0.5))
+		var base_chance: float = float(alliance.get("reacao_agressao", {}).get("chance_intervencao", 0.5))
+		var defender_cont: String = nations[defender_code].continente if nations.has(defender_code) else ""
 		for m in members:
 			if m == defender_code or m == attacker_code:
 				continue
 			if not nations.has(m):
 				continue
+			var ally = nations[m]
+			# Amortece cascatas (picos de 143 guerras simultâneas nos playtests):
+			# aliados distantes e já ocupados intervêm menos
+			var chance: float = base_chance
+			if ally.continente != defender_cont:
+				chance *= 0.6
+			if ally.em_guerra.size() > 0:
+				chance *= 0.5
 			if randf() < chance:
-				var ally = nations[m]
 				if not (attacker_code in ally.em_guerra):
 					ally.em_guerra.append(attacker_code)
 				var attacker = nations[attacker_code]
 				if not (m in attacker.em_guerra):
 					attacker.em_guerra.append(m)
+				_war_started[_war_key(attacker_code, m)] = current_turn
 				responders.append(m)
 	return responders
+
+func _war_key(a: String, b: String) -> String:
+	return "%s|%s" % [a, b] if a < b else "%s|%s" % [b, a]
+
+# Fadiga de guerra: conflitos com mais de WAR_FATIGUE_TURNS entram em
+# armistício com 30% de chance por turno — guerras não duram para sempre
+# (nos playtests, guerras IA↔IA órfãs se acumulavam até 143 simultâneas)
+func _process_war_fatigue() -> void:
+	var seen: Dictionary = {}
+	for code in nations:
+		var n = nations[code]
+		for enemy in n.em_guerra:
+			var key: String = _war_key(code, enemy)
+			if seen.has(key):
+				continue
+			seen[key] = true
+			if not _war_started.has(key):
+				_war_started[key] = current_turn  # auto-registro (pós-load/eventos)
+				continue
+			if current_turn - int(_war_started[key]) >= WAR_FATIGUE_TURNS and randf() < 0.30:
+				# Armistício por exaustão
+				var other: String = enemy
+				n.em_guerra.erase(other)
+				if nations.has(other):
+					nations[other].em_guerra.erase(code)
+					nations[other].relacoes[code] = -40
+				n.relacoes[other] = -40
+				_war_started.erase(key)
+				_log_news({
+					"type": "armisticio",
+					"headline": "🕊️ Armistício: %s e %s encerram guerra de %d anos" % [n.nome, nations[other].nome if nations.has(other) else other, (current_turn - 0) / 4],
+					"body": "Exaustão mútua força o fim das hostilidades.",
+					"involves_player": player_nation != null and (code == player_nation.codigo_iso or other == player_nation.codigo_iso),
+					"color": Color(0.7, 0.9, 0.7),
+				}, [code, other], n.continente)
+	# Limpa registros órfãos (pares que já não estão em guerra)
+	for key in _war_started.keys():
+		var parts: PackedStringArray = key.split("|")
+		if parts.size() == 2 and nations.has(parts[0]):
+			if not (parts[1] in nations[parts[0]].em_guerra):
+				_war_started.erase(key)
 
 func _player_is_ally(code: String) -> bool:
 	if player_nation == null:
@@ -857,6 +949,7 @@ func _process_war_costs() -> void:
 					e.em_guerra.erase(code)
 					e.relacoes[code] = clamp(float(e.relacoes.get(code, 0)) + 20, -100, 100)
 					n.relacoes[e_code] = -40
+				_war_started.erase(_war_key(code, e_code))
 			n.em_guerra.clear()
 			n.estabilidade_politica = max(0.0, n.estabilidade_politica - 5.0)
 			_log_news({
@@ -971,6 +1064,10 @@ func player_propose_treaty(target_code: String, treaty_type: String) -> Dictiona
 		return {"ok": false, "reason": "Nação alvo inválida"}
 	if target_code == player_nation.codigo_iso:
 		return {"ok": false, "reason": "Não pode propor a si próprio"}
+	if diplomacy.count_treaties_of(player_nation.codigo_iso) >= diplomacy.MAX_TREATIES_PER_NATION:
+		return {"ok": false, "reason": "Limite de %d tratados ativos atingido" % diplomacy.MAX_TREATIES_PER_NATION}
+	if diplomacy.count_treaties_of(target_code) >= diplomacy.MAX_TREATIES_PER_NATION:
+		return {"ok": false, "reason": "O alvo já está no limite de tratados"}
 	if not _consume_action():
 		return {"ok": false, "reason": "Sem ações restantes neste turno"}
 	return diplomacy.propose(player_nation.codigo_iso, target_code, treaty_type)
