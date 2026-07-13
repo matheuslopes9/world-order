@@ -273,6 +273,40 @@ func _run() -> void:
 	_check(E.player_actions_remaining == 2, "embaixada CONSOME ação (consistência)")
 	_check(float(n_p.relacoes.get("CL", 0)) == clamp(rel0 + 15, -100, 100), "relações +15")
 
+	# ── 13. Elenco de personagens (retratos procedurais) ──
+	print("[13] Elenco de personagens (PortraitGen)")
+	var PG = load("res://scripts/PortraitGen.gd")
+	# determinismo: mesma nação+papel = feições idênticas (o rosto NÃO muda)
+	var f_a: Dictionary = PG.features_for("BR", "general")
+	var f_b: Dictionary = PG.features_for("BR", "general")
+	_check(f_a["skin"] == f_b["skin"] and f_a["hair"] == f_b["hair"] and f_a["female"] == f_b["female"],
+		"determinismo: o general do Brasil é sempre o mesmo rosto")
+	# nações diferentes = gabinetes diferentes (variação real)
+	var f_jp: Dictionary = PG.features_for("JP", "general")
+	_check(f_a["region"] != f_jp["region"], "regiões distintas (BR=%s, JP=%s)" % [f_a["region"], f_jp["region"]])
+	# papéis diferentes na mesma nação = pessoas diferentes
+	var f_pres: Dictionary = PG.features_for("BR", "presidente")
+	var diff_role: bool = (f_pres["tone"] != f_a["tone"]) or (f_pres["hair"] != f_a["hair"]) or (f_pres["female"] != f_a["female"])
+	_check(diff_role, "presidente ≠ general na mesma nação (elenco variado)")
+	# cobertura: TODAS as 195 nações × 6 papéis geram feições sem crash + toda ISO tem região
+	var roles: Array = PG.ROLES.keys()
+	var crashes: int = 0
+	var sem_regiao: Array = []
+	for code in E.nations:
+		if PG.region_of(code) == "anglo" and not (" US CA AU NZ ".contains(" " + code + " ")):
+			sem_regiao.append(code)
+		for r in roles:
+			var ff: Dictionary = PG.features_for(code, r)
+			if not (ff.has("skin") and ff.has("hair") and ff.has("region")):
+				crashes += 1
+	_check(crashes == 0, "%d nações × %d papéis geram feições completas" % [E.nations.size(), roles.size()])
+	_check(sem_regiao.is_empty(), "toda nação mapeada a uma região etno-cultural%s" % ("" if sem_regiao.is_empty() else " — FALTAM: %s" % str(sem_regiao)))
+	# diversidade: os 10 tons de pele aparecem ao longo do elenco mundial
+	var tons_vistos := {}
+	for code in E.nations:
+		tons_vistos[int(PG.features_for(code, "presidente")["tone"])] = true
+	_check(tons_vistos.size() >= 8, "diversidade de pele: %d/10 tons representados nos presidentes do mundo" % tons_vistos.size())
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:

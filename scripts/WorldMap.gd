@@ -68,6 +68,7 @@ var sort_button: OptionButton = null
 var right_panel: PanelContainer = null
 var preview_name: Label = null
 var preview_flag: Control = null  # Container que recebe ColorRects (listras da bandeira)
+var preview_portrait_slot: Control = null  # recebe o retrato do líder da nação em foco
 var preview_iso: Label = null
 var preview_tier: Label = null
 var preview_desc: Label = null
@@ -301,6 +302,12 @@ func _build_legacy_nodes() -> void:
 	preview_flag.add_theme_stylebox_override("panel", flag_style)
 	preview_flag.clip_contents = true
 	header_row.add_child(preview_flag)
+	# Retrato do líder da nação em foco (o "Presidente" daquele povo)
+	preview_portrait_slot = Control.new()
+	preview_portrait_slot.name = "PreviewPortraitSlot"
+	preview_portrait_slot.custom_minimum_size = Vector2(50, 60)
+	preview_portrait_slot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header_row.add_child(preview_portrait_slot)
 	preview_name = Label.new()
 	preview_name.name = "PreviewName"
 	preview_name.add_theme_color_override("font_color", Color(0, 0.95, 1))
@@ -815,6 +822,51 @@ func _open_news_modal() -> void:
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 12)
 	root.mouse_filter = Control.MOUSE_FILTER_PASS
+
+	# ─── Bancada do WON: âncora dá o "boa noite" e a chamada urgente ───
+	if GameEngine.player_nation != null:
+		var anchor_row := PanelContainer.new()
+		var asb := StyleBoxFlat.new()
+		asb.bg_color = Color(0.07, 0.11, 0.18, 0.95)
+		asb.border_width_left = 4
+		asb.border_color = Color(0.25, 0.55, 0.9)
+		asb.set_corner_radius_all(6)
+		asb.content_margin_left = 10
+		asb.content_margin_right = 10
+		asb.content_margin_top = 8
+		asb.content_margin_bottom = 8
+		anchor_row.add_theme_stylebox_override("panel", asb)
+		root.add_child(anchor_row)
+		var arow := HBoxContainer.new()
+		arow.add_theme_constant_override("separation", 12)
+		anchor_row.add_child(arow)
+		# Detecta a última manchete urgente pra expressão + fala
+		var urgent := ""
+		for i in range(GameEngine.news_history.size() - 1, -1, -1):
+			var ht: String = String(GameEngine.news_history[i].get("type", ""))
+			if ht in ["guerra", "choque", "guerra_vencida", "fmi"]:
+				urgent = String(GameEngine.news_history[i].get("headline", ""))
+				break
+		var apv := PortraitView.make(GameEngine.player_nation.codigo_iso, "ancora",
+			"urgente" if urgent != "" else "neutro", 62.0)
+		apv.custom_minimum_size = Vector2(62, 74)
+		apv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		arow.add_child(apv)
+		var atxt := VBoxContainer.new()
+		atxt.add_theme_constant_override("separation", 2)
+		atxt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		arow.add_child(atxt)
+		var wonlbl := Label.new()
+		wonlbl.text = "📺 WON — WORLD ORDER NEWS"
+		wonlbl.add_theme_color_override("font_color", Color(0.4, 0.7, 1))
+		wonlbl.add_theme_font_size_override("font_size", 11)
+		atxt.add_child(wonlbl)
+		var falalbl := Label.new()
+		falalbl.text = ("🔴 PLANTÃO: " + urgent) if urgent != "" else "“Boa noite. Aqui é o World Order News — o mundo em tempo real.”"
+		falalbl.add_theme_color_override("font_color", Color(0.9, 0.94, 1) if urgent != "" else Color(0.78, 0.85, 0.95))
+		falalbl.add_theme_font_size_override("font_size", 13)
+		falalbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		atxt.add_child(falalbl)
 
 	# ─── Linha de filtros ───
 	var filters_row := HBoxContainer.new()
@@ -2048,6 +2100,20 @@ func _fill_preview_panel(code: String) -> void:
 	var n = GameEngine.nations[code]
 	if preview_flag:
 		_paint_flag(preview_flag, code, n.continente)
+	# Retrato do líder daquela nação — expressão reage à estabilidade política
+	if preview_portrait_slot:
+		for c in preview_portrait_slot.get_children():
+			c.queue_free()
+		var lead_expr := "neutro"
+		if n.estabilidade_politica < 35.0:
+			lead_expr = "preocupado"
+		elif n.em_guerra.size() > 0:
+			lead_expr = "bravo"
+		elif n.apoio_popular > 65.0:
+			lead_expr = "feliz"
+		var pv := PortraitView.make(code, "presidente", lead_expr, 50.0)
+		pv.custom_minimum_size = Vector2(50, 60)
+		preview_portrait_slot.add_child(pv)
 	preview_name.text = n.nome
 	preview_iso.text = "%s  •  %s  •  %s" % [code, n.continente, n.regime_politico.replace("_", " ")]
 	var meta = GameEngine.get_difficulty_meta(n.tier_dificuldade)
@@ -3544,6 +3610,23 @@ func _open_bailout_modal(terms: Dictionary) -> void:
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 14)
 	content.custom_minimum_size = Vector2(600, 0)
+	# Retrato da Ministra da Fazenda entregando a má notícia — dá rosto à crise
+	if GameEngine.player_nation != null:
+		var min_row := HBoxContainer.new()
+		min_row.add_theme_constant_override("separation", 12)
+		content.add_child(min_row)
+		var mpv := PortraitView.make(GameEngine.player_nation.codigo_iso, "economia", "urgente", 72.0)
+		mpv.custom_minimum_size = Vector2(72, 86)
+		mpv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		min_row.add_child(mpv)
+		var quote := Label.new()
+		quote.text = "“Presidente, esgotamos as alternativas. O Fundo é a única saída — mas o preço é alto.”"
+		quote.add_theme_color_override("font_color", Color(0.88, 0.82, 0.7))
+		quote.add_theme_font_size_override("font_size", 13)
+		quote.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		quote.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		quote.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		min_row.add_child(quote)
 	var badge := Label.new()
 	badge.text = "🏦 FUNDO MONETÁRIO INTERNACIONAL"
 	badge.add_theme_color_override("font_color", Color(1, 0.85, 0.3))

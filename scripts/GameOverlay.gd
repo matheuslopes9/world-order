@@ -146,6 +146,20 @@ func _run_panel_action(action_id: String, panel_id: String, color: Color) -> voi
 func _render_militar() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
+	# General das Forças Armadas reage ao estado militar
+	var em_guerra: bool = n.em_guerra.size() > 0
+	var g_fala: String
+	var g_expr: String
+	if em_guerra:
+		g_fala = "Estamos em %d frente(s), Presidente. Preciso de orçamento para vencer." % n.em_guerra.size()
+		g_expr = "bravo"
+	elif int(n.militar.get("poder_militar_global", 0)) < 80:
+		g_fala = "Nossas forças estão defasadas. Um investimento agora evita humilhação depois."
+		g_expr = "preocupado"
+	else:
+		g_fala = "As tropas estão prontas, Presidente. Aguardo suas ordens."
+		g_expr = "neutro"
+	_add_advisor_header("general", "GEN. CHEFE DO ESTADO-MAIOR", g_fala, g_expr, Color(0.7, 0.78, 0.4))
 	_add_section_title("CAPACIDADE MILITAR")
 	var m: Dictionary = n.militar
 	var u: Dictionary = m.get("unidades", {})
@@ -168,6 +182,22 @@ func _render_militar() -> void:
 func _render_economia() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
+	# Ministra(o) da Economia reage à saúde fiscal
+	var m_fala: String
+	var m_expr: String
+	if n.tesouro <= 0.0:
+		m_fala = "O cofre está vazio, Presidente. Sem receita nova, o FMI vai bater à porta."
+		m_expr = "urgente"
+	elif n.inflacao > 25.0:
+		m_fala = "A inflação em %.0f%% corrói o poder de compra. Aperto monetário, urgente." % n.inflacao
+		m_expr = "preocupado"
+	elif not GameEngine.active_shock.is_empty():
+		m_fala = "A crise global pressiona os mercados. Vamos navegar com cautela."
+		m_expr = "preocupado"
+	else:
+		m_fala = "As contas fecham, Presidente. Podemos pensar em investir no futuro."
+		m_expr = "feliz" if n.tesouro > n.pib_bilhoes_usd * 0.1 else "neutro"
+	_add_advisor_header("economia", "MIN. DA FAZENDA", m_fala, m_expr, Color(0.9, 0.55, 0.65))
 	_add_section_title("INDICADORES ECONÔMICOS")
 	_add_data_row("PIB Anual", _money(n.pib_bilhoes_usd))
 	_add_data_row("Tesouro", _money(n.tesouro))
@@ -570,6 +600,15 @@ func _render_tech_card(nation, tech: Dictionary) -> void:
 func _render_intel() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
+	# Chefe de Inteligência — sempre reservado, tom de sombra
+	var i_fala: String
+	if n.seguranca_intel < 40.0:
+		i_fala = "Nossa contra-espionagem está frágil. Rivais podem estar nos observando agora."
+	elif n.spy_ops_log.size() > 0:
+		i_fala = "%d operações no histórico, Presidente. Escolha o alvo — o resto é comigo." % n.spy_ops_log.size()
+	else:
+		i_fala = "Aguardo suas ordens nas sombras. Aponte o alvo no mapa."
+	_add_advisor_header("intel", "CHEFE DE INTELIGÊNCIA", i_fala, "neutro", Color(0.55, 0.6, 0.7))
 	_add_section_title("INTELIGÊNCIA")
 	_add_data_row("Intel Score", "%.1f" % n.intel_score, Color(0, 0.823, 1))
 	_add_data_row("Segurança Intel", "%.1f" % n.seguranca_intel, Color(0.4, 1, 0.6))
@@ -865,13 +904,75 @@ class SparklineWidget extends Control:
 # ─────────────────────────────────────────────────────────────────
 
 func _render_noticias() -> void:
-	_add_section_title("FEED DE INTELIGÊNCIA")
-	var lbl := Label.new()
-	lbl.text = "Eventos do mundo aparecem no rodapé (ticker). Painel dedicado virá na próxima atualização com filtros por categoria."
-	lbl.add_theme_color_override("font_color", Color(0.6, 0.7, 0.85))
-	lbl.add_theme_font_size_override("font_size", 11)
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	panel_content.add_child(lbl)
+	var n = GameEngine.player_nation
+	# Cabeçalho de estúdio: âncora do WON — World Order News
+	var hist: Array = GameEngine.news_history
+	var last_urgent := ""
+	for i in range(hist.size() - 1, -1, -1):
+		var t: String = String(hist[i].get("type", ""))
+		if t in ["guerra", "choque", "guerra_vencida", "fmi"]:
+			last_urgent = String(hist[i].get("headline", ""))
+			break
+	var anchor_expr := "urgente" if last_urgent != "" else "neutro"
+	var anchor_fala: String = "PLANTÃO: " + last_urgent if last_urgent != "" else "Boa noite. Aqui é o World Order News, sua janela para o planeta."
+	if n != null:
+		_add_advisor_header("ancora", "📺 WON — WORLD ORDER NEWS", anchor_fala, anchor_expr, Color(0.25, 0.55, 0.9))
+
+	if hist.is_empty():
+		_add_hint_label("Sem notícias ainda. O mundo desperta a cada turno.")
+		return
+
+	# Filtro por escopo — nacional em destaque, depois regional, depois global
+	_add_section_title("ÚLTIMAS MANCHETES")
+	var shown := 0
+	for i in range(hist.size() - 1, -1, -1):
+		if shown >= 14:
+			break
+		var ev: Dictionary = hist[i]
+		_add_news_card(ev)
+		shown += 1
+
+## Card de notícia estilo tarja de TV: cor por escopo, turno e manchete.
+func _add_news_card(ev: Dictionary) -> void:
+	var scope: String = String(ev.get("scope", "global"))
+	var accent := Color(0.45, 0.6, 0.8)  # global
+	var tag := "🌍 MUNDO"
+	if scope == "national":
+		accent = Color(1, 0.82, 0.3); tag = "🎙 NACIONAL"
+	elif scope == "regional":
+		accent = Color(0.5, 0.85, 0.65); tag = "📡 REGIÃO"
+	var t: String = String(ev.get("type", ""))
+	if t == "guerra" or t == "guerra_vencida":
+		accent = Color(1, 0.4, 0.4)
+	var box := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.11, 0.16, 0.85)
+	sb.border_width_left = 3
+	sb.border_color = accent
+	sb.set_corner_radius_all(4)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 5
+	sb.content_margin_bottom = 5
+	box.add_theme_stylebox_override("panel", sb)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 1)
+	box.add_child(vb)
+	var top := Label.new()
+	top.text = "%s  ·  Turno %d" % [tag, int(ev.get("turn", 0))]
+	top.add_theme_color_override("font_color", accent)
+	top.add_theme_font_size_override("font_size", 9)
+	vb.add_child(top)
+	var head := Label.new()
+	head.text = String(ev.get("headline", ""))
+	head.add_theme_color_override("font_color", Color(0.9, 0.94, 1))
+	head.add_theme_font_size_override("font_size", 11)
+	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(head)
+	panel_content.add_child(box)
+	var sp := Control.new()
+	sp.custom_minimum_size = Vector2(0, 4)
+	panel_content.add_child(sp)
 
 # ─────────────────────────────────────────────────────────────────
 # HELPERS DE UI
@@ -890,6 +991,50 @@ func _add_subtitle(text: String) -> void:
 	lbl.add_theme_color_override("font_color", Color(0.5, 0.65, 0.85))
 	lbl.add_theme_font_size_override("font_size", 10)
 	panel_content.add_child(lbl)
+
+## Cabeçalho de assessor: retrato do elenco + nome do cargo + fala contextual.
+## Humaniza o painel — quem "fala" com o Presidente tem rosto e personalidade.
+func _add_advisor_header(role: String, cargo: String, fala: String, expr: String = "neutro", accent: Color = Color(0, 0.823, 1)) -> void:
+	var n = GameEngine.player_nation
+	if n == null: return
+	var box := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.12, 0.17, 0.92)
+	sb.border_color = accent.darkened(0.2)
+	sb.set_border_width_all(0)
+	sb.border_width_left = 3
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	box.add_theme_stylebox_override("panel", sb)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	box.add_child(row)
+	var pv := PortraitView.make(n.codigo_iso, role, expr, 56.0)
+	pv.custom_minimum_size = Vector2(56, 67)
+	pv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(pv)
+	var txt := VBoxContainer.new()
+	txt.add_theme_constant_override("separation", 2)
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(txt)
+	var cargo_lbl := Label.new()
+	cargo_lbl.text = cargo
+	cargo_lbl.add_theme_color_override("font_color", accent)
+	cargo_lbl.add_theme_font_size_override("font_size", 10)
+	txt.add_child(cargo_lbl)
+	var fala_lbl := Label.new()
+	fala_lbl.text = "“" + fala + "”"
+	fala_lbl.add_theme_color_override("font_color", Color(0.82, 0.88, 0.95))
+	fala_lbl.add_theme_font_size_override("font_size", 11)
+	fala_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	txt.add_child(fala_lbl)
+	panel_content.add_child(box)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(0, 6)
+	panel_content.add_child(spacer)
 
 func _add_separator() -> void:
 	var sep := HSeparator.new()
