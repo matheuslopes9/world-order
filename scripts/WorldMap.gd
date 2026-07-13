@@ -164,6 +164,8 @@ func _ready() -> void:
 	# Signal de eventos históricos com decisão (FASE 4)
 	if GameEngine and GameEngine.timeline and GameEngine.timeline.has_signal("historic_event_decision"):
 		GameEngine.timeline.historic_event_decision.connect(_open_historic_decision_modal)
+	if GameEngine and GameEngine.has_signal("bailout_offered"):
+		GameEngine.bailout_offered.connect(_open_bailout_modal)
 	# Signal pra MARKERS de eventos no mapa (FASE 8 - integração visual)
 	if GameEngine and GameEngine.timeline and GameEngine.timeline.has_signal("event_fired"):
 		GameEngine.timeline.event_fired.connect(_on_event_fired_marker)
@@ -2080,8 +2082,12 @@ func _fill_preview_panel(code: String) -> void:
 	# Poder militar efetivo (derivado dos dados reais: orçamento, unidades, arsenal)
 	var pm: float = n.get_military_power()
 	var mil_str: String = "%.0f" % pm
+	# Rank de poder global do país (a régua da vitória — visível pra TODOS)
+	GameEngine._refresh_world_maxima()
+	var prank: int = GameEngine.get_power_rank(code)
 
 	var stats := [
+		["Poder Global",  "#%d no mundo" % prank],
 		["Capital",      n.capital],
 		["População",    pop_str],
 		["PIB anual",    pib_str],
@@ -3278,13 +3284,12 @@ func _on_propose_peace_pressed() -> void:
 
 func _on_embassy_pressed() -> void:
 	if preview_code == "" or preview_code == player_code: return
-	var p = GameEngine.player_nation
-	if p.tesouro < 15: return
-	p.tesouro -= 15
-	var t = GameEngine.nations[preview_code]
-	p.relacoes[preview_code] = clamp(float(p.relacoes.get(preview_code, 0)) + 15, -100, 100)
-	t.relacoes[player_code] = clamp(float(t.relacoes.get(player_code, 0)) + 15, -100, 100)
-	_log_ticker("🤝 DIPLOMACIA", "Embaixada em %s • +15 relações" % t.nome, Color(0.4, 0.85, 1))
+	# Via API central: consome ação como toda iniciativa diplomática
+	var res: Dictionary = GameEngine.player_open_embassy(preview_code)
+	if res.get("ok", false):
+		_log_ticker("🤝 DIPLOMACIA", String(res.get("msg", "")), Color(0.4, 0.85, 1))
+	else:
+		_log_ticker("⚠ DIPLOMACIA", String(res.get("reason", "Falhou")), Color(1, 0.6, 0.4))
 	_show_preview(preview_code)
 	_refresh_top_bar()
 
@@ -3370,6 +3375,33 @@ func _on_trade_pressed() -> void:
 	modal_ref[0] = _open_modal(content, "💰 EXPORTAR RECURSOS — %s" % t.nome, Vector2(560, 540))
 
 # Mapa rápido de ícones de recursos (pra reuso fora da função RESOURCE_META local)
+
+# Recursos da cauda longa → ícone existente (nations.json tem 50+ tipos;
+# os principais têm ícone próprio, o resto mapeia pro tematicamente próximo)
+const RESOURCE_ICON_ALIAS := {
+	"pesca": "peixes", "agricultura": "terras_araveis", "graos": "terras_araveis",
+	"algodao": "terras_araveis", "acucar": "terras_araveis", "cha": "terras_araveis",
+	"tabaco": "terras_araveis", "vinho": "terras_araveis", "amendoim": "terras_araveis",
+	"oleo_palma": "terras_araveis", "borracha": "terras_araveis", "cacau": "cafe",
+	"minerios": "minerios_raros", "litio": "minerios_raros", "coltan": "minerios_raros",
+	"bauxita": "minerios_raros", "niquel": "minerios_raros", "platina": "minerios_raros",
+	"prata": "minerios_raros", "cobalto": "minerios_raros", "esmeraldas": "diamantes",
+	"jade": "diamantes", "rutilo": "minerios_raros", "fosfatos": "minerios_raros",
+	"potassa": "minerios_raros", "sal": "minerios_raros",
+	"hidreletrica": "agua_doce", "hidroeletricidade": "agua_doce",
+	"energia_hidreletrica": "agua_doce", "energia_geotermica": "agua_doce",
+	"energias_renovaveis": "agua_doce", "biodiversidade": "madeira", "cortica": "madeira",
+	"servicos": "financas", "servicos_financeiros": "financas", "logistica": "financas",
+	"navegacao": "peixes", "semicondutores": "tecnologia", "automotiva": "manufatura",
+	"textil": "manufatura", "diplomacia": "financas", "selos_postais": "financas",
+	"opio": "terras_araveis", "baunilha": "cafe", "ilang_ilang": "cafe",
+}
+
+static func resource_icon_path(res_name: String) -> String:
+	var key: String = RESOURCE_ICON_ALIAS.get(res_name, res_name)
+	var path: String = "res://icons/resources/%s.svg" % key
+	return path if ResourceLoader.exists(path) else ""
+
 const WorldMap_RESOURCE_ICONS := {
 	"petroleo": "🛢", "gas_natural": "🔥", "minerios_raros": "💎",
 	"uranio": "☢", "ferro": "⚙", "terras_araveis": "🌾",
@@ -3505,6 +3537,54 @@ func _show_treaty_picker_modal(target_code: String) -> void:
 	v.add_child(btn_cancel)
 
 # ─────────────────────────────────────────────────────────────────
+# MODAL DO FMI — resgate em crise fiscal (aceitar/recusar)
+# ─────────────────────────────────────────────────────────────────
+
+func _open_bailout_modal(terms: Dictionary) -> void:
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 14)
+	content.custom_minimum_size = Vector2(600, 0)
+	var badge := Label.new()
+	badge.text = "🏦 FUNDO MONETÁRIO INTERNACIONAL"
+	badge.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
+	badge.add_theme_font_size_override("font_size", 11)
+	content.add_child(badge)
+	var headline := Label.new()
+	headline.text = "Resgate de $%dB — aceitar as condições?" % int(terms.get("valor", 0))
+	headline.add_theme_color_override("font_color", Color(0.95, 1, 1))
+	headline.add_theme_font_size_override("font_size", 20)
+	headline.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(headline)
+	var body := Label.new()
+	body.text = "Seu tesouro está zerado há 2 turnos — mais 2 e é FALÊNCIA NACIONAL.\n\nCONDIÇÕES DO FUNDO:\n• Empréstimo de $%dB entra no tesouro\n• Dívida pública +$%dB (juros embutidos)\n• Austeridade: gasto social cortado pela metade\n• Apoio popular -8, felicidade -5\n\nRecusar mantém a soberania — e o risco." % [int(terms.get("valor", 0)), int(float(terms.get("valor", 0)) * 1.2)]
+	body.add_theme_color_override("font_color", Color(0.8, 0.87, 0.95))
+	body.add_theme_font_size_override("font_size", 12)
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(body)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	content.add_child(row)
+	var modal_ref: Array = [null]
+	var btn_no := _make_modal_button("✊ RECUSAR (soberania)", false)
+	btn_no.custom_minimum_size = Vector2(220, 44)
+	btn_no.pressed.connect(func():
+		GameEngine.decline_bailout()
+		_log_ticker("🏦 FMI", "Resgate RECUSADO — o tesouro segue no vermelho.", Color(1, 0.55, 0.3))
+		_close_modal(modal_ref[0]))
+	row.add_child(btn_no)
+	var btn_yes := _make_modal_button("🏦 ACEITAR RESGATE", true)
+	btn_yes.custom_minimum_size = Vector2(220, 44)
+	btn_yes.pressed.connect(func():
+		if GameEngine.accept_bailout():
+			_log_ticker("🏦 FMI", "Resgate aceito — tesouro reforçado, povo sente a austeridade.", Color(0.4, 0.85, 1))
+		_close_modal(modal_ref[0])
+		_refresh_top_bar()
+		_refresh_resource_bar())
+	row.add_child(btn_yes)
+	modal_ref[0] = _open_modal(content, "⚠ CRISE FISCAL", Vector2(660, 420), false)
+
+# ─────────────────────────────────────────────────────────────────
 # FILTROS DE MAPA
 # ─────────────────────────────────────────────────────────────────
 
@@ -3579,13 +3659,24 @@ func _refresh_resource_icons() -> void:
 		var bg_color: Color = meta.get("color", Color(0.5, 0.5, 0.5))
 		bg.color = Color(bg_color.r, bg_color.g, bg_color.b, 0.75)
 		holder.add_child(bg)
-		# Emoji do recurso
-		var lbl := Label.new()
-		lbl.text = icon_str
-		lbl.add_theme_font_size_override("font_size", 12)
-		lbl.position = Vector2(-7, -10)
-		lbl.tooltip_text = "%s: %d/100" % [meta.get("label", top["name"]), int(top["value"])]
-		holder.add_child(lbl)
+		# Ícone VETORIAL do recurso (game-icons.net, CC BY 3.0) — nítido em
+		# qualquer zoom; fallback pro emoji se o SVG não existir
+		var icon_path: String = resource_icon_path(String(top["name"]))
+		if icon_path != "":
+			var spr := Sprite2D.new()
+			spr.texture = load(icon_path)
+			var tex_size: float = max(1.0, spr.texture.get_width())
+			spr.scale = Vector2(18.0 / tex_size, 18.0 / tex_size)
+			spr.modulate = Color(1, 1, 1, 0.95)
+			holder.add_child(spr)
+		else:
+			var lbl := Label.new()
+			lbl.text = icon_str
+			lbl.add_theme_font_size_override("font_size", 12)
+			lbl.position = Vector2(-7, -10)
+			holder.add_child(lbl)
+		# Tooltip com valor no círculo de fundo (Área clicável seria overkill)
+		bg.set_meta("tooltip", "%s: %d/100" % [meta.get("label", top["name"]), int(top["value"])])
 
 # ─────────────────────────────────────────────────────────────────
 # COR POR ESTADO + FILTROS DE MAPA

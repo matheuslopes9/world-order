@@ -598,11 +598,12 @@ func _show_credits_modal() -> void:
 			"Wikipedia — eventos históricos 2000-2024",
 			"Natural Earth Data — geometria dos países"
 		]},
-		{"title": "FONTES", "items": [
+		{"title": "FONTES & ARTE", "items": [
 			"Inter (rsms.me, OFL) — texto principal",
 			"Noto Color Emoji (Google, OFL) — ícones",
 			"Cascadia Mono (Microsoft, OFL) — texto monoespaçado",
-			"Bandeiras: hampusborgos/country-flags (domínio público)"
+			"Bandeiras: hampusborgos/country-flags (domínio público)",
+			"Ícones de recursos: game-icons.net — Delapouite, Lorc, sbed (CC BY 3.0)"
 		]},
 		{"title": "AGRADECIMENTOS", "items": [
 			"Comunidade Godot pela documentação e exemplos",

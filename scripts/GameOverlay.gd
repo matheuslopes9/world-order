@@ -176,17 +176,28 @@ func _render_economia() -> void:
 	_add_data_row("População", _fmt_thousands(n.populacao))
 	var receita: float = n.calc_receita() if n.has_method("calc_receita") else 0.0
 	var despesas: float = n.calc_despesas() if n.has_method("calc_despesas") else 0.0
+	var exportacao: float = n.calc_receita_exportacao() if n.has_method("calc_receita_exportacao") else 0.0
+	# Choque global ativo: banner de alerta com contagem regressiva
+	if not GameEngine.active_shock.is_empty():
+		var sh: Dictionary = GameEngine.active_shock
+		_add_data_row("%s CHOQUE GLOBAL" % sh.get("icon", "⚠"),
+			"%s — %d turnos restantes" % [sh.get("nome", "?"), int(sh.get("turns_remaining", 0))],
+			Color(1, 0.4, 0.3))
+		if n.commodity_multiplier > 1.0:
+			_add_hint_label("🛢 Suas commodities valem %.0f×: exportações rendem o dobro durante a crise!" % n.commodity_multiplier)
+		_add_separator()
 	_add_separator()
 	_add_section_title("FINANÇAS (TRIMESTRE)")
 	_add_data_row("Receita", "+%s" % _money(receita))
+	_add_data_row("  └ Exportações de recursos", "+%s%s" % [_money(exportacao), " (×%.1f)" % n.commodity_multiplier if n.commodity_multiplier != 1.0 else ""], Color(0.5, 0.9, 0.7))
 	_add_data_row("Despesas", "-%s" % _money(despesas))
-	_add_data_row("Saldo", _money(receita - despesas))
+	_add_data_row("Saldo", _money(receita - despesas), Color(0.4, 1, 0.6) if receita >= despesas else Color(1, 0.5, 0.4))
 	_add_separator()
 	_add_section_title("RECURSOS NATURAIS")
 	var rec: Dictionary = n.recursos
 	for k in ["petroleo", "gas_natural", "minerios_raros", "uranio", "ferro", "terras_araveis"]:
 		if rec.has(k):
-			_add_bar(k.replace("_", " ").capitalize(), float(rec[k]), true)
+			_add_resource_row(k, float(rec[k]))
 	_add_separator()
 	_add_section_title("AÇÕES ECONÔMICAS")
 	for a in GameEngine.get_panel_actions("economia"):
@@ -239,6 +250,7 @@ func _render_diplomacia() -> void:
 
 	# ── RELAÇÕES (top 5 aliados / rivais) ──
 	_add_section_title("RELAÇÕES BILATERAIS")
+	_add_hint_label("🛡 Boas relações são ESCUDO real: nos playtests, nações diplomáticas sofrem metade das guerras de quem ignora a diplomacia.")
 	var rels: Array = []
 	for code in n.relacoes:
 		rels.append({"code": code, "rel": float(n.relacoes[code])})
@@ -564,26 +576,23 @@ func _render_intel() -> void:
 	_add_data_row("Operações realizadas", "%d" % n.spy_ops_log.size())
 	_add_separator()
 	_add_section_title("OPERAÇÕES DISPONÍVEIS")
-	_add_hint_label("💡 Selecione um país no mapa primeiro, depois escolha a operação.")
+	var wm0 = get_node_or_null("/root/WorldMap")
+	var alvo: String = String(wm0.preview_code) if wm0 != null and wm0.get("preview_code") != null else ""
+	if alvo != "" and GameEngine.player_nation != null and alvo != GameEngine.player_nation.codigo_iso and GameEngine.nations.has(alvo):
+		_add_hint_label("🎯 Alvo atual: %s — clique numa operação para executá-la." % GameEngine.nations[alvo].nome)
+	else:
+		_add_hint_label("💡 Clique num país do mapa para definir o ALVO, depois escolha a operação aqui.")
 	if GameEngine.espionage:
 		for op_id in GameEngine.espionage.OPS:
 			var op: Dictionary = GameEngine.espionage.OPS[op_id]
-			var card := PanelContainer.new()
-			var v := VBoxContainer.new()
-			v.add_theme_constant_override("separation", 2)
-			card.add_child(v)
-			var head := Label.new()
-			head.text = "%s %s — $%dB (%d%%)" % [op["icon"], op["nome"], int(op["custo"]), int(float(op["base_success"]) * 100)]
-			head.add_theme_color_override("font_color", Color(0.85, 0.93, 1))
-			head.add_theme_font_size_override("font_size", 11)
-			v.add_child(head)
-			var desc := Label.new()
-			desc.text = op["descricao"]
-			desc.add_theme_color_override("font_color", Color(0.6, 0.7, 0.85))
-			desc.add_theme_font_size_override("font_size", 10)
-			desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			v.add_child(desc)
-			panel_content.add_child(card)
+			var btn := Button.new()
+			btn.text = "%s %s — $%dB (%d%%)\n%s" % [op["icon"], op["nome"], int(op["custo"]), int(float(op["base_success"]) * 100), op["descricao"]]
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			btn.custom_minimum_size = Vector2(0, 52)
+			btn.add_theme_font_size_override("font_size", 11)
+			btn.clip_text = true
+			btn.pressed.connect(_on_intel_op_pressed)
+			panel_content.add_child(btn)
 	_add_separator()
 	_add_section_title("ÚLTIMAS OPERAÇÕES")
 	if n.spy_ops_log.is_empty():
@@ -595,6 +604,18 @@ func _render_intel() -> void:
 			var icon := "✅" if entry.get("success", false) else "❌"
 			var target_name: String = GameEngine.nations[entry["target"]].nome if GameEngine.nations.has(entry["target"]) else entry["target"]
 			_add_data_row("T%d %s vs %s" % [int(entry["turn"]), entry["op"], target_name], icon)
+
+# Clique numa operação do painel Intel: abre o picker de espionagem
+# (com % real de êxito por alvo) no país atualmente selecionado no mapa
+func _on_intel_op_pressed() -> void:
+	var wm = get_node_or_null("/root/WorldMap")
+	if wm == null: return
+	var alvo: String = String(wm.preview_code) if wm.get("preview_code") != null else ""
+	if alvo == "" or GameEngine.player_nation == null or alvo == GameEngine.player_nation.codigo_iso or not GameEngine.nations.has(alvo):
+		_log_global_news("🕵 INTEL", "Selecione um país-alvo no mapa primeiro (clique no país).", Color(1, 0.7, 0.4))
+		return
+	if wm.has_method("_show_spy_picker_modal"):
+		wm._show_spy_picker_modal(alvo)
 
 # ─────────────────────────────────────────────────────────────────
 # PAINEL: SITUAÇÃO
@@ -934,6 +955,47 @@ func _add_bar(label: String, value: float, higher_is_better: bool, override_text
 		ot.add_theme_font_size_override("font_size", 10)
 		ot.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		panel_content.add_child(ot)
+
+# Linha de recurso com ícone VETORIAL (game-icons.net) + nome + barra
+func _add_resource_row(res_key: String, valor: float) -> void:
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 8)
+	var icon_path: String = load("res://scripts/WorldMap.gd").resource_icon_path(res_key)
+	if icon_path != "":
+		var tr := TextureRect.new()
+		tr.texture = load(icon_path)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.custom_minimum_size = Vector2(18, 18)
+		tr.modulate = Color(0.75, 0.88, 1)
+		hbox.add_child(tr)
+	var lbl := Label.new()
+	lbl.text = res_key.replace("_", " ").capitalize()
+	lbl.add_theme_color_override("font_color", Color(0.65, 0.74, 0.85))
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.custom_minimum_size = Vector2(120, 0)
+	hbox.add_child(lbl)
+	var bar := ProgressBar.new()
+	bar.min_value = 0
+	bar.max_value = 100
+	bar.value = valor
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 14)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = UIStyles.indicator_color(valor)
+	fill.set_corner_radius_all(6)
+	bar.add_theme_stylebox_override("fill", fill)
+	hbox.add_child(bar)
+	var v_lbl := Label.new()
+	v_lbl.text = "%d" % int(valor)
+	v_lbl.add_theme_color_override("font_color", UIStyles.indicator_color(valor))
+	v_lbl.add_theme_font_size_override("font_size", 11)
+	v_lbl.custom_minimum_size = Vector2(28, 0)
+	v_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hbox.add_child(v_lbl)
+	panel_content.add_child(hbox)
 
 func _add_action_button(_action_id: String, label: String, cost: int, desc: String, callback: Callable) -> void:
 	var btn := Button.new()

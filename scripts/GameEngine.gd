@@ -51,6 +51,20 @@ var _turns_since_war: int = 0             # p/ recuperação gradual de DEFCON
 # automático por fadiga. Auto-regenera após load (pares órfãos re-registram).
 var _war_started: Dictionary = {}
 const WAR_FATIGUE_TURNS: int = 20         # guerras > 5 anos entram em fadiga
+# War score por par ("A|B" ordenado -> float; >0 favorece o 1o em ordem
+# alfabetica). Acumula com vantagem militar/economica - vitoria decisiva
+# gera ESPOLIOS (guerra deixa de ser dreno sem proposito).
+var _war_score: Dictionary = {}
+const WAR_DECISIVE_SCORE: float = 100.0
+
+# ── Resgate do FMI (jogador em crise fiscal) ──
+signal bailout_offered(terms: Dictionary)
+var bailout_pending: Dictionary = {}
+var _last_bailout_turn: int = -999
+
+# ── Choques econômicos globais (pós-2035) ──
+var active_shock: Dictionary = {}   # {id, nome, turns_remaining, ...}
+var _last_shock_turn: int = 0
 # Posição do jogador no ranking de poder, registrada por turno (sparkline da UI)
 var player_power_rank_history: Array = []
 const POWER_RANK_HISTORY_MAX: int = 60
@@ -364,6 +378,8 @@ func end_turn() -> void:
 	_run_ai_turn()
 	# Custos contínuos de guerra
 	_process_war_costs()
+	# Progresso das guerras: vantagem acumula, vitória decisiva gera espólios
+	_process_war_resolution()
 	# Fadiga: guerras longas demais terminam em armistício
 	_process_war_fatigue()
 	# Sanções ativas: aplica penalidade nos alvos e decrementa duração
@@ -372,6 +388,8 @@ func end_turn() -> void:
 	_process_active_trades()
 	# Eventos aleatórios
 	_roll_events()
+	# Choques econômicos globais (recessões, crises energéticas...)
+	_process_global_shocks()
 	# Diplomacia: aplica tratados, processa propostas
 	if diplomacy:
 		diplomacy.process_turn()
@@ -568,6 +586,9 @@ func evaluate_endgame() -> void:
 		n.revolucao_turnos = 0
 	if n.tesouro <= 0:
 		n.falencia_turnos += 1
+		# FMI oferece resgate ANTES do colapso (2 turnos de falência de 4)
+		if n.falencia_turnos == 2 and bailout_pending.is_empty() and current_turn - _last_bailout_turn > 40:
+			_offer_bailout()
 	else:
 		n.falencia_turnos = 0
 	if not honeymoon:
@@ -628,6 +649,172 @@ func _fire_endgame(victory: bool, title: String, msg: String) -> void:
 func resume_after_endgame() -> void:
 	if game_state == "ENDGAME":
 		game_state = "PLAYING"
+
+# ─────────────────────────────────────────────────────────────────
+# RESGATE DO FMI — crise fiscal vira ESCOLHA dramática, não morte lenta
+# ─────────────────────────────────────────────────────────────────
+
+func _offer_bailout() -> void:
+	if player_nation == null:
+		return
+	var valor: float = max(60.0, player_nation.pib_bilhoes_usd * 0.08)
+	bailout_pending = {"valor": valor, "turn": current_turn}
+	emit_signal("bailout_offered", bailout_pending)
+	_log_news({
+		"type": "fmi",
+		"headline": "🏦 FMI oferece resgate de $%dB a %s" % [int(valor), player_nation.nome],
+		"body": "Condições: austeridade (gasto social -50%, apoio -8) e dívida com juros. Recuse por sua conta e risco.",
+		"involves_player": true,
+		"color": Color(1, 0.85, 0.3),
+	}, [player_nation.codigo_iso], player_nation.continente)
+
+func accept_bailout() -> bool:
+	if bailout_pending.is_empty() or player_nation == null:
+		return false
+	var n = player_nation
+	var valor: float = float(bailout_pending.get("valor", 0))
+	n.tesouro += valor
+	n.divida_publica += valor * 1.2  # empréstimo com juros embutidos
+	# Austeridade: as condições do Fundo
+	n.apoio_popular = clamp(n.apoio_popular - 8.0, 0.0, 100.0)
+	n.felicidade = clamp(n.felicidade - 5.0, 0.0, 100.0)
+	for k in n.gasto_social:
+		n.gasto_social[k] = float(n.gasto_social[k]) * 0.5
+	n.falencia_turnos = 0
+	_last_bailout_turn = current_turn
+	bailout_pending = {}
+	_log_news({
+		"type": "fmi",
+		"headline": "🏦 %s aceita o resgate do FMI" % n.nome,
+		"body": "Tesouro reforçado em $%dB. O povo sente a austeridade." % int(valor),
+		"involves_player": true,
+		"color": Color(0.4, 0.85, 1),
+	}, [n.codigo_iso], n.continente)
+	return true
+
+func decline_bailout() -> void:
+	if bailout_pending.is_empty():
+		return
+	bailout_pending = {}
+	_last_bailout_turn = current_turn
+	_log_news({
+		"type": "fmi",
+		"headline": "🏦 %s RECUSA o resgate do FMI" % player_nation.nome,
+		"body": "Soberania acima de tudo — mas o tesouro segue vazio.",
+		"involves_player": true,
+		"color": Color(1, 0.55, 0.3),
+	}, [player_nation.codigo_iso], player_nation.continente)
+
+# ─────────────────────────────────────────────────────────────────
+# CHOQUES ECONÔMICOS GLOBAIS — o mundo pós-2035 não é piloto automático
+# ─────────────────────────────────────────────────────────────────
+
+const SHOCK_TYPES := [
+	{
+		"id": "recessao_global", "nome": "Recessão Global", "icon": "📉",
+		"dur_min": 6, "dur_max": 8,
+		"desc": "Demanda mundial em colapso. Economias grandes sofrem mais.",
+	},
+	{
+		"id": "crise_energetica", "nome": "Crise Energética Global", "icon": "🛢",
+		"dur_min": 5, "dur_max": 7,
+		"desc": "Petróleo e gás disparam: exportadores lucram, importadores sangram.",
+	},
+	{
+		"id": "colapso_financeiro", "nome": "Colapso Financeiro", "icon": "💥",
+		"dur_min": 4, "dur_max": 5,
+		"desc": "Pânico bancário mundial. Tesouros encolhem, inflação sobe.",
+	},
+]
+
+func _process_global_shocks() -> void:
+	# Aplica choque ativo
+	if not active_shock.is_empty():
+		_apply_shock_turn()
+		active_shock["turns_remaining"] = int(active_shock["turns_remaining"]) - 1
+		if int(active_shock["turns_remaining"]) <= 0:
+			for c in nations:
+				nations[c].commodity_multiplier = 1.0
+			_log_news({
+				"type": "choque_fim",
+				"headline": "✅ Fim da %s — economia mundial normaliza" % active_shock.get("nome", "crise"),
+				"body": "Mercados respiram após %d turnos de turbulência." % active_shock.get("dur_total", 0),
+				"involves_player": true,
+				"color": Color(0.4, 1, 0.6),
+			})
+			active_shock = {}
+		return
+	# Rola novo choque: pós-2035, ~1.2%/turno, cooldown de 15 anos
+	if date_year < 2035 or current_turn - _last_shock_turn < 60:
+		return
+	if randf() > 0.012:
+		return
+	var meta: Dictionary = SHOCK_TYPES[randi() % SHOCK_TYPES.size()]
+	var dur: int = randi_range(int(meta["dur_min"]), int(meta["dur_max"]))
+	active_shock = {
+		"id": meta["id"], "nome": meta["nome"], "icon": meta["icon"],
+		"turns_remaining": dur, "dur_total": dur,
+	}
+	_last_shock_turn = current_turn
+	# Efeito imediato do colapso financeiro: tesouros derretem
+	if meta["id"] == "colapso_financeiro":
+		for c in nations:
+			nations[c].tesouro *= 0.88
+	# Crise energética: reprecifica commodities
+	if meta["id"] == "crise_energetica":
+		for c in nations:
+			var nn = nations[c]
+			var oil: float = float(nn.recursos.get("petroleo", 0))
+			var gas: float = float(nn.recursos.get("gas_natural", 0))
+			nn.commodity_multiplier = 2.0 if (oil >= 70.0 or gas >= 70.0) else 1.0
+	_log_news({
+		"type": "choque",
+		"headline": "%s %s ATINGE O MUNDO (%d turnos)" % [meta["icon"], meta["nome"].to_upper(), dur],
+		"body": String(meta["desc"]) + " Use Aperto Monetário e Estímulo com sabedoria.",
+		"involves_player": true,
+		"color": Color(1, 0.4, 0.3),
+	})
+
+func _apply_shock_turn() -> void:
+	var sid: String = String(active_shock.get("id", ""))
+	for c in nations:
+		var n = nations[c]
+		match sid:
+			"recessao_global":
+				# Economias grandes e integradas sofrem mais
+				var severity: float = 0.985 if n.pib_bilhoes_usd < _world_max_pib * 0.3 else 0.978
+				n.apply_pib_multiplier(severity)
+			"crise_energetica":
+				var oil: float = float(n.recursos.get("petroleo", 0))
+				var gas: float = float(n.recursos.get("gas_natural", 0))
+				if oil >= 70.0 or gas >= 70.0:
+					n.apply_pib_multiplier(1.003)
+				elif oil < 40.0 and gas < 40.0:
+					n.apply_pib_multiplier(0.988)
+			"colapso_financeiro":
+				n.apply_pib_multiplier(0.99)
+				n.inflacao = clamp(n.inflacao + 0.8, 0.0, 100.0)
+
+# ─────────────────────────────────────────────────────────────────
+# EMBAIXADA — via API central (consome ação como toda iniciativa)
+# ─────────────────────────────────────────────────────────────────
+
+const EMBASSY_COST: float = 15.0
+
+func player_open_embassy(target_code: String) -> Dictionary:
+	if player_nation == null:
+		return {"ok": false, "reason": "Sem nação"}
+	if not nations.has(target_code) or target_code == player_nation.codigo_iso:
+		return {"ok": false, "reason": "Alvo inválido"}
+	if player_nation.tesouro < EMBASSY_COST:
+		return {"ok": false, "reason": "Custo: $%dB" % int(EMBASSY_COST)}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno"}
+	player_nation.tesouro -= EMBASSY_COST
+	var t = nations[target_code]
+	player_nation.relacoes[target_code] = clamp(float(player_nation.relacoes.get(target_code, 0)) + 15, -100, 100)
+	t.relacoes[player_nation.codigo_iso] = clamp(float(t.relacoes.get(player_nation.codigo_iso, 0)) + 15, -100, 100)
+	return {"ok": true, "msg": "Embaixada em %s • relações +15" % t.nome}
 
 # Identifica e mantém o "nêmesis" do jogador — nação com pior relação que cruzou ≤ -50.
 # Nemesis declarada gera notícias de provocação periódicas e tem maior chance de hostilidade.
@@ -827,6 +1014,7 @@ func _propose_peace(from_code: String, to_code: String) -> void:
 	a.em_guerra.erase(to_code)
 	b.em_guerra.erase(from_code)
 	_war_started.erase(_war_key(from_code, to_code))
+	_war_score.erase(_war_key(from_code, to_code))
 	# Relações neutralizam parcialmente
 	a.relacoes[to_code] = -40
 	b.relacoes[from_code] = -40
@@ -898,6 +1086,7 @@ func _process_war_fatigue() -> void:
 					nations[other].relacoes[code] = -40
 				n.relacoes[other] = -40
 				_war_started.erase(key)
+				_war_score.erase(key)
 				_log_news({
 					"type": "armisticio",
 					"headline": "🕊️ Armistício: %s e %s encerram guerra de %d anos" % [n.nome, nations[other].nome if nations.has(other) else other, (current_turn - 0) / 4],
@@ -911,6 +1100,91 @@ func _process_war_fatigue() -> void:
 		if parts.size() == 2 and nations.has(parts[0]):
 			if not (parts[1] in nations[parts[0]].em_guerra):
 				_war_started.erase(key)
+				_war_score.erase(key)
+
+# ─────────────────────────────────────────────────────────────────
+# RESOLUÇÃO DE GUERRA — vantagem acumula; vitória decisiva = espólios
+# ─────────────────────────────────────────────────────────────────
+
+func _process_war_resolution() -> void:
+	var seen: Dictionary = {}
+	for code in nations.keys():
+		var n = nations[code]
+		for enemy in n.em_guerra.duplicate():
+			var key: String = _war_key(code, enemy)
+			if seen.has(key) or not nations.has(enemy):
+				continue
+			seen[key] = true
+			var a_code: String = code if code < enemy else enemy
+			var b_code: String = enemy if code < enemy else code
+			var a = nations[a_code]
+			var b = nations[b_code]
+			# Vantagem por turno: poder militar pesa mais, economia sustenta
+			var mil_diff: float = a.get_military_power() - b.get_military_power()
+			var econ_diff: float = (a.pib_bilhoes_usd - b.pib_bilhoes_usd) * 0.001
+			var delta: float = clamp(mil_diff * 0.02 + econ_diff * 0.01, -8.0, 8.0)
+			delta += randf_range(-2.0, 2.0)  # fricção/fortuna da guerra
+			_war_score[key] = float(_war_score.get(key, 0.0)) + delta
+			if abs(float(_war_score[key])) >= WAR_DECISIVE_SCORE:
+				var winner = a if float(_war_score[key]) > 0.0 else b
+				var loser = b if float(_war_score[key]) > 0.0 else a
+				_end_war_with_spoils(winner, loser, "vitória decisiva")
+
+# Score da guerra do PONTO DE VISTA de uma nação (pra UI: quem está vencendo)
+func get_war_score_for(code: String, enemy: String) -> float:
+	var key: String = _war_key(code, enemy)
+	var raw: float = float(_war_score.get(key, 0.0))
+	return raw if code < enemy else -raw
+
+# Encerra a guerra com ESPÓLIOS para o vencedor: reparações, transferência
+# do melhor recurso do perdedor, prestígio militar e efeitos políticos.
+func _end_war_with_spoils(winner, loser, motivo: String) -> void:
+	var w_code: String = winner.codigo_iso
+	var l_code: String = loser.codigo_iso
+	winner.em_guerra.erase(l_code)
+	loser.em_guerra.erase(w_code)
+	var key: String = _war_key(w_code, l_code)
+	_war_started.erase(key)
+	_war_score.erase(key)
+	# Reparações de guerra: até 50% do tesouro do perdedor (cap 10% do PIB dele)
+	var reparacao: float = clamp(loser.tesouro * 0.5, 0.0, loser.pib_bilhoes_usd * 0.10)
+	loser.tesouro = max(0.0, loser.tesouro - reparacao)
+	winner.tesouro += reparacao
+	# Concessão de recursos: o melhor recurso do perdedor muda de mãos (parcial)
+	var best_res: String = ""
+	var best_val: float = 0.0
+	for k in loser.recursos:
+		if float(loser.recursos[k]) > best_val:
+			best_val = float(loser.recursos[k])
+			best_res = k
+	var take: float = 0.0
+	if best_res != "":
+		take = min(15.0, best_val * 0.25)
+		loser.recursos[best_res] = max(0.0, best_val - take)
+		winner.recursos[best_res] = min(100.0, float(winner.recursos.get(best_res, 0)) + take)
+	# Política: vencedor celebra, perdedor amarga
+	winner.apoio_popular = clamp(winner.apoio_popular + 10.0, 0.0, 100.0)
+	winner.felicidade = clamp(winner.felicidade + 5.0, 0.0, 100.0)
+	loser.apoio_popular = clamp(loser.apoio_popular - 10.0, 0.0, 100.0)
+	loser.estabilidade_politica = clamp(loser.estabilidade_politica - 8.0, 0.0, 100.0)
+	# Prestígio militar do vencedor
+	winner.militar["poder_militar_global"] = float(winner.militar.get("poder_militar_global", 0)) + 3.0
+	# Rancor duradouro
+	winner.relacoes[l_code] = -60
+	loser.relacoes[w_code] = -80
+	var spoils_txt: String = "Reparações: $%dB" % int(reparacao)
+	if best_res != "":
+		spoils_txt += " • %s +%d" % [best_res.capitalize(), int(take)]
+	var involves_p: bool = player_nation != null and (w_code == player_nation.codigo_iso or l_code == player_nation.codigo_iso)
+	_log_news({
+		"type": "guerra_vencida",
+		"headline": "🏆 %s VENCE a guerra contra %s (%s)" % [winner.nome, loser.nome, motivo],
+		"body": spoils_txt + ". O mundo toma nota.",
+		"involves_player": involves_p,
+		"color": Color(1, 0.85, 0.3),
+	}, [w_code, l_code], winner.continente)
+	if achievements and player_nation and w_code == player_nation.codigo_iso:
+		achievements.on_war_won()
 
 func _player_is_ally(code: String) -> bool:
 	if player_nation == null:
@@ -945,11 +1219,11 @@ func _process_war_costs() -> void:
 			var enemies: Array = n.em_guerra.duplicate()
 			for e_code in enemies:
 				if nations.has(e_code):
-					var e = nations[e_code]
-					e.em_guerra.erase(code)
-					e.relacoes[code] = clamp(float(e.relacoes.get(code, 0)) + 20, -100, 100)
-					n.relacoes[e_code] = -40
-				_war_started.erase(_war_key(code, e_code))
+					# Quem recebe a rendição VENCE — extrai espólios
+					_end_war_with_spoils(nations[e_code], n, "capitulação")
+				else:
+					_war_started.erase(_war_key(code, e_code))
+					_war_score.erase(_war_key(code, e_code))
 			n.em_guerra.clear()
 			n.estabilidade_politica = max(0.0, n.estabilidade_politica - 5.0)
 			_log_news({

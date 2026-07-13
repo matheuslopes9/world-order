@@ -36,6 +36,7 @@ func _ready() -> void:
 	await _phase_shortcuts_and_bot()
 	await _phase_options_save_news()
 	await _phase_event_modals()
+	await _phase_intel_and_bailout()
 	await _phase_endgame_modal()
 	_phase_ux_metrics()
 	print("\n╔══════════════════════════════════════════════════════════════════")
@@ -267,11 +268,13 @@ func _phase_dossier_flows() -> void:
 	await get_tree().process_frame
 	_test("Dossiê AR abre", wm._is_modal_open() and wm.preview_code == "AR")
 
-	# Embaixada
+	# Embaixada (agora via API central — consome ação)
 	var rel0: float = float(GameEngine.player_nation.relacoes.get("AR", 0))
+	var act_e0: int = GameEngine.player_actions_remaining
 	wm._on_embassy_pressed()
 	await get_tree().process_frame
 	_test("Embaixada: +15 relações", float(GameEngine.player_nation.relacoes.get("AR", 0)) == clamp(rel0 + 15, -100, 100))
+	_test("Embaixada consome 1 ação", GameEngine.player_actions_remaining == act_e0 - 1)
 
 	# Tratado (picker com 6 tipos)
 	_topup()
@@ -486,6 +489,59 @@ func _phase_event_modals() -> void:
 	while not wm._modal_stack.is_empty():
 		wm._close_top_modal()
 		await get_tree().process_frame
+
+# ─────────────────────────────────────────────────────────────────
+# FASE 8b — INTEL CLICÁVEL + RESGATE DO FMI
+# ─────────────────────────────────────────────────────────────────
+
+func _phase_intel_and_bailout() -> void:
+	print("\n[8b] INTEL CLICÁVEL + FMI")
+	# Painel intel: 8 operações agora são BOTÕES
+	wm._open_dossier_modal("AR")
+	await get_tree().process_frame
+	while not wm._modal_stack.is_empty():
+		wm._close_top_modal()
+		await get_tree().process_frame
+	wm._open_overlay_modal("intel")
+	await get_tree().process_frame
+	var overlay = wm.game_overlay
+	var op_btns: Array = []
+	for b in _find_buttons(overlay.panel_content):
+		if "%" in (b as Button).text and "$" in (b as Button).text:
+			op_btns.append(b)
+	_test("Intel: 8 operações são botões clicáveis", op_btns.size() == 8)
+	if op_btns.size() > 0:
+		var loose0: int = _loose_modals().size()
+		await _press(op_btns[3], "intel op via painel")
+		await get_tree().process_frame
+		_test("Intel: clique abre o picker de espionagem (alvo=AR)", _loose_modals().size() > loose0)
+		for m in _loose_modals():
+			m.queue_free()
+		await get_tree().process_frame
+	while not wm._modal_stack.is_empty():
+		wm._close_top_modal()
+		await get_tree().process_frame
+
+	# FMI: força crise → modal → aceitar
+	_topup()
+	GameEngine.player_nation.tesouro = 0.0
+	GameEngine.player_nation.falencia_turnos = 1
+	GameEngine.bailout_pending = {}
+	GameEngine._last_bailout_turn = -999
+	var stack_b0: int = wm._modal_stack.size()
+	GameEngine.evaluate_endgame()
+	await get_tree().create_timer(0.4).timeout
+	_test("FMI: modal de resgate abre na crise", wm._modal_stack.size() > stack_b0)
+	var aceitar := _find_button_by_text(wm._modal_stack.back() if not wm._modal_stack.is_empty() else wm, ["ACEITAR RESGATE"])
+	_test("FMI: botão ACEITAR existe", aceitar != null)
+	if aceitar:
+		await _press(aceitar, "aceitar FMI")
+		await get_tree().process_frame
+		_test("FMI: tesouro reforçado", GameEngine.player_nation.tesouro > 0.0)
+	while not wm._modal_stack.is_empty():
+		wm._close_top_modal()
+		await get_tree().process_frame
+	_topup()
 
 # ─────────────────────────────────────────────────────────────────
 # FASE 9 — ENDGAME (vitória → Continuar Livre)

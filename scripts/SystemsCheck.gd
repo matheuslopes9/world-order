@@ -189,6 +189,75 @@ func _run() -> void:
 	AudioManager.play("achievement")
 	_check(true, "play() não crasha em headless")
 
+	# ── 12. SISTEMAS DE DIVERSÃO (guerra/FMI/choques/tech/embaixada) ──
+	print("[12] Guerra com espólios")
+	var w = E.nations["US"]
+	var l = E.nations["UY"]
+	l.tesouro = 100.0
+	l.recursos["petroleo"] = 99.0  # claramente o melhor recurso do perdedor
+	w.em_guerra.append("UY")
+	l.em_guerra.append("US")
+	var w_tes0: float = w.tesouro
+	var w_res0: Dictionary = w.recursos.duplicate()
+	E._end_war_with_spoils(w, l, "teste")
+	_check(w.tesouro > w_tes0, "vencedor recebe reparações (+$%.0fB)" % (w.tesouro - w_tes0))
+	var res_ganho := false
+	for rk in w.recursos:
+		if float(w.recursos[rk]) > float(w_res0.get(rk, 0)):
+			res_ganho = true
+			break
+	_check(res_ganho, "vencedor recebe concessão de recurso")
+	_check(not ("UY" in w.em_guerra) and not ("US" in l.em_guerra), "guerra encerrada dos dois lados")
+	# war score acumula
+	w.em_guerra.append("UY")
+	l.em_guerra.append("US")
+	E._process_war_resolution()
+	_check(E._war_score.size() >= 1, "war score registrado para guerra ativa")
+	E._end_war_with_spoils(w, l, "cleanup")
+
+	print("[12b] Resgate do FMI")
+	var n_p = E.player_nation
+	n_p.tesouro = 0.0
+	n_p.falencia_turnos = 1
+	E.bailout_pending = {}
+	E._last_bailout_turn = -999
+	E.evaluate_endgame()
+	_check(not E.bailout_pending.is_empty(), "FMI oferece resgate no 2º turno de falência")
+	var div0: float = n_p.divida_publica
+	_check(E.accept_bailout(), "accept_bailout executa")
+	_check(n_p.tesouro > 0.0, "tesouro reforçado pós-resgate")
+	_check(n_p.divida_publica > div0, "dívida cresce (empréstimo com juros)")
+	_check(n_p.falencia_turnos == 0, "contagem de falência zerada")
+
+	print("[12c] Choques globais")
+	E.active_shock = {"id": "recessao_global", "nome": "Recessão Global", "icon": "📉", "turns_remaining": 2, "dur_total": 2}
+	var jp_pib0: float = E.nations["JP"].pib_bilhoes_usd
+	E._process_global_shocks()
+	_check(E.nations["JP"].pib_bilhoes_usd < jp_pib0, "recessão global derruba PIB")
+	E._process_global_shocks()
+	_check(E.active_shock.is_empty(), "choque expira e limpa")
+	n_p.commodity_multiplier = 2.0
+	var exp1: float = n_p.calc_receita_exportacao()
+	n_p.commodity_multiplier = 1.0
+	var exp0: float = n_p.calc_receita_exportacao()
+	_check(exp1 > exp0 * 1.9, "multiplicador de commodities dobra exportações")
+
+	print("[12d] Economia de escala científica")
+	var fake_n = load("res://scripts/Nation.gd").new()
+	for i in 30:
+		fake_n.tecnologias_concluidas.append("fake_%d" % i)
+	var eff: float = E.tech.get_effective_cost(fake_n, {"custo": 100})
+	_check(eff == 55.0, "30 techs → custo 100 vira %d (esperado 55)" % int(eff))
+
+	print("[12e] Embaixada via API central")
+	n_p.tesouro = 1000.0
+	E.player_actions_remaining = 3
+	var rel0: float = float(n_p.relacoes.get("CL", 0))
+	var emb: Dictionary = E.player_open_embassy("CL")
+	_check(emb.get("ok", false), "embaixada executa")
+	_check(E.player_actions_remaining == 2, "embaixada CONSOME ação (consistência)")
+	_check(float(n_p.relacoes.get("CL", 0)) == clamp(rel0 + 15, -100, 100), "relações +15")
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:

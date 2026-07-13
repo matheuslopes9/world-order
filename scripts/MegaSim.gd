@@ -84,6 +84,11 @@ func _reset_engine() -> void:
 	E.active_sanctions.clear()
 	E.active_trades.clear()
 	E.player_power_rank_history.clear()
+	E.bailout_pending = {}
+	E._last_bailout_turn = -999
+	E.active_shock = {}
+	E._last_shock_turn = 0
+	E._war_score.clear()
 	E.settings["difficulty"] = "normal"
 	E.settings["mode"] = "inspirado"
 	E.settings["scenario"] = "campanha"
@@ -145,6 +150,9 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 					if fails >= 2:
 						break
 			bot._handle_pending_proposals()
+			# Resgate do FMI: jogador ativo aceita (sobrevivência)
+			if not E.bailout_pending.is_empty():
+				E.accept_bailout()
 		E.end_turn()
 		max_infl = max(max_infl, n.inflacao)
 		max_debt = max(max_debt, n.divida_publica)

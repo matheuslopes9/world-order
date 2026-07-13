@@ -74,6 +74,30 @@ func _ready() -> void:
 		wm._close_top_modal()
 		await get_tree().process_frame
 
+	# 5b — Mapa no filtro RECURSOS (ícones vetoriais de petróleo/madeira/etc)
+	if wm.has_method("_on_map_filter_pressed"):
+		wm._on_map_filter_pressed("RECURSOS")
+		await get_tree().create_timer(0.4).timeout
+		await _shot("mapa_recursos_icones")
+		wm._on_map_filter_pressed("POLITICO")
+		await get_tree().process_frame
+
+	# 5c — Modal do FMI (crise fiscal)
+	GameEngine.player_nation.tesouro = 0.0
+	GameEngine.player_nation.falencia_turnos = 1
+	GameEngine.bailout_pending = {}
+	GameEngine._last_bailout_turn = -999
+	GameEngine.evaluate_endgame()
+	await get_tree().create_timer(0.5).timeout
+	await _shot("modal_fmi")
+	# recusa pra limpar + restaura tesouro
+	GameEngine.decline_bailout()
+	while not wm._modal_stack.is_empty():
+		wm._close_top_modal()
+		await get_tree().process_frame
+	GameEngine.player_nation.tesouro = 500.0
+	GameEngine.player_nation.falencia_turnos = 0
+
 	# 6 — Dossiê + pickers
 	wm._open_dossier_modal("US")
 	await get_tree().create_timer(0.4).timeout

@@ -87,6 +87,10 @@ func _run_loop() -> void:
 
 		# Aceita propostas diplomáticas pendentes (grátis)
 		_handle_pending_proposals()
+		# Resgate do FMI: bot aceita (sobreviver > orgulho)
+		if not _engine.bailout_pending.is_empty():
+			_engine.accept_bailout()
+			_think("🏦 Resgate do FMI aceito — austeridade, mas sobrevivemos.")
 
 		_think("Ações usadas: %d. Avançando turno..." % actions_this_turn)
 		await _delay(turn_delay)
@@ -312,6 +316,24 @@ func _generate_diplomacy_actions(n) -> Array:
 			"reason": "Propor %s a %s (rel=%.0f)" % [treaty_type, _engine.nations[best_partner].nome if _engine.nations.has(best_partner) else best_partner, best_rel]
 		})
 
+	# Embaixada — melhora relações com vizinho frio (custo 15)
+	if tesouro >= 25:
+		var emb_target: String = ""
+		var emb_rel: float = 999.0
+		for code in n.relacoes:
+			if code == p_code or code in n.em_guerra:
+				continue
+			var rel2: float = float(n.relacoes[code])
+			if rel2 >= -30.0 and rel2 <= 30.0 and rel2 < emb_rel:
+				emb_rel = rel2
+				emb_target = code
+		if emb_target != "":
+			out.append({
+				"type": "embassy", "target": emb_target,
+				"score": 18.0 + (30.0 - emb_rel) * 0.3, "category": "diplomacy",
+				"reason": "Embaixada em %s (rel=%.0f → +15)" % [_engine.nations[emb_target].nome if _engine.nations.has(emb_target) else emb_target, emb_rel]
+			})
+
 	# Educação — acelera pesquisa (custo 20, gasto permanente)
 	if tesouro >= 30 and n.velocidade_pesquisa < 2.0 and n.calc_saldo() > 0.0:
 		out.append({
@@ -336,6 +358,32 @@ func _generate_military_actions(n) -> Array:
 				"type": "peace", "target": enemy,
 				"score": 70.0 + (45.0 - stab) * 1.5, "category": "military",
 				"reason": "Propor paz — stab=%.0f%%, tesouro=%.0fB" % [stab, tesouro]
+			})
+
+	# GUERRA OFENSIVA (persona military): alvo muito mais fraco + rival declarado.
+	# Com a resolução de guerra, vencer rende espólios — guerra virou investimento.
+	if personality == "military" and n.em_guerra.is_empty() and tesouro >= 150:
+		var my_power: float = n.get_military_power()
+		var best_target: String = ""
+		var best_sc: float = 0.0
+		for code in _engine.nations:
+			if code == n.codigo_iso:
+				continue
+			var rel: float = float(n.relacoes.get(code, 0))
+			if rel > -50:
+				continue  # só ataca rivais declarados
+			var t = _engine.nations[code]
+			var ratio: float = my_power / max(1.0, t.get_military_power())
+			if ratio >= 2.5:
+				var sc: float = ratio * 8.0 - rel * 0.2
+				if sc > best_sc:
+					best_sc = sc
+					best_target = code
+		if best_target != "":
+			out.append({
+				"type": "war", "target": best_target,
+				"score": 25.0 + minf(best_sc * 0.3, 30.0), "category": "military",
+				"reason": "GUERRA: esmagar %s (vantagem militar 2.5x+, rival)" % (_engine.nations[best_target].nome if _engine.nations.has(best_target) else best_target)
 			})
 
 	# Construir base se poder militar baixo e tem dinheiro (custo 40)
@@ -420,6 +468,17 @@ func _execute_action(action: Dictionary) -> bool:
 			var res: Dictionary = _engine.player_export_resource(String(action.get("target", "")), String(action.get("resource", "")))
 			if not bool(res.get("ok", false)):
 				_think("  ✗ Comércio falhou: %s" % String(res.get("reason", "")))
+				return false
+			return true
+		"war":
+			if not _engine.player_declare_war(String(action.get("target", ""))):
+				_think("  ✗ Declaração de guerra falhou")
+				return false
+			return true
+		"embassy":
+			var res: Dictionary = _engine.player_open_embassy(String(action.get("target", "")))
+			if not bool(res.get("ok", false)):
+				_think("  ✗ Embaixada falhou: %s" % String(res.get("reason", "")))
 				return false
 			return true
 	return false

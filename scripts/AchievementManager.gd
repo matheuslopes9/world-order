@@ -26,6 +26,7 @@ const ACHIEVEMENTS := [
 	{"id": "trade_network",     "name": "Rede Comercial",          "desc": "Mantenha 5 acordos comerciais simultâneos", "icon": "🤝"},
 	# ─── MILITAR/DIPLOMÁTICO ───
 	{"id": "first_war",         "name": "Trompete da Guerra",      "desc": "Declare sua primeira guerra",              "icon": "⚔"},
+	{"id": "war_winner",        "name": "Espólios de Guerra",      "desc": "Vença uma guerra e extraia reparações",    "icon": "🏆"},
 	{"id": "peacekeeper",       "name": "Pomba da Paz",            "desc": "Sobreviva 100 turnos sem declarar guerra", "icon": "🕊"},
 	{"id": "alliance_master",   "name": "Tecedor de Alianças",     "desc": "Tenha 3 tratados ativos simultaneamente",  "icon": "📜"},
 	{"id": "hegemon",           "name": "Hegemonia Global",        "desc": "Vença a campanha por hegemonia",            "icon": "👑"},
@@ -131,6 +132,9 @@ func update() -> void:
 		if convergent >= 5: _try_unlock("convergent")
 
 # Chamados sob demanda por outros sistemas
+func on_war_won() -> void:
+	_try_unlock("war_winner")
+
 func on_war_declared(by_player: bool) -> void:
 	if by_player and engine and engine.player_nation:
 		engine.player_nation.set_meta("declared_war", true)

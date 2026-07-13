@@ -1,0 +1,9 @@
+ICONES DE RECURSOS (SVG)
+========================
+Fonte:   https://game-icons.net (repo github.com/game-icons/icons)
+Autores: Delapouite, Lorc, sbed
+Licenca: CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/)
+         Atribuicao obrigatoria: creditos do jogo mencionam game-icons.net.
+Modificacao: fill trocado para branco (colorizacao via modulate no jogo).
+
+Mapeamento: {recurso}.svg segue as chaves de Nation.recursos.

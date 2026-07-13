@@ -67,11 +67,19 @@ func can_research(nation, tech_id: String) -> Dictionary:
 	var stab_req: float = float(tech.get("requisito_estabilidade", 0))
 	if nation.estabilidade_politica < stab_req:
 		return {"ok": false, "reason": "Estabilidade mínima: %d%%" % int(stab_req)}
-	# Custo
-	var cost: float = float(tech.get("custo", 0))
+	# Custo (efetivo: economia de escala científica)
+	var cost: float = get_effective_cost(nation, tech)
 	if nation.tesouro < cost:
 		return {"ok": false, "reason": "Custo: $%dB (você tem $%dB)" % [int(cost), int(nation.tesouro)]}
 	return {"ok": true}
+
+# Economia de escala científica: cada tech concluída barateia as próximas
+# em 1.5% (cap -50%). Sem isto, o fim da árvore era inalcançável mesmo em
+# 100 anos (máx observado: 35/57 em 1300 campanhas simuladas).
+func get_effective_cost(nation, tech: Dictionary) -> float:
+	var base: float = float(tech.get("custo", 0))
+	var decay: float = clamp(1.0 - nation.tecnologias_concluidas.size() * 0.015, 0.5, 1.0)
+	return round(base * decay)
 
 # Inicia pesquisa
 func start_research(nation, tech_id: String) -> bool:
@@ -79,7 +87,7 @@ func start_research(nation, tech_id: String) -> bool:
 	if not check.get("ok", false):
 		return false
 	var tech: Dictionary = tech_index[tech_id]
-	nation.tesouro -= float(tech.get("custo", 0))
+	nation.tesouro -= get_effective_cost(nation, tech)
 	nation.pesquisa_atual = {
 		"id": tech_id,
 		"progresso": 0.0,

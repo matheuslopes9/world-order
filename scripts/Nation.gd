@@ -173,16 +173,21 @@ func calc_tax_rate() -> float:
 	if "AUTORITA" in regime_politico: return 0.18
 	return 0.20
 
-func calc_receita() -> float:
-	var tax_rate := calc_tax_rate()
-	var impostos: float = (pib_bilhoes_usd * tax_rate / 4.0) + 5.0
+# Receita de exportação de recursos (separada pra UI mostrar o breakdown
+# e o efeito dos choques de commodities em tempo real)
+func calc_receita_exportacao() -> float:
 	var vals: Array = recursos.values() if recursos else []
 	var avg_resource: float = 30.0
 	if vals.size() > 0:
 		var sum: float = 0.0
 		for v in vals: sum += float(v)
 		avg_resource = sum / vals.size()
-	var export_bonus: float = pib_bilhoes_usd * (avg_resource / 100.0) * 0.02 / 4.0
+	return pib_bilhoes_usd * (avg_resource / 100.0) * 0.02 / 4.0 * commodity_multiplier
+
+func calc_receita() -> float:
+	var tax_rate := calc_tax_rate()
+	var impostos: float = (pib_bilhoes_usd * tax_rate / 4.0) + 5.0
+	var export_bonus: float = calc_receita_exportacao()
 	var bur_pct: float = (burocracia_eficiencia - 50.0) / 50.0
 	var cor_pct: float = (50.0 - corrupcao) / 50.0
 	var eficiencia: float = 1.0 + (bur_pct * 0.075) + (cor_pct * 0.075)
@@ -219,6 +224,9 @@ func pib_per_capita() -> float:
 # ("investimentos corretos podem construir uma potência mundial").
 # frontier_pib_pc é cacheado pelo GameEngine a cada turno.
 var frontier_pib_pc: float = 0.0
+# Multiplicador de preço das commodities (choques globais: crise energética
+# dobra o valor de exportação de quem tem petróleo/gás; default 1.0)
+var commodity_multiplier: float = 1.0
 
 func update_pib(global_factor: float = 1.0) -> void:
 	var stab: float = estabilidade_politica / 100.0
