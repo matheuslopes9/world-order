@@ -171,6 +171,34 @@ reduzem chance de ser atacado") — o sistema já existe, falta comunicá-lo.
 - DEFCON médio 3.11 → 2.65 pelo mesmo motivo (mais declarações, menos
   duração). Aceitável; reavaliar com o público.
 
+## 🎮 V3 — Pacote "PODER E CONTROLE" validado (300 novas campanhas)
+
+Mecânicas novas: guerra com espólios (war score → vitória decisiva →
+reparações/recursos/prestígio), Resgate do FMI, choques globais pós-2035,
+economia de escala científica, embaixada via API, bot military ofensivo.
+
+| Métrica | V2 | V3 (com as mecânicas) |
+|---|---|---|
+| Mortes ativas | 1.1% | 1.5% (justas: 3 revoluções QUASE_IMP) |
+| Falência ativa | 5 casos | **1** — o FMI salva quem joga |
+| Picos de inflação >60% | 1.8% | **0%** |
+| Curva de tier | inversão NORMAL<DIFICIL | **93→38→27→16→9% sem inversões** |
+| Nações fatais | ER+SS | **só ER** (t57, tier extremo — ok) |
+| Guerras do jogador/jogo | 0.6 | **1.4** (guerra circula: espólios + armistícios) |
+| Pico de guerras mundiais | 61 | 55 |
+| Crescimento máx | 28.653× | **8.253×** (mais são) |
+| Anomalias | 0 | **0** |
+
+**Watch items (próxima sessão):**
+- Hegemonia: 0 em 272 (bot não a persegue; guerras derrubam o streak de
+  apoio/estab ≥55). Humano com potência mira — reavaliar com playtests
+  humanos antes de afrouxar.
+- Árvore de techs: p90 23→24 apenas — o custo NÃO era o gargalo; é o
+  TEMPO de pesquisa + o bot escolher sempre a mais barata. Próximo passo:
+  2ª fila de pesquisa após 25 techs ou tempo decrescente por era.
+- Win ativo 23.5%→19.9%: o século ficou mais DURO (guerras+choques) e
+  mais honesto (FÁCIL 93% ✓). Monitorar diversão com humanos.
+
 ## Como reproduzir
 
 ```

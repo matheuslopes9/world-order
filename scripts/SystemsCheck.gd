@@ -249,6 +249,21 @@ func _run() -> void:
 	var eff: float = E.tech.get_effective_cost(fake_n, {"custo": 100})
 	_check(eff == 55.0, "30 techs → custo 100 vira %d (esperado 55)" % int(eff))
 
+	print("[12d2] Guerra ofensiva do bot (persona military)")
+	var bot_mil = load("res://scripts/BotPlayer.gd").new(E, get_tree(), "military")
+	bot_mil.verbose = false
+	E.player_nation.tesouro = 500.0
+	E.player_nation.em_guerra.clear()
+	E.player_nation.militar["poder_militar_global"] = 900.0
+	E.player_nation.relacoes["PY"] = -70.0
+	E.nations["PY"].militar["orcamento_militar_bilhoes"] = 0.5
+	var mil_cands: Array = bot_mil._generate_military_actions(E.player_nation)
+	var tem_guerra := false
+	for c in mil_cands:
+		if c.get("type", "") == "war":
+			tem_guerra = true
+	_check(tem_guerra, "bot military gera candidato de GUERRA (alvo fraco + rival)")
+
 	print("[12e] Embaixada via API central")
 	n_p.tesouro = 1000.0
 	E.player_actions_remaining = 3
