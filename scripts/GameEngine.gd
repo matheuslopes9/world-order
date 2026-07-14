@@ -397,6 +397,8 @@ func end_turn() -> void:
 	_roll_events()
 	# Choques econômicos globais (recessões, crises energéticas...)
 	_process_global_shocks()
+	# Corrupção do jogador: escândalos, fuga de empresas, operações anticorrupção
+	_process_corruption()
 	# Diplomacia: aplica tratados, processa propostas
 	if diplomacy:
 		diplomacy.process_turn()
@@ -801,6 +803,70 @@ func _apply_shock_turn() -> void:
 			"colapso_financeiro":
 				n.apply_pib_multiplier(0.99)
 				n.inflacao = clamp(n.inflacao + 0.8, 0.0, 100.0)
+
+# ─────────────────────────────────────────────────────────────────
+# CORRUPÇÃO — a espiral: escândalos, fuga de empresas, operações
+# Foca no país do JOGADOR (a narrativa via WON é sobre ele). A mecânica
+# numérica (roubo do tesouro, IED→PIB) já roda na Nation todo turno; aqui
+# entram os ACONTECIMENTOS que dão rosto e drama ao sistema.
+# ─────────────────────────────────────────────────────────────────
+var _last_corruption_event_turn: int = -99
+
+func _process_corruption() -> void:
+	var n = player_nation
+	if n == null or current_turn - _last_corruption_event_turn < 3:
+		return
+	var corr: float = n.corrupcao
+	var conf: float = n.confianca_investidor
+
+	# 1) ESCÂNDALO DE PROPINA — corrupção alta ocasionalmente estoura na mídia
+	if corr >= 55.0 and randf() < (corr - 55.0) / 45.0 * 0.25:
+		var desvio: float = max(1.0, n.pib_bilhoes_usd * 0.004 * (corr / 100.0))
+		n.tesouro = max(0.0, n.tesouro - desvio)
+		n.tesouro_desviado_total += desvio
+		n.apoio_popular = max(0.0, n.apoio_popular - 5.0)
+		n.confianca_investidor = max(0.0, n.confianca_investidor - 6.0)
+		_last_corruption_event_turn = current_turn
+		_log_news({
+			"type": "corrupcao",
+			"headline": "🔴 ESCÂNDALO: US$%.1fB desviados dos cofres públicos" % desvio,
+			"body": "Investigação revela esquema de propina. Apoio popular e confiança do mercado despencam.",
+			"involves_player": true,
+			"color": Color(1, 0.3, 0.3),
+		}, [n.codigo_iso], n.continente)
+		return
+
+	# 2) ÊXODO DE EMPRESA — confiança baixa faz multinacionais anunciarem saída
+	if conf <= 35.0 and randf() < (35.0 - conf) / 35.0 * 0.22:
+		var perda: float = n.pib_bilhoes_usd * 0.006
+		n.apply_pib_multiplier(1.0 - 0.006)
+		n.empresas_sairam += 1
+		n.confianca_investidor = max(0.0, n.confianca_investidor - 3.0)
+		_last_corruption_event_turn = current_turn
+		var setores := ["montadora", "petroleira", "banco internacional", "gigante de tecnologia", "mineradora"]
+		var setor: String = setores[randi() % setores.size()]
+		_log_news({
+			"type": "corrupcao",
+			"headline": "🏭 %s anuncia saída do país" % setor.capitalize(),
+			"body": "Insegurança jurídica e corrupção citadas. Perda de ~US$%.1fB em investimento e empregos." % perda,
+			"involves_player": true,
+			"color": Color(1, 0.5, 0.3),
+		}, [n.codigo_iso], n.continente)
+		return
+
+	# 3) OPERAÇÃO ANTICORRUPÇÃO — recompensa narrativa quando corrupção está BAIXANDO
+	#    e já foi alta: sinaliza que o esforço do jogador está dando certo.
+	if corr <= 35.0 and conf >= 55.0 and n.tesouro_desviado_total > 5.0 and randf() < 0.12:
+		n.confianca_investidor = min(100.0, n.confianca_investidor + 4.0)
+		n.apoio_popular = min(100.0, n.apoio_popular + 3.0)
+		_last_corruption_event_turn = current_turn
+		_log_news({
+			"type": "corrupcao",
+			"headline": "⚖️ Operação anticorrupção desarticula esquema",
+			"body": "Justiça recupera parte dos recursos desviados. Investidores voltam a confiar no país.",
+			"involves_player": true,
+			"color": Color(0.4, 0.9, 0.6),
+		}, [n.codigo_iso], n.continente)
 
 # ─────────────────────────────────────────────────────────────────
 # EMBAIXADA — via API central (consome ação como toda iniciativa)
@@ -1759,7 +1825,9 @@ func _apply_panel_action(n, action_id: String) -> String:
 		"combater_corrupcao":
 			var v: float = 15.0 * mult
 			n.corrupcao = max(0.0, n.corrupcao - v)
-			return "Corrupção -%d%%" % int(v)
+			# Combater corrupção restaura a confiança do investidor (sinal ao mercado)
+			n.confianca_investidor = min(100.0, n.confianca_investidor + 4.0 * mult)
+			return "Corrupção -%d%%, Confiança +%d" % [int(v), int(4.0 * mult)]
 		"reforma_politica":
 			var ve: float = 12.0 * mult
 			var vf: float = 5.0 * mult
@@ -1814,7 +1882,9 @@ func _apply_panel_action(n, action_id: String) -> String:
 			var vej: float = 4.0 * mult
 			n.corrupcao = max(0.0, n.corrupcao - vcj)
 			n.estabilidade_politica = min(100.0, n.estabilidade_politica + vej)
-			return "Corrup -%d, Estab +%d" % [int(vcj), int(vej)]
+			# Segurança jurídica atrai investidores de volta (forte sinal institucional)
+			n.confianca_investidor = min(100.0, n.confianca_investidor + 6.0 * mult)
+			return "Corrup -%d, Estab +%d, Confiança +%d" % [int(vcj), int(vej), int(6.0 * mult)]
 		"investir_previdencia":
 			_add_social_spend(n, "previdencia")
 			var va: float = 3.0 * mult

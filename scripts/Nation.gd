@@ -25,6 +25,14 @@ var corrupcao: float = 30.0
 var burocracia_eficiencia: float = 70.0
 var felicidade: float = 60.0
 
+# ── CONFIANÇA DO INVESTIDOR / IED (Investimento Estrangeiro Direto) ──
+# 0-100: sobe com baixa corrupção + estabilidade + burocracia; cai com
+# corrupção alta e guerra. Alta confiança = empresas ENTRAM (bônus de PIB);
+# baixa = empresas SAEM (êxodo de capital, PIB encolhe).
+var confianca_investidor: float = 50.0
+var empresas_sairam: int = 0        # acumulado no jogo (p/ manchetes)
+var tesouro_desviado_total: float = 0.0  # total roubado pela corrupção (p/ UI/eventos)
+
 # Eleições
 var proxima_eleicao_turno = null  # Variant: int ou null
 var intervalo_eleicoes: int = 20
@@ -156,6 +164,9 @@ func from_dict(data: Dictionary, code: String, baked_tier: String = "") -> Natio
 
 	# Gabinete de ministros (6 pastas, nível 1)
 	_init_ministerios()
+
+	# Confiança do investidor inicial: derivada das instituições de partida
+	confianca_investidor = clamp(55.0 - corrupcao * 0.6 + (estabilidade_politica - 50.0) * 0.3, 10.0, 90.0)
 
 	return self
 
@@ -315,6 +326,14 @@ func update_pib(global_factor: float = 1.0) -> void:
 	if tesouro <= 0.0: growth -= 0.003
 	if divida_publica > pib_bilhoes_usd * 1.5: growth -= 0.004
 	growth += min(0.005, tecnologias_concluidas.size() * 0.0003)
+	# INVESTIMENTO ESTRANGEIRO (IED): confiança alta atrai capital (+cresc.),
+	# baixa provoca ÊXODO de empresas (-cresc.). Centro em 50 (neutro):
+	# confiança 100 → +0.4%/tri; confiança 0 → -0.5%/tri (fuga dói mais).
+	var ied_delta: float = (confianca_investidor - 50.0) / 50.0  # -1 … +1
+	if ied_delta >= 0.0:
+		growth += ied_delta * 0.004
+	else:
+		growth += ied_delta * 0.005  # êxodo pesa mais que influxo
 	growth = clamp(growth, -0.03, 0.035)
 	pib_bilhoes_usd *= (1.0 + growth)
 
@@ -367,6 +386,16 @@ func process_turn_finances() -> void:
 			tesouro -= pagamento
 			divida_publica = max(0.0, divida_publica - pagamento)
 		default_turnos = 0
+	# ── ROUBO DO TESOURO PELA CORRUPÇÃO ──
+	# Acima de 50% de corrupção, uma fração do tesouro é DESVIADA a cada turno.
+	# Escala de ~0% (aos 50%) até ~4%/turno (aos 100%). Reversível: baixar a
+	# corrupção estanca a sangria. Dá ao jogador o "sinto o dinheiro sumindo".
+	if corrupcao > 50.0 and tesouro > 0.0:
+		var taxa_desvio: float = (corrupcao - 50.0) / 50.0 * 0.04  # 0 → 0.04
+		var desviado: float = tesouro * taxa_desvio
+		tesouro = max(0.0, tesouro - desviado)
+		tesouro_desviado_total += desviado
+
 	# Cap anti-acúmulo infinito, com PISO de $150B: sem o piso, o boost de
 	# tesouro dado a nações pequenas (tier difícil) era apagado no 1º turno
 	# (ex.: PIB $10B → cap $2.5B destruía os $200B+ de boost inicial).
@@ -418,6 +447,20 @@ func update_government(global_factor: float = 1.0) -> void:
 	elif "COMUNIS" in regime_politico: corr_base = 40.0
 	corrupcao += (corr_base - corrupcao) * 0.03
 	if randf() < 0.3: corrupcao += randf() * 2.0 - 1.0
+
+	# CONFIANÇA DO INVESTIDOR: alvo puxado por instituições. Corrupção é o maior
+	# repelente de capital; estabilidade e burocracia atraem. Guerra afugenta.
+	var wars_ci: int = em_guerra.size()
+	var conf_target: float = clamp(
+		55.0
+		- corrupcao * 0.75          # corrupção 70% já derruba ~52 pts
+		+ (estabilidade_politica - 50.0) * 0.35
+		+ (burocracia_eficiencia - 50.0) * 0.25
+		- wars_ci * 8.0
+		- max(0.0, inflacao - 15.0) * 0.4,
+		0.0, 100.0)
+	# Confiança se move devagar (capital tem inércia — decisões de anos)
+	confianca_investidor = clamp(confianca_investidor * 0.88 + conf_target * 0.12, 0.0, 100.0)
 
 	# Burocracia converge para 70
 	burocracia_eficiencia += (70.0 - burocracia_eficiencia) * 0.05

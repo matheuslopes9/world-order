@@ -388,6 +388,47 @@ func _run() -> void:
 	_check(snap.size() == 6, "snapshot do gabinete tem 6 pastas: %d" % snap.size())
 	_check(snap[0].has("nivel") and snap[0].has("xp_pct") and snap[0].has("role"), "snapshot traz nível/xp/role p/ a UI")
 
+	# ── 15. Corrupção: roubo do tesouro, IED, fuga de empresas ──
+	print("[15] Espiral da corrupção")
+	var nc = E.player_nation
+	# Roubo do tesouro: corrupção alta desvia parte do tesouro por turno
+	nc.corrupcao = 90.0
+	nc.tesouro = 1000.0
+	var desv0: float = nc.tesouro_desviado_total
+	nc.process_turn_finances()
+	_check(nc.tesouro_desviado_total > desv0, "corrupção 90%% desvia tesouro (roubou $%.1fB neste turno)" % (nc.tesouro_desviado_total - desv0))
+	# Corrupção baixa NÃO rouba
+	nc.corrupcao = 20.0
+	nc.tesouro = 1000.0
+	var desv1: float = nc.tesouro_desviado_total
+	nc.process_turn_finances()
+	_check(abs(nc.tesouro_desviado_total - desv1) < 0.001, "corrupção 20%% NÃO desvia tesouro")
+	# Confiança do investidor cai com corrupção alta (via update_government)
+	nc.corrupcao = 85.0
+	nc.confianca_investidor = 60.0
+	for i in 15:
+		nc.update_government(0.02)
+	_check(nc.confianca_investidor < 40.0, "corrupção alta derruba confiança do investidor (%.0f)" % nc.confianca_investidor)
+	# Ação anticorrupção recupera confiança
+	nc.corrupcao = 50.0
+	var conf_antes: float = nc.confianca_investidor
+	E.player_actions_remaining = 3
+	nc.tesouro = 500.0
+	E.player_panel_action("combater_corrupcao")
+	_check(nc.confianca_investidor > conf_antes, "combater corrupção recupera confiança (%.0f→%.0f)" % [conf_antes, nc.confianca_investidor])
+	# IED afeta o PIB: confiança alta cresce mais que confiança baixa
+	var n_hi = load("res://scripts/Nation.gd").new()
+	n_hi.from_dict({"nome": "Hi", "pib_bilhoes_usd": 1000.0, "populacao": 50000000, "estabilidade_politica": 60}, "XH")
+	var n_lo = load("res://scripts/Nation.gd").new()
+	n_lo.from_dict({"nome": "Lo", "pib_bilhoes_usd": 1000.0, "populacao": 50000000, "estabilidade_politica": 60}, "XL")
+	n_hi.confianca_investidor = 90.0
+	n_lo.confianca_investidor = 10.0
+	n_hi.corrupcao = 20.0
+	n_lo.corrupcao = 20.0
+	n_hi.update_pib(1.0)
+	n_lo.update_pib(1.0)
+	_check(n_hi.pib_bilhoes_usd > n_lo.pib_bilhoes_usd, "IED alto cresce mais que IED baixo ($%.1fB vs $%.1fB)" % [n_hi.pib_bilhoes_usd, n_lo.pib_bilhoes_usd])
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:

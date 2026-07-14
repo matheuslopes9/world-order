@@ -382,6 +382,17 @@ func _render_economia() -> void:
 	_add_data_row("Dívida Pública", _money(n.divida_publica))
 	_add_data_row("Inflação", "%.1f%%" % n.inflacao)
 	_add_data_row("População", _fmt_thousands(n.populacao))
+	# Confiança do investidor / IED — o elo corrupção → empresas → PIB
+	var conf: float = n.confianca_investidor
+	var conf_cor := Color(0.4, 1, 0.6) if conf >= 55.0 else (Color(1, 0.5, 0.4) if conf < 35.0 else Color(1, 0.82, 0.3))
+	var conf_tag := "atrai capital ↗" if conf >= 55.0 else ("ÊXODO de empresas ↘" if conf < 35.0 else "estável")
+	_add_data_row("🏢 Confiança do Investidor", "%d%%  (%s)" % [int(conf), conf_tag], conf_cor)
+	if n.empresas_sairam > 0:
+		_add_data_row("  └ empresas que deixaram o país", "%d" % n.empresas_sairam, Color(1, 0.55, 0.4))
+	if n.tesouro_desviado_total > 0.5:
+		_add_data_row("  └ 💸 desviado pela corrupção", _money(n.tesouro_desviado_total), Color(1, 0.45, 0.4))
+	if n.corrupcao >= 50.0:
+		_add_hint_label("⚠ Corrupção em %d%%: parte do tesouro é desviada todo turno e empresas fogem. Combata-a na Casa Civil ou com Reforma Judicial." % int(n.corrupcao))
 	var receita: float = n.calc_receita() if n.has_method("calc_receita") else 0.0
 	var despesas: float = n.calc_despesas() if n.has_method("calc_despesas") else 0.0
 	var exportacao: float = n.calc_receita_exportacao() if n.has_method("calc_receita_exportacao") else 0.0

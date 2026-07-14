@@ -81,6 +81,13 @@ func _ready() -> void:
 	for _i in 2:
 		if GameEngine.tech: GameEngine.tech.process_turn()
 
+	# Corrupção alta p/ o painel Fazenda demonstrar a espiral (IED, êxodo, desvio)
+	pn.corrupcao = 68.0
+	pn.confianca_investidor = 28.0
+	pn.empresas_sairam = 4
+	pn.tesouro_desviado_total = 23.5
+	# (valores de demonstração — a espiral real é dirigida pela corrupção em jogo)
+
 	# 5 — Painéis
 	for panel_id in ["gabinete", "governo", "economia", "seguranca", "saude", "educacao", "diplomacia", "tech", "intel", "situacao", "historico"]:
 		wm._open_overlay_modal(panel_id)

@@ -98,6 +98,7 @@ func _reset_engine() -> void:
 	E._last_bailout_turn = -999
 	E.active_shock = {}
 	E._last_shock_turn = 0
+	E._last_corruption_event_turn = -99
 	E._war_score.clear()
 	E.settings["difficulty"] = "normal"
 	E.settings["mode"] = "inspirado"
@@ -229,6 +230,10 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 		"power_rank_f": int(E.player_power_rank_history.back()) if E.player_power_rank_history.size() > 0 else 0,
 		"techs": n.tecnologias_concluidas.size(),
 		"min_niveis": _snapshot_niveis(n),
+		"corrupcao_f": snappedf(n.corrupcao, 0.1),
+		"confianca_f": snappedf(n.confianca_investidor, 0.1),
+		"empresas_sairam": n.empresas_sairam,
+		"desviado": snappedf(n.tesouro_desviado_total, 0.1),
 		"treaties": _count_treaties(code),
 		"wars": wars_player,
 		"decisions": _decisions,
