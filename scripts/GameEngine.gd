@@ -204,6 +204,7 @@ func _apply_year_2000_overrides() -> void:
 		# Sempre limpa techs (depois reaplica universais)
 		n.tecnologias_concluidas = universal_tech.duplicate()
 		n.pesquisa_atual = null
+		n.pesquisa_por_ministerio = {}
 		n.divida_publica = 0.0
 		# Limpa estado de guerra/relações pra começar do zero (situação política reseta)
 		n.em_guerra = []
@@ -373,6 +374,12 @@ func end_turn() -> void:
 		n.process_turn_finances()
 		n.update_elections()
 		n.record_history()
+		# Gabinete: verba de P&D alocada rende XP contínuo ao ministério
+		if n.ministerios != null:
+			for pasta in n.ministerios:
+				var vb: float = float(n.ministerios[pasta].get("verba", 0.0))
+				if vb > 0.0:
+					n.add_ministry_xp(pasta, vb * 0.15)
 
 	# IA: nações estrategicamente decidem (declarar guerra, propor paz, espionar)
 	_run_ai_turn()
@@ -891,6 +898,15 @@ func _ai_decide(n) -> void:
 	var treasury: float = n.tesouro
 	var stab: float = n.estabilidade_politica
 
+	# 0. GABINETE — nações com folga investem P&D (sobem níveis + abrem trilhas).
+	# Verba modesta p/ não desbalancear as finanças da IA; foco em educação/casa civil.
+	if n.ministerios != null and treasury >= 120.0 and stab >= 45.0:
+		var rd_base: float = n.pib_bilhoes_usd * 0.006
+		if float(n.ministerios["educacao"].get("verba", 0.0)) <= 0.0:
+			n.ministerios["educacao"]["verba"] = rd_base
+			n.ministerios["casa_civil"]["verba"] = rd_base * 0.7
+			n.ministerios["fazenda"]["verba"] = rd_base * 0.6
+
 	# 1. PROPOR PAZ — exausto em guerra
 	if n.em_guerra.size() > 0:
 		var peace_urgency: float = (0.4 if treasury < 50.0 else 0.0) + (0.3 if stab < 40.0 else 0.0) + (1.0 - aggro) * 0.3
@@ -931,17 +947,30 @@ func _ai_decide(n) -> void:
 				_declare_war(n.codigo_iso, worst_code)
 				return
 
-	# 3. PESQUISA — nações com folga desenvolvem tecnologia
-	# (sem isto o jogador monopolizava o eixo tecnológico do ranking de poder)
-	if tech != null and n.pesquisa_atual == null and n.tesouro >= 60.0 and randf() < 0.25:
+	# 3. PESQUISA — nações com folga desenvolvem tecnologia em trilhas paralelas
+	# (sem isto o jogador monopolizava o eixo tecnológico do ranking de poder).
+	# Preenche uma trilha ociosa até o limite de slots do país.
+	var slots_ia: int = n.research_slots() if n.has_method("research_slots") else 2
+	if tech != null and n.pesquisa_por_ministerio.size() < slots_ia and n.tesouro >= 60.0 and randf() < 0.35:
 		var avail: Array = tech.get_available_techs(n)
 		if not avail.is_empty():
-			var cheapest: Dictionary = avail[0]
+			# Escolhe a que mais DESTRAVA a árvore numa pasta livre (não a mais barata)
+			var ocupadas: Dictionary = {}
+			for p in n.pesquisa_por_ministerio:
+				ocupadas[p] = true
+			var best: Dictionary = {}
+			var best_sc: float = -1.0
 			for t in avail:
-				if float(t.get("custo", 999)) < float(cheapest.get("custo", 999)):
-					cheapest = t
-			tech.start_research(n, String(cheapest.get("id", "")))
-			return
+				if ocupadas.has(tech.ministry_of(t)):
+					continue
+				var sc: float = 1.0 + int(tech.unlock_count.get(String(t.get("id", "")), 0)) * 3.0 + int(t.get("tier", 1)) * 1.5
+				sc += 30.0 / max(1.0, float(t.get("custo", 50)))
+				if sc > best_sc:
+					best_sc = sc
+					best = t
+			if not best.is_empty():
+				tech.start_research(n, String(best.get("id", "")))
+				return
 
 	# 4. AÇÃO TÁTICA simples (investe pequeno em saúde/propaganda)
 	if treasury >= 20.0 and randf() < 0.4:
@@ -1370,9 +1399,60 @@ func player_start_research(tech_id: String) -> Dictionary:
 	return {"ok": true}
 
 # Cancelar pesquisa NÃO consome ação (correção/reversão)
-func player_cancel_research() -> void:
+func player_cancel_research(pasta: String = "") -> void:
 	if tech and player_nation:
-		tech.cancel_research(player_nation)
+		tech.cancel_research(player_nation, pasta)
+
+# ─────────────────────────────────────────────────────────────────
+# GABINETE DE MINISTROS
+# ─────────────────────────────────────────────────────────────────
+
+# Aloca verba permanente de P&D a um ministério (acelera sua trilha + dá XP).
+# NÃO consome ação — é ajuste orçamentário, feito livremente.
+func player_alloc_rd(pasta: String, verba: float) -> Dictionary:
+	var n = player_nation
+	if n == null or not n.ministerios.has(pasta):
+		return {"ok": false, "reason": "Ministério inválido"}
+	verba = clampf(verba, 0.0, max(20.0, n.pib_bilhoes_usd * 0.03))
+	n.ministerios[pasta]["verba"] = verba
+	# Verba investida rende XP proporcional (uma vez por ajuste pra cima)
+	if verba > 0:
+		n.add_ministry_xp(pasta, verba * 0.4)
+	return {"ok": true, "verba": verba}
+
+# Player define o foco de pesquisa de um ministério (inicia a trilha da pasta).
+func player_set_research_focus(tech_id: String) -> Dictionary:
+	return player_start_research(tech_id)
+
+# Snapshot do gabinete p/ a UI: cada pasta com nível, xp%, verba, trilha ativa.
+func get_cabinet_snapshot() -> Array:
+	var out: Array = []
+	var n = player_nation
+	if n == null:
+		return out
+	var trilhas: Dictionary = tech.get_all_research_progress(n) if tech != null else {}
+	for pasta in n.MINISTERIOS:
+		var d: Dictionary = n.ministerios.get(pasta, {})
+		var nv: int = int(d.get("nivel", 1))
+		var xp: float = float(d.get("xp", 0.0))
+		var xp_atual: float = n.MIN_XP_LIMIARES[nv - 1]
+		var xp_prox: float = n.MIN_XP_LIMIARES[nv] if nv < n.MIN_NIVEL_MAX else xp_atual
+		var xp_pct: float = 100.0
+		if nv < n.MIN_NIVEL_MAX and xp_prox > xp_atual:
+			xp_pct = clampf((xp - xp_atual) / (xp_prox - xp_atual) * 100.0, 0, 100)
+		var meta: Dictionary = MINISTRY_META.get(pasta, {})
+		out.append({
+			"pasta": pasta,
+			"nome": meta.get("nome", pasta),
+			"icon": meta.get("icon", "•"),
+			"role": meta.get("role", "presidente"),
+			"nivel": nv,
+			"xp": xp,
+			"xp_pct": xp_pct,
+			"verba": float(d.get("verba", 0.0)),
+			"pesquisa": trilhas.get(pasta, {}),
+		})
+	return out
 
 # Sanções: jogador impõe sanção a uma nação alvo
 # Custa $30B + 1 ação. Aplica -1.5% PIB/turno no alvo por 5 turnos.
@@ -1506,29 +1586,119 @@ func _process_active_sanctions() -> void:
 # Antes: efeitos duplicados na UI e no bot, com custos/valores divergentes.
 # ─────────────────────────────────────────────────────────────────
 
+# Cada ação tem "min" = pasta do gabinete que a executa (crédito de XP + escala por nível).
+# 6 pastas: casa_civil, fazenda, seguranca, saude, educacao, exterior.
 const PANEL_ACTIONS := {
-	# ── GOVERNO (efeitos escalam com get_action_multiplier) ──
-	"propaganda":           {"panel": "governo",  "cost": 10,  "label": "📢 PROPAGANDA",        "desc": "Apoio +10%"},
-	"combater_corrupcao":   {"panel": "governo",  "cost": 20,  "label": "⚖ ANTI-CORRUPÇÃO",    "desc": "Corrupção -15%"},
-	"reforma_politica":     {"panel": "governo",  "cost": 30,  "label": "🏛 REFORMA POLÍTICA",  "desc": "Estab +12, Felic +5"},
-	"investir_saude":       {"panel": "governo",  "cost": 20,  "label": "🏥 SAÚDE",             "desc": "Felic +4, Apoio +2"},
-	"investir_educacao":    {"panel": "governo",  "cost": 20,  "label": "📚 EDUCAÇÃO",          "desc": "Pesquisa +5%"},
-	"investir_seguranca":   {"panel": "governo",  "cost": 20,  "label": "👮 SEGURANÇA",         "desc": "Estab +3, Corrup -2"},
-	"investir_previdencia": {"panel": "governo",  "cost": 20,  "label": "👵 PREVIDÊNCIA",       "desc": "Apoio +3"},
-	"estimulo_fiscal":      {"panel": "governo",  "cost": 80,  "label": "💰 ESTÍMULO FISCAL",   "desc": "PIB +2%, Felic +5"},
-	"aperto_monetario":     {"panel": "governo",  "cost": 30,  "label": "🏦 APERTO MONETÁRIO",  "desc": "Inflação -12, PIB -0.5%"},
-	# ── MILITAR ──
-	"recrutar_infantaria":  {"panel": "militar",  "cost": 5,   "label": "🪖 RECRUTAR INFANTARIA", "desc": "+10.000 soldados"},
-	"recrutar_tanques":     {"panel": "militar",  "cost": 15,  "label": "🛡 RECRUTAR TANQUES",    "desc": "+200 tanques"},
-	"recrutar_avioes":      {"panel": "militar",  "cost": 25,  "label": "✈ RECRUTAR AVIÕES",     "desc": "+50 aviões"},
-	"recrutar_navios":      {"panel": "militar",  "cost": 30,  "label": "⚓ RECRUTAR NAVIOS",     "desc": "+5 navios"},
-	"construir_base":       {"panel": "militar",  "cost": 40,  "label": "🏗 CONSTRUIR BASE",      "desc": "Poder +10"},
-	"aumentar_orcamento":   {"panel": "militar",  "cost": 20,  "label": "💰 +20% ORÇAMENTO MIL.", "desc": "Orçamento permanente +20%"},
-	# ── ECONOMIA ──
-	"infra_basica":         {"panel": "economia", "cost": 50,  "label": "🏗 INFRAESTRUTURA",      "desc": "PIB +1%"},
-	"infra_megaprojeto":    {"panel": "economia", "cost": 100, "label": "🌉 MEGAPROJETO",         "desc": "PIB +2.5%, Estab -2"},
-	"subsidios":            {"panel": "economia", "cost": 40,  "label": "💵 SUBSÍDIOS SETORIAIS", "desc": "PIB +1.5%, Corrup +3"},
-	"explorar_recurso":     {"panel": "economia", "cost": 20,  "label": "⛏ EXPLORAR RECURSOS",   "desc": "Recurso escasso +15%"},
+	# ── CASA CIVIL (coordenação política — escala com nível da pasta) ──
+	"propaganda":           {"panel": "governo",  "min": "casa_civil", "cost": 10,  "label": "📢 PROPAGANDA",        "desc": "Apoio +10%"},
+	"combater_corrupcao":   {"panel": "governo",  "min": "casa_civil", "cost": 20,  "label": "⚖ ANTI-CORRUPÇÃO",    "desc": "Corrupção -15%"},
+	"reforma_politica":     {"panel": "governo",  "min": "casa_civil", "cost": 30,  "label": "🏛 REFORMA POLÍTICA",  "desc": "Estab +12, Felic +5"},
+	"investir_previdencia": {"panel": "governo",  "min": "casa_civil", "cost": 20,  "label": "👵 PREVIDÊNCIA",       "desc": "Apoio +3"},
+	# ── FAZENDA (economia) ──
+	"estimulo_fiscal":      {"panel": "economia", "min": "fazenda",    "cost": 80,  "label": "💰 ESTÍMULO FISCAL",   "desc": "PIB +2%, Felic +5"},
+	"aperto_monetario":     {"panel": "economia", "min": "fazenda",    "cost": 30,  "label": "🏦 APERTO MONETÁRIO",  "desc": "Inflação -12, PIB -0.5%"},
+	"infra_basica":         {"panel": "economia", "min": "fazenda",    "cost": 50,  "label": "🏗 INFRAESTRUTURA",      "desc": "PIB +1%"},
+	"infra_megaprojeto":    {"panel": "economia", "min": "fazenda",    "cost": 100, "label": "🌉 MEGAPROJETO",         "desc": "PIB +2.5%, Estab -2"},
+	"subsidios":            {"panel": "economia", "min": "fazenda",    "cost": 40,  "label": "💵 SUBSÍDIOS SETORIAIS", "desc": "PIB +1.5%, Corrup +3"},
+	"explorar_recurso":     {"panel": "economia", "min": "fazenda",    "cost": 20,  "label": "⛏ EXPLORAR RECURSOS",   "desc": "Recurso escasso +15%"},
+	# ── SAÚDE ──
+	"investir_saude":       {"panel": "saude",    "min": "saude",      "cost": 20,  "label": "🏥 INVESTIR NO SUS",     "desc": "Felic +4, Apoio +2"},
+	"campanha_vacinacao":   {"panel": "saude",    "min": "saude",      "cost": 30,  "label": "💉 CAMPANHA DE VACINAÇÃO","desc": "Felic +6, População +0.4%"},
+	"construir_hospitais":  {"panel": "saude",    "min": "saude",      "cost": 45,  "label": "🏥 REDE HOSPITALAR",     "desc": "Felic +5, Estab +3"},
+	# ── EDUCAÇÃO ──
+	"investir_educacao":    {"panel": "educacao", "min": "educacao",   "cost": 20,  "label": "📚 INVESTIR NO ENSINO",  "desc": "Pesquisa +5%"},
+	"universidades":        {"panel": "educacao", "min": "educacao",   "cost": 45,  "label": "🎓 UNIVERSIDADES",       "desc": "Pesquisa +8%, PIB +0.5%"},
+	"bolsas_pesquisa":      {"panel": "educacao", "min": "educacao",   "cost": 35,  "label": "🔬 BOLSAS DE PESQUISA",  "desc": "Pesquisa +10%"},
+	# ── JUSTIÇA & SEGURANÇA (segurança interna + defesa + guerra) ──
+	"investir_seguranca":   {"panel": "seguranca","min": "seguranca",  "cost": 20,  "label": "👮 SEGURANÇA PÚBLICA",   "desc": "Estab +3, Corrup -2"},
+	"reforma_judicial":     {"panel": "seguranca","min": "seguranca",  "cost": 35,  "label": "⚖ REFORMA JUDICIAL",    "desc": "Corrup -10, Estab +4"},
+	"recrutar_infantaria":  {"panel": "seguranca","min": "seguranca",  "cost": 5,   "label": "🪖 RECRUTAR INFANTARIA", "desc": "+10.000 soldados"},
+	"recrutar_tanques":     {"panel": "seguranca","min": "seguranca",  "cost": 15,  "label": "🛡 RECRUTAR TANQUES",    "desc": "+200 tanques"},
+	"recrutar_avioes":      {"panel": "seguranca","min": "seguranca",  "cost": 25,  "label": "✈ RECRUTAR AVIÕES",     "desc": "+50 aviões"},
+	"recrutar_navios":      {"panel": "seguranca","min": "seguranca",  "cost": 30,  "label": "⚓ RECRUTAR NAVIOS",     "desc": "+5 navios"},
+	"construir_base":       {"panel": "seguranca","min": "seguranca",  "cost": 40,  "label": "🏗 CONSTRUIR BASE",      "desc": "Poder +10"},
+	"aumentar_orcamento":   {"panel": "seguranca","min": "seguranca",  "cost": 20,  "label": "💰 +20% ORÇAMENTO MIL.", "desc": "Orçamento permanente +20%"},
+}
+
+# Categoria de tech (tech.json) → ministério dono da trilha de pesquisa.
+const MINISTRY_OF_CATEGORY := {
+	"SOCIAL": "saude", "DIGITAL": "educacao", "ESPACIAL": "casa_civil",
+	"ENERGIA": "fazenda", "MILITAR": "seguranca",
+}
+# Cada tech pertence a UMA pasta do gabinete — trilhas equilibradas (~9-10 techs/pasta)
+# para que a árvore inteira seja alcançável em 100 turnos com pesquisa paralela.
+const MINISTRY_OF_TECH := {
+	# DIGITAL
+	"ciberseguranca_nacional": "seguranca",
+	"computacao_quantica": "educacao",
+	"constelacao_satelites": "casa_civil",
+	"criptografia_pos_quantica": "educacao",
+	"guerra_cibernetica": "seguranca",
+	"ia_aplicada": "educacao",
+	"ia_geral": "educacao",
+	"ia_militar": "casa_civil",
+	"internet_quantica": "educacao",
+	"rede_5g": "educacao",
+	"vigilancia_em_massa": "seguranca",
+	# ENERGIA
+	"armazenamento_grid": "fazenda",
+	"bateria_estado_solido": "fazenda",
+	"biocombustivel_avancado": "saude",
+	"energia_solar_espacial": "fazenda",
+	"eolica_offshore": "fazenda",
+	"fusao_nuclear": "saude",
+	"grade_inteligente": "fazenda",
+	"hidroeletrica": "fazenda",
+	"hidrogenio_verde": "fazenda",
+	"reatores_smr": "fazenda",
+	"solar_larga_escala": "fazenda",
+	# ESPACIAL
+	"asat": "exterior",
+	"base_lunar": "casa_civil",
+	"defesa_espacial": "exterior",
+	"estacao_espacial": "casa_civil",
+	"foguetes_lancamento": "casa_civil",
+	"foguetes_reutilizaveis": "casa_civil",
+	"gnss_proprio": "casa_civil",
+	"mineracao_asteroidal": "exterior",
+	"satelites_comunicacao": "casa_civil",
+	"satelites_imageamento": "casa_civil",
+	# MILITAR
+	"armas_hipersonicas": "exterior",
+	"artilharia_guiada": "seguranca",
+	"caca_5a_geracao": "exterior",
+	"defesa_antimissil": "seguranca",
+	"drones_letais_autonomos": "seguranca",
+	"drones_tatticos": "seguranca",
+	"fragatas_multiissao": "exterior",
+	"laser_alta_energia": "exterior",
+	"misseis_cruzeiro": "seguranca",
+	"sistema_antiaereo": "seguranca",
+	"submarinos_ataque": "exterior",
+	"superporta_avioes": "exterior",
+	"tanques_3g": "seguranca",
+	# SOCIAL
+	"cidades_inteligentes": "saude",
+	"colonizacao_espacial": "exterior",
+	"economia_circular": "saude",
+	"educacao_universal": "educacao",
+	"genomica_precisao": "saude",
+	"identidade_digital_soberana": "educacao",
+	"medicina_regenerativa": "saude",
+	"programa_espacial": "casa_civil",
+	"prolongamento_vida": "saude",
+	"saude_universal": "saude",
+	"universidades_elite": "educacao",
+	"vacinacao_em_massa": "saude",
+}
+# Labels e ícones das pastas p/ a UI.
+const MINISTRY_META := {
+	"casa_civil": {"nome": "Casa Civil",           "icon": "🏛", "role": "casa_civil"},
+	"fazenda":    {"nome": "Fazenda",              "icon": "💰", "role": "economia"},
+	"seguranca":  {"nome": "Justiça & Segurança",  "icon": "⚖", "role": "seguranca"},
+	"saude":      {"nome": "Saúde",                "icon": "🏥", "role": "saude"},
+	"educacao":   {"nome": "Educação",             "icon": "📚", "role": "educacao"},
+	"exterior":   {"nome": "Relações Exteriores",  "icon": "🌐", "role": "chanceler"},
 }
 
 # Lista ordenada das ações de um painel (pra UI montar os botões)
@@ -1559,12 +1729,27 @@ func player_panel_action(action_id: String) -> Dictionary:
 		return {"ok": false, "reason": "Sem ações restantes neste turno (limite: %d)" % PLAYER_ACTIONS_PER_TURN}
 	n.tesouro -= cost
 	var msg: String = _apply_panel_action(n, action_id)
+	# Credita XP ao ministério dono da ação (progressão do gabinete)
+	var pasta: String = String(meta.get("min", ""))
+	if pasta != "" and n.has_method("add_ministry_xp"):
+		if n.add_ministry_xp(pasta, 25.0 + cost * 0.5):
+			_log_news({
+				"type": "gabinete",
+				"headline": "📈 %s sobe para nível %d" % [MINISTRY_META.get(pasta, {}).get("nome", pasta), n.ministry_level(pasta)],
+				"body": "Ministério mais forte: ações mais eficazes e novas pesquisas liberadas.",
+				"involves_player": true,
+				"color": Color(0.5, 0.9, 1),
+			})
 	return {"ok": true, "msg": msg, "cost": cost}
 
 # Aplica o efeito da ação na nação. Mantém os valores calibrados
 # que antes viviam em GameOverlay (governo escala com mult; militar/economia não).
 func _apply_panel_action(n, action_id: String) -> String:
+	# Multiplicador base × força do ministério dono (nível 1→5)
+	var pasta: String = String(PANEL_ACTIONS.get(action_id, {}).get("min", ""))
 	var mult: float = n.get_action_multiplier()
+	if pasta != "" and n.has_method("ministry_action_mult"):
+		mult *= n.ministry_action_mult(pasta)
 	match action_id:
 		# ── GOVERNO ──
 		"propaganda":
@@ -1590,8 +1775,33 @@ func _apply_panel_action(n, action_id: String) -> String:
 			return "Felic +%d, Apoio +%d" % [int(vf), int(va)]
 		"investir_educacao":
 			_add_social_spend(n, "educacao")
-			n.velocidade_pesquisa = min(3.0, n.velocidade_pesquisa + 0.05)
-			return "Pesquisa +5%"
+			n.velocidade_pesquisa = min(3.0, n.velocidade_pesquisa + 0.05 * mult)
+			return "Pesquisa +%d%%" % int(5.0 * mult)
+		# ── SAÚDE ──
+		"campanha_vacinacao":
+			_add_social_spend(n, "saude")
+			var vf: float = 6.0 * mult
+			n.felicidade = min(100.0, n.felicidade + vf)
+			n.populacao = int(n.populacao * (1.0 + 0.004 * mult))
+			return "Felic +%d, População +%.1f%%" % [int(vf), 0.4 * mult]
+		"construir_hospitais":
+			_add_social_spend(n, "saude")
+			var vf2: float = 5.0 * mult
+			var ve2: float = 3.0 * mult
+			n.felicidade = min(100.0, n.felicidade + vf2)
+			n.estabilidade_politica = min(100.0, n.estabilidade_politica + ve2)
+			return "Felic +%d, Estab +%d" % [int(vf2), int(ve2)]
+		# ── EDUCAÇÃO ──
+		"universidades":
+			_add_social_spend(n, "educacao")
+			n.velocidade_pesquisa = min(3.0, n.velocidade_pesquisa + 0.08 * mult)
+			n.apply_pib_multiplier(1.0 + 0.005 * mult)
+			return "Pesquisa +%d%%, PIB +%.1f%%" % [int(8.0 * mult), 0.5 * mult]
+		"bolsas_pesquisa":
+			_add_social_spend(n, "educacao")
+			n.velocidade_pesquisa = min(3.0, n.velocidade_pesquisa + 0.10 * mult)
+			return "Pesquisa +%d%%" % int(10.0 * mult)
+		# ── JUSTIÇA & SEGURANÇA ──
 		"investir_seguranca":
 			_add_social_spend(n, "seguranca")
 			var ve: float = 3.0 * mult
@@ -1599,6 +1809,12 @@ func _apply_panel_action(n, action_id: String) -> String:
 			n.estabilidade_politica = min(100.0, n.estabilidade_politica + ve)
 			n.corrupcao = max(0.0, n.corrupcao - vc)
 			return "Estab +%d, Corrup -%d" % [int(ve), int(vc)]
+		"reforma_judicial":
+			var vcj: float = 10.0 * mult
+			var vej: float = 4.0 * mult
+			n.corrupcao = max(0.0, n.corrupcao - vcj)
+			n.estabilidade_politica = min(100.0, n.estabilidade_politica + vej)
+			return "Corrup -%d, Estab +%d" % [int(vcj), int(vej)]
 		"investir_previdencia":
 			_add_social_spend(n, "previdencia")
 			var va: float = 3.0 * mult

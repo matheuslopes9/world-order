@@ -1065,14 +1065,16 @@ func _make_news_card(entry: Dictionary) -> PanelContainer:
 # ─────────────────────────────────────────────────────────────────
 
 const ACTION_BUTTONS := [
-	{"id": "governo",    "icon": "🏛", "label": "Governo"},
-	{"id": "militar",    "icon": "⚔",  "label": "Militar"},
-	{"id": "economia",   "icon": "📊", "label": "Economia"},
-	{"id": "diplomacia", "icon": "🤝", "label": "Diplomacia"},
-	{"id": "tech",       "icon": "🔬", "label": "Tech"},
-	{"id": "intel",      "icon": "🕵", "label": "Intel"},
-	{"id": "situacao",   "icon": "🌐", "label": "Situação"},
-	{"id": "historico",  "icon": "📋", "label": "Histórico"},
+	{"id": "gabinete",   "icon": "🏛", "label": "Gabinete"},
+	{"id": "governo",    "icon": "📋", "label": "Casa Civil"},
+	{"id": "economia",   "icon": "💰", "label": "Fazenda"},
+	{"id": "seguranca",  "icon": "⚖",  "label": "Justiça & Seg."},
+	{"id": "saude",      "icon": "🏥", "label": "Saúde"},
+	{"id": "educacao",   "icon": "📚", "label": "Educação"},
+	{"id": "diplomacia", "icon": "🌐", "label": "Exterior"},
+	{"id": "tech",       "icon": "🔬", "label": "Pesquisa"},
+	{"id": "situacao",   "icon": "🗺", "label": "Situação"},
+	{"id": "historico",  "icon": "📜", "label": "Histórico"},
 	{"id": "noticias",   "icon": "📡", "label": "News"},
 ]
 

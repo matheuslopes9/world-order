@@ -202,9 +202,9 @@ func _phase_boot_and_select() -> void:
 # ─────────────────────────────────────────────────────────────────
 
 func _phase_panel_actions() -> void:
-	print("\n[3] BOTÕES DE AÇÃO DOS PAINÉIS (19 ações via clique real)")
+	print("\n[3] BOTÕES DE AÇÃO DOS PAINÉIS (ações via clique real, por ministério)")
 	var overlay = wm.game_overlay
-	var expected := {"governo": 9, "militar": 6, "economia": 4}
+	var expected := {"governo": 4, "economia": 6, "seguranca": 8, "saude": 3, "educacao": 3}
 	for panel_id in expected.keys():
 		wm._open_overlay_modal(panel_id)
 		await get_tree().process_frame

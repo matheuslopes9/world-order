@@ -99,9 +99,13 @@ func _render_panel(panel_id: String) -> void:
 	if panel_content == null: return
 	for c in panel_content.get_children(): c.queue_free()
 	match panel_id:
+		"gabinete":   _render_gabinete()
 		"governo":    _render_governo()
 		"militar":    _render_militar()
+		"seguranca":  _render_militar()   # Justiça & Segurança usa o painel militar (defesa+segurança)
 		"economia":   _render_economia()
+		"saude":      _render_saude()
+		"educacao":   _render_educacao()
 		"diplomacia": _render_diplomacia()
 		"tech":       _render_tech()
 		"intel":      _render_intel()
@@ -113,9 +117,169 @@ func _render_panel(panel_id: String) -> void:
 # PAINEL: GOVERNO
 # ─────────────────────────────────────────────────────────────────
 
+## PAINEL GABINETE — hub central: os 6 ministros com nível, XP e pesquisa.
+func _render_gabinete() -> void:
+	var n = GameEngine.player_nation
+	if n == null: return
+	var snap: Array = GameEngine.get_cabinet_snapshot()
+	_add_advisor_header("presidente", "GABINETE PRESIDENCIAL",
+		"Seu governo, Presidente. Cada ministério cresce com investimento — e mais ministérios pesquisam em paralelo.",
+		"neutro", Color(0.4, 0.8, 1))
+	_add_section_title("MINISTÉRIOS (%d trilhas de pesquisa simultâneas)" % n.research_slots())
+	for m in snap:
+		_add_minister_card(m)
+	_add_separator()
+	_add_hint_label("💡 Clique num ministério na barra inferior para agir nele. Suba o nível da Casa Civil para liberar mais trilhas de pesquisa paralelas.")
+
+## Card de um ministro no hub: retrato + nível + barra XP + pesquisa ativa.
+func _add_minister_card(m: Dictionary) -> void:
+	var box := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.12, 0.17, 0.92)
+	sb.border_width_left = 3
+	sb.border_color = Color(0.3, 0.6, 0.85)
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 8; sb.content_margin_right = 8
+	sb.content_margin_top = 7; sb.content_margin_bottom = 7
+	box.add_theme_stylebox_override("panel", sb)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	box.add_child(row)
+	var pv := PortraitView.make(GameEngine.player_nation.codigo_iso, String(m["role"]), "neutro", 52.0)
+	pv.custom_minimum_size = Vector2(52, 62)
+	pv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(pv)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 2)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(col)
+	var title := Label.new()
+	title.text = "%s %s" % [m["icon"], m["nome"]]
+	title.add_theme_color_override("font_color", Color(0.9, 0.95, 1))
+	title.add_theme_font_size_override("font_size", 12)
+	col.add_child(title)
+	# nível + estrelas
+	var nv: int = int(m["nivel"])
+	var stars := "★".repeat(nv) + "☆".repeat(5 - nv)
+	var lvl := Label.new()
+	lvl.text = "Nível %d  %s" % [nv, stars]
+	lvl.add_theme_color_override("font_color", Color(1, 0.82, 0.3))
+	lvl.add_theme_font_size_override("font_size", 10)
+	col.add_child(lvl)
+	# barra de XP
+	var bar := ProgressBar.new()
+	bar.custom_minimum_size = Vector2(0, 8)
+	bar.max_value = 100.0
+	bar.value = float(m["xp_pct"])
+	bar.show_percentage = false
+	col.add_child(bar)
+	# trilha de pesquisa ativa (se houver)
+	var pesq: Dictionary = m.get("pesquisa", {})
+	var info := Label.new()
+	if not pesq.is_empty():
+		info.text = "🔬 %s (%d%%)" % [pesq.get("name", "?"), int(pesq.get("pct", 0))]
+		info.add_theme_color_override("font_color", Color(0.5, 0.85, 1))
+	else:
+		var vb: float = float(m.get("verba", 0.0))
+		info.text = "P&D: $%dB/ano" % int(vb) if vb > 0 else "sem pesquisa ativa"
+		info.add_theme_color_override("font_color", Color(0.6, 0.7, 0.82))
+	info.add_theme_font_size_override("font_size", 10)
+	col.add_child(info)
+	panel_content.add_child(box)
+	var sp := Control.new()
+	sp.custom_minimum_size = Vector2(0, 5)
+	panel_content.add_child(sp)
+
+## PAINEL SAÚDE — Ministro reage à felicidade/população.
+func _render_saude() -> void:
+	var n = GameEngine.player_nation
+	if n == null: return
+	var lvl: int = n.ministry_level("saude")
+	var fala: String
+	var expr: String
+	if n.felicidade < 40.0:
+		fala = "A população sofre, Presidente. Precisamos de hospitais e vacinas já."
+		expr = "preocupado"
+	else:
+		fala = "O SUS vai bem. Com mais verba, alcançamos cada cidadão."
+		expr = "feliz" if n.felicidade > 65.0 else "neutro"
+	_add_advisor_header("saude", "MIN. DA SAÚDE  ·  Nível %d" % lvl, fala, expr, Color(0.5, 0.85, 0.9))
+	_add_section_title("INDICADORES DE SAÚDE")
+	_add_bar("Felicidade", n.felicidade, true)
+	_add_data_row("População", _fmt_thousands(n.populacao))
+	_add_data_row("Gasto em saúde", "$%dB" % int(n.gasto_social.get("saude", 0)))
+	_add_ministry_rd_controls("saude")
+	_add_separator()
+	_add_section_title("AÇÕES DE SAÚDE")
+	for a in GameEngine.get_panel_actions("saude"):
+		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "saude", Color(0.5, 0.9, 0.8)))
+
+## PAINEL EDUCAÇÃO — Ministro puxa a ciência.
+func _render_educacao() -> void:
+	var n = GameEngine.player_nation
+	if n == null: return
+	var lvl: int = n.ministry_level("educacao")
+	var fala: String = "Educação é o motor da nação, Presidente. Cada real investido volta em ciência."
+	var expr: String = "feliz" if n.velocidade_pesquisa > 1.3 else "neutro"
+	_add_advisor_header("educacao", "MIN. DA EDUCAÇÃO  ·  Nível %d" % lvl, fala, expr, Color(0.5, 0.65, 0.95))
+	_add_section_title("INDICADORES DE ENSINO")
+	_add_data_row("Velocidade de pesquisa", "%.2f×" % n.velocidade_pesquisa, Color(0.5, 0.85, 1))
+	_add_data_row("Techs concluídas", "%d de %d" % [n.tecnologias_concluidas.size(), GameEngine.tech.tech_index.size() if GameEngine.tech else 0])
+	_add_data_row("Gasto em educação", "$%dB" % int(n.gasto_social.get("educacao", 0)))
+	_add_ministry_rd_controls("educacao")
+	_add_separator()
+	_add_section_title("AÇÕES DE EDUCAÇÃO")
+	for a in GameEngine.get_panel_actions("educacao"):
+		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "educacao", Color(0.5, 0.7, 1)))
+	_add_separator()
+	_add_hint_label("🔬 A pesquisa científica de cada ministério é gerida na aba Tech — cada pasta pesquisa a sua trilha em paralelo.")
+
+## Controle de verba de P&D de um ministério (+/- ajusta a alocação anual).
+func _add_ministry_rd_controls(pasta: String) -> void:
+	var n = GameEngine.player_nation
+	var atual: float = float(n.ministerios.get(pasta, {}).get("verba", 0.0))
+	var step: float = max(5.0, n.pib_bilhoes_usd * 0.003)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var lbl := Label.new()
+	lbl.text = "Verba de P&D: $%dB/ano" % int(atual)
+	lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 1))
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lbl)
+	var minus := Button.new()
+	minus.text = "−"
+	minus.custom_minimum_size = Vector2(34, 28)
+	minus.pressed.connect(func():
+		GameEngine.player_alloc_rd(pasta, maxf(0.0, atual - step))
+		_render_panel(_current_panel_for(pasta)))
+	row.add_child(minus)
+	var plus := Button.new()
+	plus.text = "+"
+	plus.custom_minimum_size = Vector2(34, 28)
+	plus.pressed.connect(func():
+		GameEngine.player_alloc_rd(pasta, atual + step)
+		_render_panel(_current_panel_for(pasta)))
+	row.add_child(plus)
+	panel_content.add_child(row)
+
+func _current_panel_for(pasta: String) -> String:
+	match pasta:
+		"saude": return "saude"
+		"educacao": return "educacao"
+		"fazenda": return "economia"
+		"seguranca": return "seguranca"
+		_: return "gabinete"
+
 func _render_governo() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
+	# Casa Civil coordena — o "chefe de gabinete"
+	_add_advisor_header("casa_civil", "MIN. CHEFE DA CASA CIVIL  ·  Nível %d" % n.ministry_level("casa_civil"),
+		"Coordeno o governo, Presidente. Mais investimento aqui libera trilhas de pesquisa em paralelo.",
+		"neutro", Color(0.6, 0.7, 0.85))
+	_add_ministry_rd_controls("casa_civil")
+	_add_separator()
 	_add_section_title("INDICADORES")
 	_add_bar("Estabilidade", n.estabilidade_politica, true)
 	_add_bar("Apoio popular", n.apoio_popular, true)
@@ -146,20 +310,30 @@ func _run_panel_action(action_id: String, panel_id: String, color: Color) -> voi
 func _render_militar() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
-	# General das Forças Armadas reage ao estado militar
+	var lvl: int = n.ministry_level("seguranca")
+	# Min. da Justiça & Segurança comanda defesa + segurança interna + intel
 	var em_guerra: bool = n.em_guerra.size() > 0
 	var g_fala: String
 	var g_expr: String
 	if em_guerra:
 		g_fala = "Estamos em %d frente(s), Presidente. Preciso de orçamento para vencer." % n.em_guerra.size()
 		g_expr = "bravo"
+	elif n.corrupcao > 50.0:
+		g_fala = "A corrupção mina a nação por dentro. Reforma judicial, urgente."
+		g_expr = "preocupado"
 	elif int(n.militar.get("poder_militar_global", 0)) < 80:
-		g_fala = "Nossas forças estão defasadas. Um investimento agora evita humilhação depois."
+		g_fala = "Nossas forças estão defasadas. Investir agora evita humilhação depois."
 		g_expr = "preocupado"
 	else:
-		g_fala = "As tropas estão prontas, Presidente. Aguardo suas ordens."
+		g_fala = "Ordem interna e forças prontas, Presidente. Aguardo suas ordens."
 		g_expr = "neutro"
-	_add_advisor_header("general", "GEN. CHEFE DO ESTADO-MAIOR", g_fala, g_expr, Color(0.7, 0.78, 0.4))
+	_add_advisor_header("seguranca", "MIN. DA JUSTIÇA & SEGURANÇA  ·  Nível %d" % lvl, g_fala, g_expr, Color(0.55, 0.62, 0.72))
+	_add_section_title("SEGURANÇA INTERNA")
+	_add_bar("Estabilidade", n.estabilidade_politica, true)
+	_add_bar("Corrupção", n.corrupcao, false)
+	_add_data_row("Intel Score", "%.0f" % n.intel_score, Color(0, 0.823, 1))
+	_add_data_row("Segurança Intel", "%.0f" % n.seguranca_intel, Color(0.4, 1, 0.6))
+	_add_separator()
 	_add_section_title("CAPACIDADE MILITAR")
 	var m: Dictionary = n.militar
 	var u: Dictionary = m.get("unidades", {})
@@ -171,9 +345,11 @@ func _render_militar() -> void:
 	_add_data_row("Aviões", _fmt_thousands(u.get("avioes", 0)))
 	_add_data_row("Navios", _fmt_thousands(u.get("navios", 0)))
 	_add_separator()
-	_add_section_title("OPERAÇÕES MILITARES")
-	for a in GameEngine.get_panel_actions("militar"):
-		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "militar", Color(1, 0.5, 0.5)))
+	_add_section_title("AÇÕES DE JUSTIÇA & SEGURANÇA")
+	for a in GameEngine.get_panel_actions("seguranca"):
+		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "seguranca", Color(0.6, 0.7, 0.9)))
+	_add_separator()
+	_add_hint_label("🕵 Operações de espionagem ficam na aba Intel — o mesmo ministério as comanda.")
 
 # ─────────────────────────────────────────────────────────────────
 # PAINEL: ECONOMIA
@@ -197,7 +373,9 @@ func _render_economia() -> void:
 	else:
 		m_fala = "As contas fecham, Presidente. Podemos pensar em investir no futuro."
 		m_expr = "feliz" if n.tesouro > n.pib_bilhoes_usd * 0.1 else "neutro"
-	_add_advisor_header("economia", "MIN. DA FAZENDA", m_fala, m_expr, Color(0.9, 0.55, 0.65))
+	_add_advisor_header("economia", "MIN. DA FAZENDA  ·  Nível %d" % n.ministry_level("fazenda"), m_fala, m_expr, Color(0.9, 0.55, 0.65))
+	_add_ministry_rd_controls("fazenda")
+	_add_separator()
 	_add_section_title("INDICADORES ECONÔMICOS")
 	_add_data_row("PIB Anual", _money(n.pib_bilhoes_usd))
 	_add_data_row("Tesouro", _money(n.tesouro))
@@ -360,31 +538,47 @@ func _add_hint_label(text: String) -> void:
 
 var _tech_filter: String = "ALL"
 
+# True se a tech está em pesquisa em QUALQUER trilha ministerial.
+func _is_researching(nation, tech_id: String) -> bool:
+	if nation.pesquisa_por_ministerio == null:
+		return false
+	for pasta in nation.pesquisa_por_ministerio:
+		if String(nation.pesquisa_por_ministerio[pasta].get("id", "")) == tech_id:
+			return true
+	return false
+
 func _render_tech() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
 
-	# 1) Pesquisa ativa
-	_add_section_title("🔬 PESQUISA ATIVA")
-	if GameEngine.tech and n.pesquisa_atual:
-		var prog: Dictionary = GameEngine.tech.get_research_progress(n)
-		_add_data_row("Tecnologia", str(prog.get("name", "—")), Color(0, 0.823, 1))
-		_add_bar("Progresso", float(prog.get("pct", 0)), true, "%d/%d turnos" % [int(prog.get("progress", 0)), int(prog.get("total", 0))])
-		var btn := Button.new()
-		btn.text = "❌ CANCELAR PESQUISA"
-		btn.custom_minimum_size = Vector2(0, 32)
-		btn.pressed.connect(func():
-			GameEngine.player_cancel_research()
-			_render_panel("tech"))
-		panel_content.add_child(btn)
+	# 1) Trilhas de pesquisa PARALELAS (uma por ministério com foco definido)
+	var slots: int = n.research_slots() if n.has_method("research_slots") else 2
+	_add_section_title("🔬 PESQUISA PARALELA (%d/%d trilhas)" % [n.pesquisa_por_ministerio.size(), slots])
+	var trilhas: Dictionary = GameEngine.tech.get_all_research_progress(n) if GameEngine.tech else {}
+	if trilhas.is_empty():
+		_add_hint_label("Nenhuma trilha ativa. Escolha techs abaixo — cada ministério pesquisa a sua em paralelo.")
 	else:
-		_add_hint_label("Nenhuma pesquisa em andamento.")
+		for pasta in trilhas:
+			var prog: Dictionary = trilhas[pasta]
+			var mm: Dictionary = GameEngine.MINISTRY_META.get(pasta, {})
+			_add_data_row("%s %s" % [mm.get("icon", "•"), mm.get("nome", pasta)], str(prog.get("name", "—")), Color(0, 0.823, 1))
+			_add_bar("", float(prog.get("pct", 0)), true, "%d/%d turnos" % [int(prog.get("progress", 0)), int(prog.get("total", 0))])
+			var btn := Button.new()
+			btn.text = "❌ cancelar %s" % mm.get("nome", pasta)
+			btn.custom_minimum_size = Vector2(0, 26)
+			btn.add_theme_font_size_override("font_size", 10)
+			var p_bind: String = pasta
+			btn.pressed.connect(func():
+				GameEngine.player_cancel_research(p_bind)
+				_render_panel("tech"))
+			panel_content.add_child(btn)
 	_add_separator()
 
 	# 2) Status compacto
 	_add_section_title("📊 STATUS")
 	_add_data_row("Concluídas", "%d techs" % n.tecnologias_concluidas.size())
 	_add_data_row("Velocidade pesquisa", "%.1fx" % n.velocidade_pesquisa)
+	_add_data_row("Trilhas simultâneas", "%d (nível Casa Civil %d)" % [slots, n.ministry_level("casa_civil")])
 	_add_separator()
 
 	# 3) Filtro de categoria
@@ -551,7 +745,7 @@ func _render_tech_card(nation, tech: Dictionary) -> void:
 	var status_color := Color(1, 1, 1)
 	if tech["id"] in nation.tecnologias_concluidas:
 		status_color = Color(0.4, 1, 0.6)
-	elif nation.pesquisa_atual and nation.pesquisa_atual.get("id", "") == tech["id"]:
+	elif _is_researching(nation, String(tech["id"])):
 		status_color = Color(1, 0.85, 0)
 	name_lbl.add_theme_color_override("font_color", status_color)
 	head.add_child(name_lbl)
@@ -608,7 +802,7 @@ func _render_intel() -> void:
 		i_fala = "%d operações no histórico, Presidente. Escolha o alvo — o resto é comigo." % n.spy_ops_log.size()
 	else:
 		i_fala = "Aguardo suas ordens nas sombras. Aponte o alvo no mapa."
-	_add_advisor_header("intel", "CHEFE DE INTELIGÊNCIA", i_fala, "neutro", Color(0.55, 0.6, 0.7))
+	_add_advisor_header("seguranca", "MIN. DA JUSTIÇA & SEGURANÇA · Inteligência", i_fala, "neutro", Color(0.55, 0.6, 0.7))
 	_add_section_title("INTELIGÊNCIA")
 	_add_data_row("Intel Score", "%.1f" % n.intel_score, Color(0, 0.823, 1))
 	_add_data_row("Segurança Intel", "%.1f" % n.seguranca_intel, Color(0.4, 1, 0.6))

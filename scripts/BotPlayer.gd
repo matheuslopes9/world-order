@@ -63,6 +63,8 @@ func _run_loop() -> void:
 	while enabled and _engine != null and _engine.game_state == "PLAYING":
 		emit_signal("turn_starting", _engine.current_turn)
 		_think("=== Turno %d — Analisando situação... ===" % _engine.current_turn)
+		# Ajusta a verba de P&D dos ministérios conforme a persona (não custa ação)
+		_manage_ministry_budgets()
 		await _delay(turn_delay * 0.5)
 
 		# Executa ações até esgotar o orçamento do turno
@@ -259,31 +261,49 @@ func _generate_social_actions(n) -> Array:
 func _generate_tech_actions(n) -> Array:
 	var out: Array = []
 	if _engine.tech == null: return out
-	# Já pesquisando — não precisamos iniciar nova
-	if n.pesquisa_atual != null:
+	# Trilhas paralelas: só busca nova tech se ainda houver slot (trilha ociosa)
+	var slots: int = n.research_slots() if n.has_method("research_slots") else 2
+	if n.pesquisa_por_ministerio.size() >= slots:
 		return out
 
-	# Escolhe melhor tech disponível pra pesquisar (checks reais do TechManager)
 	var available: Array = _engine.tech.get_available_techs(n)
 	if available.is_empty(): return out
 
-	# Prioridade por categoria (categorias reais do tech.json)
-	var prio := {"MILITAR": 0.9, "DIGITAL": 1.2, "ENERGIA": 1.1, "SOCIAL": 1.0, "ESPACIAL": 0.8}
+	# Não repete pasta já ocupada (uma trilha por ministério)
+	var pastas_ocupadas: Dictionary = {}
+	for p in n.pesquisa_por_ministerio:
+		pastas_ocupadas[p] = true
+
+	# Escolhe a MELHOR tech para uma pasta LIVRE. O RANKING interno valoriza
+	# techs que destravam a árvore (unlock_count) + tier; o custo desempata.
+	var prio := {"MILITAR": 0.9, "DIGITAL": 1.2, "ENERGIA": 1.1, "SOCIAL": 1.0, "ESPACIAL": 0.9}
 	var best_tech: Dictionary = {}
-	var best_score: float = -1.0
+	var best_rank: float = -1.0
 	for t in available:
+		var pasta: String = _engine.tech.ministry_of(t)
+		if pastas_ocupadas.has(pasta):
+			continue  # essa trilha já está pesquisando
 		var cat: String = String(t.get("categoria", "")).to_upper()
 		var custo: float = float(t.get("custo", 50))
-		var score: float = (100.0 / max(1.0, custo)) * float(prio.get(cat, 1.0)) * 20.0
-		if score > best_score:
-			best_score = score
+		var unlocks: int = int(_engine.tech.unlock_count.get(String(t.get("id", "")), 0))
+		var tier: int = int(t.get("tier", 1))
+		# destravar a árvore domina; tier dá profundidade; custo desempata
+		var rank: float = (1.0 + unlocks * 3.0 + tier * 1.5) * float(prio.get(cat, 1.0))
+		rank += 30.0 / max(1.0, custo)
+		if rank > best_rank:
+			best_rank = rank
 			best_tech = t
 
 	if best_tech.is_empty(): return out
+	# Score de PRIORIDADE contra as outras ações do bot (faixa 15-80): pesquisar é
+	# quase sempre a jogada dominante (tech-rush), então entra ALTO — como antes das
+	# trilhas paralelas. Sem isto o bot larga a pesquisa e a árvore trava (~8 techs).
+	var trilhas_ativas: int = n.pesquisa_por_ministerio.size()
+	var priority: float = 82.0 - trilhas_ativas * 6.0  # 1ª trilha domina; extras ainda competem
 	out.append({
 		"type": "research", "tech_id": String(best_tech.get("id", "")),
-		"score": best_score + 25.0, "category": "tech",
-		"reason": "Pesquisar '%s' (cat: %s)" % [String(best_tech.get("nome", "?")), String(best_tech.get("categoria", "?"))]
+		"score": priority, "category": "tech",
+		"reason": "Pesquisar '%s' (cat: %s, destrava %d)" % [String(best_tech.get("nome", "?")), String(best_tech.get("categoria", "?")), int(_engine.tech.unlock_count.get(String(best_tech.get("id", "")), 0))]
 	})
 	return out
 
@@ -485,6 +505,32 @@ func _execute_action(action: Dictionary) -> bool:
 
 # Executa ação de painel via API central — a MESMA usada pelos botões da UI.
 # (antes: efeitos duplicados aqui com custos divergentes e bug de multiplicador)
+# Aloca verba de P&D aos ministérios conforme a persona — dá progressão de
+# gabinete + trilhas de pesquisa paralelas à IA (mesmo sistema do jogador).
+func _manage_ministry_budgets() -> void:
+	var n = _engine.player_nation
+	if n == null or n.ministerios == null or n.tesouro < 100.0:
+		return
+	# Prioridade de pasta por persona (pesos)
+	var prio: Dictionary
+	match personality:
+		"military":
+			prio = {"seguranca": 3.0, "casa_civil": 1.5, "educacao": 1.0, "fazenda": 1.0, "saude": 0.5, "exterior": 0.5}
+		"economic":
+			prio = {"fazenda": 3.0, "educacao": 1.5, "casa_civil": 1.5, "saude": 1.0, "seguranca": 0.8, "exterior": 0.8}
+		"diplomat":
+			prio = {"exterior": 3.0, "casa_civil": 1.5, "educacao": 1.5, "saude": 1.0, "fazenda": 1.0, "seguranca": 0.5}
+		_:  # balanced
+			prio = {"casa_civil": 1.5, "educacao": 1.5, "fazenda": 1.2, "saude": 1.2, "seguranca": 1.2, "exterior": 1.0}
+	# Orçamento total de P&D = ~1.5% do PIB, dividido pelos pesos
+	var total_rd: float = n.pib_bilhoes_usd * 0.015
+	var soma_peso: float = 0.0
+	for w in prio.values():
+		soma_peso += float(w)
+	for pasta in prio:
+		var verba: float = total_rd * float(prio[pasta]) / max(soma_peso, 0.01)
+		_engine.player_alloc_rd(pasta, verba)
+
 func _do_panel_action(action_id: String) -> bool:
 	var res: Dictionary = _engine.player_panel_action(action_id)
 	if not res.get("ok", false):

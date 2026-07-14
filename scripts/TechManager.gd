@@ -6,6 +6,7 @@ extends RefCounted
 var engine
 var tech_index: Dictionary = {}    # id → tech dict
 var by_category: Dictionary = {}   # category → [techs]
+var unlock_count: Dictionary = {}  # id → nº de techs que têm esta como pré-requisito
 
 func _init(eng) -> void:
 	engine = eng
@@ -22,6 +23,11 @@ func _index_tech_data() -> void:
 		if not by_category.has(cat):
 			by_category[cat] = []
 		by_category[cat].append(t)
+	# Conta quantas techs cada tech destrava (é pré-requisito de) — guia o bot
+	# a pesquisar o que ABRE a árvore, não só o mais barato.
+	for t in techs:
+		for pre in t.get("pre_requisitos", []):
+			unlock_count[pre] = int(unlock_count.get(pre, 0)) + 1
 
 # ─────────────────────────────────────────────────────────────────
 # CONSULTA
@@ -37,10 +43,21 @@ func get_tech(id: String) -> Dictionary:
 	return tech_index.get(id, {})
 
 # Lista techs que a nação pode pesquisar AGORA (todos os checks de can_research OK).
-# Usado pelo BotPlayer (antes chamava este método sem ele existir → crash).
-func get_available_techs(nation) -> Array:
+# Ministério dono de uma tech. Usa o mapa por tech-id (trilhas equilibradas);
+# cai no mapa por categoria se a tech não estiver listada (robustez).
+func ministry_of(tech: Dictionary) -> String:
+	var tid: String = String(tech.get("id", ""))
+	if engine.MINISTRY_OF_TECH.has(tid):
+		return engine.MINISTRY_OF_TECH[tid]
+	var cat: String = String(tech.get("categoria", ""))
+	return engine.MINISTRY_OF_CATEGORY.get(cat, "educacao")
+
+# Techs disponíveis. Se `pasta` != "", filtra pelo ministério dono.
+func get_available_techs(nation, pasta: String = "") -> Array:
 	var out: Array = []
 	for id in tech_index:
+		if pasta != "" and ministry_of(tech_index[id]) != pasta:
+			continue
 		if can_research(nation, id).get("ok", false):
 			out.append(tech_index[id])
 	return out
@@ -52,8 +69,10 @@ func can_research(nation, tech_id: String) -> Dictionary:
 		return {"ok": false, "reason": "Tech não encontrada"}
 	if tech_id in nation.tecnologias_concluidas:
 		return {"ok": false, "reason": "Já concluída"}
-	if nation.pesquisa_atual != null:
-		return {"ok": false, "reason": "Já há pesquisa em andamento"}
+	# A trilha DESTE ministério já está ocupada?
+	var pasta: String = ministry_of(tech)
+	if nation.pesquisa_por_ministerio.has(pasta):
+		return {"ok": false, "reason": "%s já pesquisa outra tecnologia" % pasta}
 	# Pré-requisitos
 	var prereqs: Array = tech.get("pre_requisitos", [])
 	for p in prereqs:
@@ -67,6 +86,12 @@ func can_research(nation, tech_id: String) -> Dictionary:
 	var stab_req: float = float(tech.get("requisito_estabilidade", 0))
 	if nation.estabilidade_politica < stab_req:
 		return {"ok": false, "reason": "Estabilidade mínima: %d%%" % int(stab_req)}
+	# GATE DE NÍVEL: tech tier 3+ exige o ministério dono no nível ≥ (tier-1)
+	var tier: int = int(tech.get("tier", 1))
+	if tier >= 3 and nation.has_method("ministry_level"):
+		var nv_req: int = tier - 1
+		if nation.ministry_level(pasta) < nv_req:
+			return {"ok": false, "reason": "%s precisa nível %d (está %d)" % [pasta, nv_req, nation.ministry_level(pasta)]}
 	# Custo (efetivo: economia de escala científica)
 	var cost: float = get_effective_cost(nation, tech)
 	if nation.tesouro < cost:
@@ -81,23 +106,33 @@ func get_effective_cost(nation, tech: Dictionary) -> float:
 	var decay: float = clamp(1.0 - nation.tecnologias_concluidas.size() * 0.015, 0.5, 1.0)
 	return round(base * decay)
 
-# Inicia pesquisa
+# Inicia pesquisa na trilha do ministério dono da tech
 func start_research(nation, tech_id: String) -> bool:
 	var check: Dictionary = can_research(nation, tech_id)
 	if not check.get("ok", false):
 		return false
 	var tech: Dictionary = tech_index[tech_id]
+	var pasta: String = ministry_of(tech)
 	nation.tesouro -= get_effective_cost(nation, tech)
-	nation.pesquisa_atual = {
+	nation.pesquisa_por_ministerio[pasta] = {
 		"id": tech_id,
 		"progresso": 0.0,
 		"tempo_total": float(tech.get("tempo_turnos", 5)),
 	}
+	# Mantém pesquisa_atual apontando p/ a trilha da Educação (retrocompat de UI legada)
+	if pasta == "educacao":
+		nation.pesquisa_atual = nation.pesquisa_por_ministerio[pasta]
 	return true
 
-# Cancela pesquisa em andamento (sem reembolso)
-func cancel_research(nation) -> void:
-	nation.pesquisa_atual = null
+# Cancela a pesquisa de uma trilha (sem reembolso). Sem pasta = todas.
+func cancel_research(nation, pasta: String = "") -> void:
+	if pasta == "":
+		nation.pesquisa_por_ministerio.clear()
+		nation.pesquisa_atual = null
+	else:
+		nation.pesquisa_por_ministerio.erase(pasta)
+		if pasta == "educacao":
+			nation.pesquisa_atual = null
 
 # ─────────────────────────────────────────────────────────────────
 # PROCESSAMENTO POR TURNO
@@ -109,18 +144,30 @@ func process_turn() -> void:
 		_process_research(n)
 
 func _process_research(nation) -> void:
-	if nation.pesquisa_atual == null:
+	if nation.pesquisa_por_ministerio == null or nation.pesquisa_por_ministerio.is_empty():
 		return
-	var pa: Dictionary = nation.pesquisa_atual
 	# Conhecimento composto: cada tech concluída acelera as próximas em 2%
-	# (cap +80%). Sem isso, nem 100 anos alcançavam metade do catálogo
-	# (máx observado: 35/57 techs em 1000 campanhas simuladas).
+	# (cap +80%). Trilhas paralelas: só as N primeiras (research_slots) avançam,
+	# então focar/espalhar vira decisão real (slots = 1 + nível Casa Civil).
 	var momentum: float = clamp(1.0 + nation.tecnologias_concluidas.size() * 0.02, 1.0, 1.8)
-	pa["progresso"] = float(pa["progresso"]) + nation.velocidade_pesquisa * momentum
-	if pa["progresso"] >= float(pa["tempo_total"]):
-		# Conclui!
-		_complete_research(nation, pa["id"])
-		nation.pesquisa_atual = null
+	var slots: int = nation.research_slots() if nation.has_method("research_slots") else 6
+	var concluidas: Array = []
+	var ativa: int = 0
+	for pasta in nation.pesquisa_por_ministerio.keys():
+		ativa += 1
+		if ativa > slots:
+			break  # sem slot disponível — trilha espera este turno
+		var pa: Dictionary = nation.pesquisa_por_ministerio[pasta]
+		# Velocidade da trilha escala com o nível do ministério dono (nv1=1.0 … nv5≈1.6)
+		var lvl_mult: float = nation.ministry_action_mult(pasta) if nation.has_method("ministry_action_mult") else 1.0
+		pa["progresso"] = float(pa["progresso"]) + nation.velocidade_pesquisa * momentum * lvl_mult
+		if pa["progresso"] >= float(pa["tempo_total"]):
+			concluidas.append([pasta, pa["id"]])
+	for c in concluidas:
+		_complete_research(nation, c[1])
+		nation.pesquisa_por_ministerio.erase(c[0])
+		if c[0] == "educacao":
+			nation.pesquisa_atual = null
 
 func _complete_research(nation, tech_id: String) -> void:
 	if tech_id in nation.tecnologias_concluidas: return
@@ -151,10 +198,18 @@ func _complete_research(nation, tech_id: String) -> void:
 		})
 
 # Helpers de UI
-func get_research_progress(nation) -> Dictionary:
-	if nation.pesquisa_atual == null:
+# Progresso de UMA trilha (por pasta) ou, sem pasta, a primeira ativa (retrocompat).
+func get_research_progress(nation, pasta: String = "") -> Dictionary:
+	var trilhas: Dictionary = nation.pesquisa_por_ministerio
+	if trilhas == null or trilhas.is_empty():
 		return {}
-	var pa: Dictionary = nation.pesquisa_atual
+	var pa
+	if pasta != "":
+		if not trilhas.has(pasta):
+			return {}
+		pa = trilhas[pasta]
+	else:
+		pa = trilhas[trilhas.keys()[0]]
 	var tech: Dictionary = tech_index.get(pa["id"], {})
 	return {
 		"id": pa["id"],
@@ -164,3 +219,12 @@ func get_research_progress(nation) -> Dictionary:
 		"pct": clamp(float(pa["progresso"]) / float(pa["tempo_total"]) * 100.0, 0, 100),
 		"category": tech.get("categoria", ""),
 	}
+
+# Todas as trilhas ativas: pasta -> {progresso de UI}. Para o painel Gabinete.
+func get_all_research_progress(nation) -> Dictionary:
+	var out: Dictionary = {}
+	if nation.pesquisa_por_ministerio == null:
+		return out
+	for pasta in nation.pesquisa_por_ministerio.keys():
+		out[pasta] = get_research_progress(nation, pasta)
+	return out

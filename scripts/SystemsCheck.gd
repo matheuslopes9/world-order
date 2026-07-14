@@ -71,11 +71,19 @@ func _run() -> void:
 	_check(E.game_state == "PLAYING", "game_state = PLAYING")
 	_check(E.player_actions_remaining == E.PLAYER_ACTIONS_PER_TURN, "ações iniciais: %d" % E.player_actions_remaining)
 
-	# ── 3. Catálogo central de ações ──
+	# ── 3. Catálogo central de ações (agrupado por ministério/painel) ──
 	print("[3] Catálogo central de ações (PANEL_ACTIONS)")
-	_check(E.get_panel_actions("governo").size() == 9, "9 ações de governo (inclui aperto monetário)")
-	_check(E.get_panel_actions("militar").size() == 6, "6 ações militares")
-	_check(E.get_panel_actions("economia").size() == 4, "4 ações econômicas")
+	_check(E.get_panel_actions("governo").size() == 4, "4 ações da Casa Civil (painel governo)")
+	_check(E.get_panel_actions("seguranca").size() == 8, "8 ações de Justiça & Segurança (segurança + defesa)")
+	_check(E.get_panel_actions("economia").size() == 6, "6 ações da Fazenda")
+	_check(E.get_panel_actions("saude").size() == 3, "3 ações de Saúde")
+	_check(E.get_panel_actions("educacao").size() == 3, "3 ações de Educação")
+	# toda ação declara seu ministério dono
+	var sem_min: Array = []
+	for aid in E.PANEL_ACTIONS:
+		if String(E.PANEL_ACTIONS[aid].get("min", "")) == "":
+			sem_min.append(aid)
+	_check(sem_min.is_empty(), "toda ação tem ministério dono%s" % ("" if sem_min.is_empty() else " — FALTAM: %s" % str(sem_min)))
 	var apoio_antes: float = E.player_nation.apoio_popular
 	var r1: Dictionary = E.player_panel_action("propaganda")
 	_check(r1.get("ok", false), "propaganda executou: %s" % r1.get("msg", ""))
@@ -96,7 +104,7 @@ func _run() -> void:
 	if avail.size() > 0:
 		var rres: Dictionary = E.player_start_research(String(avail[0].get("id", "")))
 		_check(rres.get("ok", false), "start_research('%s')" % avail[0].get("nome", "?"))
-		_check(E.player_nation.pesquisa_atual != null, "pesquisa_atual registrada")
+		_check(not E.player_nation.pesquisa_por_ministerio.is_empty(), "trilha de pesquisa registrada")
 
 	# ── 5. Turnos em lote ──
 	print("[5] Simulação de turnos")
@@ -306,6 +314,79 @@ func _run() -> void:
 	for code in E.nations:
 		tons_vistos[int(PG.features_for(code, "presidente")["tone"])] = true
 	_check(tons_vistos.size() >= 8, "diversidade de pele: %d/10 tons representados nos presidentes do mundo" % tons_vistos.size())
+
+	# ── 14. Gabinete de ministros (níveis + trilhas paralelas + gates) ──
+	print("[14] Gabinete de ministros")
+	var ng = E.player_nation
+	_check(ng.ministerios.size() == 6, "6 ministérios inicializados: %d" % ng.ministerios.size())
+	# Distribuição de pesquisa: as 6 pastas têm techs e nenhuma sobrecarrega (teto de techs)
+	var carga: Dictionary = {}
+	for tid in E.tech.tech_index:
+		var pasta_t: String = E.tech.ministry_of(E.tech.tech_index[tid])
+		carga[pasta_t] = int(carga.get(pasta_t, 0)) + 1
+	var pastas_com_tech: int = carga.size()
+	var max_carga: int = 0
+	for v in carga.values():
+		max_carga = maxi(max_carga, int(v))
+	_check(pastas_com_tech == 6, "todas as 6 pastas têm trilha de pesquisa (%d/6): %s" % [pastas_com_tech, str(carga)])
+	_check(max_carga <= 12, "nenhuma trilha sobrecarregada (máx %d techs/pasta — antes eram 21)" % max_carga)
+	_check(ng.ministry_level("saude") == 1, "ministérios começam no nível 1")
+	# XP sobe de nível ao cruzar limiar
+	ng.add_ministry_xp("saude", 120.0)  # limiar nv2 = 100
+	_check(ng.ministry_level("saude") == 2, "XP cruza limiar → nível 2 (%d)" % ng.ministry_level("saude"))
+	# nível escala a força da ação
+	var mult1: float = ng.ministry_action_mult("saude")
+	_check(mult1 > 1.0, "nível 2 escala ação da pasta (mult %.2f)" % mult1)
+	# slots de pesquisa desbloqueiam com Casa Civil
+	var slots_base: int = ng.research_slots()
+	ng.add_ministry_xp("casa_civil", 400.0)  # sobe alguns níveis
+	_check(ng.research_slots() > slots_base, "slots de pesquisa sobem com nível da Casa Civil (%d→%d)" % [slots_base, ng.research_slots()])
+	# trilhas PARALELAS: duas pastas pesquisam ao mesmo tempo
+	E.tech.cancel_research(ng)
+	ng.tesouro = 2000.0
+	var av_saude: Array = E.tech.get_available_techs(ng, "saude")
+	var av_seg: Array = E.tech.get_available_techs(ng, "seguranca")
+	if not av_saude.is_empty() and not av_seg.is_empty():
+		E.tech.start_research(ng, String(av_saude[0]["id"]))
+		E.tech.start_research(ng, String(av_seg[0]["id"]))
+		_check(ng.pesquisa_por_ministerio.size() == 2, "duas trilhas paralelas ativas (%d)" % ng.pesquisa_por_ministerio.size())
+		# get_available_techs por pasta só devolve techs daquela categoria
+		var cat_ok := true
+		for t in av_saude:
+			if E.tech.ministry_of(t) != "saude":
+				cat_ok = false
+		_check(cat_ok, "filtro por ministério só devolve techs da pasta")
+	else:
+		_check(true, "sem techs disponíveis p/ testar trilhas (skip)")
+	# gate de tier: tech tier 3+ exige nível de ministério.
+	# Escolhe uma tier≥3 SEM pré-requisitos pendentes e satisfaz PIB/estab/trilha,
+	# deixando o nível como ÚNICO bloqueio possível.
+	E.tech.cancel_research(ng)
+	ng.tesouro = 999999.0
+	ng.pib_bilhoes_usd = 999999.0
+	ng.estabilidade_politica = 100.0
+	var gated: Dictionary = {}
+	for tid in E.tech.tech_index:
+		var tt: Dictionary = E.tech.tech_index[tid]
+		if int(tt.get("tier", 1)) >= 3 and (tt.get("pre_requisitos", []) as Array).is_empty():
+			gated = tt
+			break
+	if not gated.is_empty():
+		var pasta_g: String = E.tech.ministry_of(gated)
+		ng.ministerios[pasta_g]["nivel"] = 1  # abaixo do exigido p/ tier≥3
+		var chk: Dictionary = E.tech.can_research(ng, String(gated["id"]))
+		var bloqueado: bool = not chk.get("ok", true) and String(chk.get("reason", "")).contains("nível")
+		_check(bloqueado, "gate de nível bloqueia tech tier %d sem ministério forte (%s)" % [int(gated.get("tier", 3)), chk.get("reason", "?")])
+		# e libera ao subir o ministério ao nível exigido
+		ng.ministerios[pasta_g]["nivel"] = int(gated.get("tier", 3)) - 1
+		var chk2: Dictionary = E.tech.can_research(ng, String(gated["id"]))
+		_check(chk2.get("ok", false), "gate LIBERA ao subir o ministério ao nível exigido")
+	else:
+		_check(true, "nenhuma tech tier≥3 sem pré-req p/ testar gate (skip)")
+	# snapshot do gabinete p/ UI
+	var snap: Array = E.get_cabinet_snapshot()
+	_check(snap.size() == 6, "snapshot do gabinete tem 6 pastas: %d" % snap.size())
+	_check(snap[0].has("nivel") and snap[0].has("xp_pct") and snap[0].has("role"), "snapshot traz nível/xp/role p/ a UI")
 
 # ─────────────────────────────────────────────────────────────────
 

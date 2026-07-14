@@ -177,6 +177,8 @@ static func _serialize_nations(nations: Dictionary) -> Dictionary:
 			"militar": n.militar,
 			"tecnologias_concluidas": n.tecnologias_concluidas,
 			"pesquisa_atual": n.pesquisa_atual,
+			"pesquisa_por_ministerio": n.pesquisa_por_ministerio,
+			"ministerios": n.ministerios,
 			"velocidade_pesquisa": n.velocidade_pesquisa,
 			"relacoes": n.relacoes,
 			"em_guerra": n.em_guerra,
@@ -199,6 +201,13 @@ static func _deserialize_nations(target: Dictionary, src: Dictionary) -> void:
 		for key in d:
 			if key in n:
 				n.set(key, d[key])
+		# Migração retrocompatível: saves antigos não têm gabinete
+		if n.ministerios == null or n.ministerios.is_empty():
+			n._init_ministerios()
+		# Save antigo com fila única de pesquisa → migra p/ trilha da Educação
+		if (n.pesquisa_por_ministerio == null or n.pesquisa_por_ministerio.is_empty()) \
+				and n.pesquisa_atual != null and typeof(n.pesquisa_atual) == TYPE_DICTIONARY:
+			n.pesquisa_por_ministerio = {"educacao": n.pesquisa_atual}
 
 # JSON não suporta Color — converte pra [r,g,b,a] na serialização e de volta no load
 static func _serialize_news(history: Array) -> Array:

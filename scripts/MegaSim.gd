@@ -15,6 +15,7 @@ extends Node
 var shard: int = 0
 var shards: int = 1
 var games: int = 250
+var all_active: bool = false  # --active=1: desliga o controle passivo (teste de cobertura)
 
 var ns_dict: Dictionary = {}
 var results: Array = []
@@ -36,6 +37,7 @@ func _ready() -> void:
 				"--shard": shard = int(kv[1])
 				"--shards": shards = int(kv[1])
 				"--games": games = int(kv[1])
+				"--active": all_active = int(kv[1]) == 1
 	await get_tree().process_frame
 	_backup_user_files()
 	var raw = GameEngine._load_json("res://data/nations.json")
@@ -54,9 +56,9 @@ func _ready() -> void:
 	for g in games:
 		var code: String = my_codes[g % my_codes.size()]
 		var persona: String = PERSONAS[(g / my_codes.size()) % PERSONAS.size()]
-		var passive: bool = (g % 10 == 9)
+		var passive: bool = false if all_active else (g % 10 == 9)
 		_run_one(code, persona, passive)
-		if (g + 1) % 25 == 0:
+		if (g + 1) % 20 == 0:
 			_write_results()
 			var dt: float = (Time.get_ticks_msec() - t0) / 1000.0
 			print("[MEGA %d] %d/%d jogos (%.0fs, ~%.1fs/jogo)" % [shard, g + 1, games, dt, dt / (g + 1)])
@@ -66,6 +68,14 @@ func _ready() -> void:
 	get_tree().quit(0)
 
 # ─────────────────────────────────────────────────────────────────
+
+# Snapshot dos níveis de ministério ao fim do jogo (diagnóstico do gabinete).
+func _snapshot_niveis(n) -> Dictionary:
+	var out: Dictionary = {}
+	if n.ministerios != null:
+		for p in n.ministerios:
+			out[p] = int(n.ministerios[p].get("nivel", 1))
+	return out
 
 func _reset_engine() -> void:
 	var E = GameEngine
@@ -138,6 +148,8 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 
 	while E.date_year < END_YEAR and E.current_turn < MAX_TURNS:
 		if not passive:
+			# Gabinete: ajusta verba de P&D por persona (abre trilhas paralelas)
+			bot._manage_ministry_budgets()
 			var fails := 0
 			while E.player_actions_remaining > 0:
 				var best: Dictionary = bot._choose_best_action()
@@ -216,6 +228,7 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 		"rank0": rank0, "rank_f": _pib_rank(code),
 		"power_rank_f": int(E.player_power_rank_history.back()) if E.player_power_rank_history.size() > 0 else 0,
 		"techs": n.tecnologias_concluidas.size(),
+		"min_niveis": _snapshot_niveis(n),
 		"treaties": _count_treaties(code),
 		"wars": wars_player,
 		"decisions": _decisions,

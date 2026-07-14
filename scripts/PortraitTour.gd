@@ -5,7 +5,7 @@ extends Control
 ## Salva user://portrait_tour.png e sai.
 
 const NATIONS := ["BR", "US", "NG", "JP", "IN", "SA", "SE", "FJ", "MX", "EG"]
-const ROLES := ["presidente", "general", "economia", "chanceler", "intel", "ancora"]
+const ROLES := ["presidente", "casa_civil", "economia", "seguranca", "saude", "educacao", "chanceler", "ancora"]
 const EXPRS := ["neutro", "feliz", "preocupado", "bravo", "urgente"]
 const CELL := 84.0
 
@@ -32,14 +32,14 @@ func _ready() -> void:
 		h.position = Vector2(48 + c * (CELL + 6) + 14, 8)
 		add_child(h)
 
-	# coluna extra: expressões do general BR
+	# coluna extra: expressões do min. segurança BR
 	var ex_x := 48 + ROLES.size() * (CELL + 6) + 30
 	var he := Label.new()
-	he.text = "expressões (BR general)"
+	he.text = "expressões (BR seguranca)"
 	he.position = Vector2(ex_x, 8)
 	add_child(he)
 	for i in EXPRS.size():
-		var pv2 := PortraitView.make("BR", "general", EXPRS[i], CELL)
+		var pv2 := PortraitView.make("BR", "seguranca", EXPRS[i], CELL)
 		pv2.position = Vector2(ex_x, 36 + i * (CELL * 1.2 + 4))
 		pv2.size = Vector2(CELL, CELL * 1.2)
 		add_child(pv2)

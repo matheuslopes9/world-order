@@ -91,6 +91,11 @@ const ROLES := {
 	"chanceler": {"suit": "39434f", "shirt": "f2f2f2", "tie": true, "bg": "223640", "idade": "medio", "pin": true},
 	"intel": {"suit": "23262b", "shirt": "15161a", "tie": false, "bg": "191b1f", "idade": "medio", "sunglasses": true},
 	"ancora": {"suit": "2464a4", "shirt": "f2f2f2", "tie": true, "bg": "142c47", "idade": "jovem", "mic": true, "glasses_p": 0.25},
+	# ── Gabinete (6 pastas) ──
+	"casa_civil": {"suit": "3a3f47", "shirt": "f2f2f2", "tie": true, "bg": "20242b", "idade": "medio", "pin": true, "glasses_p": 0.35},
+	"seguranca": {"suit": "1c2733", "shirt": "10151c", "tie": false, "bg": "141b24", "idade": "velho", "badge": true, "epaulettes": true},
+	"saude": {"suit": "e8ecef", "shirt": "f7f9fa", "tie": true, "bg": "1c2e33", "idade": "medio", "coat": true, "glasses_p": 0.45},
+	"educacao": {"suit": "2e3a55", "shirt": "f2f2f2", "tie": true, "bg": "202838", "idade": "medio", "glasses_p": 0.7, "pin": true},
 }
 
 const TIE_PALETTE := ["a32638", "2b4a6f", "6e2f5d", "1f6e5a", "b07020", "394252", "7a1f2b", "23557d"]
@@ -296,6 +301,23 @@ func _draw() -> void:
 	if bool(rc.get("mic", false)):
 		draw_line(Vector2(128, 206), Vector2(133, 196), Color("222222"), 2.0)
 		draw_circle(Vector2(134, 194), 3.4, Color("333333"))
+	# distintivo/estrela do Min. da Justiça & Segurança (segurança + defesa)
+	if bool(rc.get("badge", false)):
+		var star_c := Vector2(66, 200)
+		var star := PackedVector2Array()
+		for i in 10:
+			var a := -PI / 2.0 + TAU * i / 10.0
+			var r := 8.0 if i % 2 == 0 else 3.4
+			star.append(star_c + Vector2(cos(a) * r, sin(a) * r))
+		draw_colored_polygon(star, Color("d9c56a"))
+		draw_circle(star_c, 2.2, Color("8a6f1e"))
+	# estetoscópio do Min. da Saúde (jaleco branco + gravata já vêm do suit)
+	if bool(rc.get("coat", false)):
+		var steth := Color("2b6c8a")
+		draw_arc(Vector2(100, 176), 30.0, PI * 0.15, PI * 0.85, 22, steth, 3.0)
+		draw_line(Vector2(77, 190), Vector2(72, 212), steth, 3.0)
+		draw_circle(Vector2(72, 214), 4.2, steth)
+		draw_line(Vector2(123, 190), Vector2(128, 210), steth, 3.0)
 
 	# cabelo "de trás" (cai sobre o paletó)
 	match String(f["hair"]):

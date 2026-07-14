@@ -36,8 +36,54 @@ var geografia: Dictionary = {}
 
 # Pesquisa & Tech
 var tecnologias_concluidas: Array = []
-var pesquisa_atual = null  # { id, progresso } ou null
+var pesquisa_atual = null  # LEGADO: { id, progresso } ou null — migrado p/ pesquisa_por_ministerio
 var velocidade_pesquisa: float = 1.0
+
+# ── GABINETE DE MINISTROS (6 pastas) ──
+# Cada pasta: {nivel:1-5, xp:float, verba:float(P&D/turno)}
+const MINISTERIOS := ["casa_civil", "fazenda", "seguranca", "saude", "educacao", "exterior"]
+const MIN_NIVEL_MAX: int = 5
+# Limiares de XP acumulado p/ chegar ao nível N (índice = nível-1)
+const MIN_XP_LIMIARES := [0.0, 100.0, 300.0, 700.0, 1500.0]
+var ministerios: Dictionary = {}
+# Filas de pesquisa PARALELAS: pasta -> { id, progresso, tempo_total } (ou ausente)
+var pesquisa_por_ministerio: Dictionary = {}
+
+func _init_ministerios() -> void:
+	ministerios.clear()
+	for m in MINISTERIOS:
+		ministerios[m] = {"nivel": 1, "xp": 0.0, "verba": 0.0}
+
+## Nível atual (1-5) de uma pasta.
+func ministry_level(pasta: String) -> int:
+	if not ministerios.has(pasta):
+		return 1
+	return int(ministerios[pasta].get("nivel", 1))
+
+## Multiplicador de força das ações da pasta pelo nível (nv1=1.0 … nv5≈1.6).
+func ministry_action_mult(pasta: String) -> float:
+	return 1.0 + 0.15 * float(ministry_level(pasta) - 1)
+
+## Credita XP e re-avalia o nível (sobe ao cruzar limiar). Retorna true se subiu.
+func add_ministry_xp(pasta: String, x: float) -> bool:
+	if not ministerios.has(pasta):
+		return false
+	var d: Dictionary = ministerios[pasta]
+	d["xp"] = float(d.get("xp", 0.0)) + x
+	var nv: int = int(d.get("nivel", 1))
+	var subiu := false
+	while nv < MIN_NIVEL_MAX and float(d["xp"]) >= MIN_XP_LIMIARES[nv]:
+		nv += 1
+		subiu = true
+	d["nivel"] = nv
+	return subiu
+
+## Quantas trilhas de pesquisa simultâneas — desbloqueadas pelo nível da Casa Civil.
+## Nível 1→2 trilhas, crescendo até 6 no nível máximo. Investir na Casa Civil
+## acelera TODA a agenda científica (mais ministérios pesquisando em paralelo),
+## permitindo que uma nação focada em ciência complete a árvore e vire potência.
+func research_slots() -> int:
+	return clampi(ministry_level("casa_civil") + 1, 2, 6)
 
 # Diplomacia
 var relacoes: Dictionary = {}
@@ -107,6 +153,9 @@ func from_dict(data: Dictionary, code: String, baked_tier: String = "") -> Natio
 	# Inicializa eleições se democracia
 	if is_democratic() and proxima_eleicao_turno == null:
 		proxima_eleicao_turno = intervalo_eleicoes
+
+	# Gabinete de ministros (6 pastas, nível 1)
+	_init_ministerios()
 
 	return self
 
@@ -204,7 +253,12 @@ func calc_despesas() -> float:
 	var social_sum: float = 0.0
 	for v in gasto_social.values(): social_sum += float(v)
 	var social_spend: float = social_sum / 4.0
-	return mil_budget + gov_spend + interest + social_spend
+	# Verba de P&D alocada aos ministérios (custo trimestral)
+	var rd_spend: float = 0.0
+	for m in ministerios.values():
+		rd_spend += float(m.get("verba", 0.0))
+	rd_spend /= 4.0
+	return mil_budget + gov_spend + interest + social_spend + rd_spend
 
 func calc_saldo() -> float:
 	return calc_receita() - calc_despesas()

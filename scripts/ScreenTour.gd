@@ -66,8 +66,23 @@ func _ready() -> void:
 	wm._refresh_top_bar()
 	await _shot("mapa_em_jogo")
 
+	# Gabinete com níveis/verba/pesquisa p/ os painéis mostrarem conteúdo rico
+	var pn = GameEngine.player_nation
+	pn.tesouro = 3000.0
+	pn.ministerios["casa_civil"]["nivel"] = 3; pn.ministerios["casa_civil"]["xp"] = 400.0
+	pn.ministerios["saude"]["nivel"] = 2; pn.ministerios["saude"]["xp"] = 180.0; pn.ministerios["saude"]["verba"] = 40.0
+	pn.ministerios["educacao"]["nivel"] = 4; pn.ministerios["educacao"]["xp"] = 900.0; pn.ministerios["educacao"]["verba"] = 60.0
+	pn.ministerios["fazenda"]["nivel"] = 2; pn.ministerios["fazenda"]["verba"] = 30.0
+	pn.ministerios["seguranca"]["nivel"] = 3
+	for pasta_seed in ["saude", "educacao", "seguranca"]:
+		var av: Array = GameEngine.tech.get_available_techs(pn, pasta_seed)
+		if not av.is_empty():
+			GameEngine.tech.start_research(pn, String(av[0]["id"]))
+	for _i in 2:
+		if GameEngine.tech: GameEngine.tech.process_turn()
+
 	# 5 — Painéis
-	for panel_id in ["governo", "militar", "economia", "diplomacia", "tech", "intel", "situacao", "historico"]:
+	for panel_id in ["gabinete", "governo", "economia", "seguranca", "saude", "educacao", "diplomacia", "tech", "intel", "situacao", "historico"]:
 		wm._open_overlay_modal(panel_id)
 		await get_tree().create_timer(0.35).timeout
 		await _shot("painel_" + panel_id)
