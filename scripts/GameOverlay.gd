@@ -355,6 +355,23 @@ func _render_militar() -> void:
 # PAINEL: ECONOMIA
 # ─────────────────────────────────────────────────────────────────
 
+# Nomes amigáveis dos setores de comércio.
+const SETOR_NOMES := {"energia": "energia", "alimentos": "alimentos", "industriais": "industriais", "materias_primas": "matérias-primas"}
+func _setor_nome(setor: String) -> String:
+	return SETOR_NOMES.get(setor, setor)
+
+# Top setores de um dict de comércio (ordenados por valor), nomes amigáveis.
+func _top_setores(d: Dictionary, limite: int = 3) -> Array:
+	var pares: Array = []
+	for k in d:
+		pares.append([k, float(d[k])])
+	pares.sort_custom(func(a, b): return a[1] > b[1])
+	var out: Array = []
+	for i in min(limite, pares.size()):
+		if pares[i][1] > 0.1:
+			out.append(_setor_nome(String(pares[i][0])))
+	return out
+
 func _render_economia() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
@@ -408,9 +425,29 @@ func _render_economia() -> void:
 	_add_separator()
 	_add_section_title("FINANÇAS (TRIMESTRE)")
 	_add_data_row("Receita", "+%s" % _money(receita))
-	_add_data_row("  └ Exportações de recursos", "+%s%s" % [_money(exportacao), " (×%.1f)" % n.commodity_multiplier if n.commodity_multiplier != 1.0 else ""], Color(0.5, 0.9, 0.7))
 	_add_data_row("Despesas", "-%s" % _money(despesas))
 	_add_data_row("Saldo", _money(receita - despesas), Color(0.4, 1, 0.6) if receita >= despesas else Color(1, 0.5, 0.4))
+	_add_separator()
+	# ── BALANÇA COMERCIAL ──
+	_add_section_title("BALANÇA COMERCIAL (ano)")
+	var saldo_com: float = n.calc_balanca_comercial() * 4.0  # anualiza
+	var exp_setores: Array = _top_setores(n.exportacoes)
+	var imp_setores: Array = _top_setores(n.importacoes)
+	var exp_total: float = 0.0
+	for v in n.exportacoes.values(): exp_total += float(v)
+	var imp_total: float = 0.0
+	for v in n.importacoes.values(): imp_total += float(v)
+	_add_data_row("Exportações", "+%s%s" % [_money(exp_total * 4.0), "  " + ", ".join(exp_setores) if not exp_setores.is_empty() else ""], Color(0.5, 0.9, 0.7))
+	_add_data_row("Importações", "-%s%s" % [_money(imp_total * 4.0), "  " + ", ".join(imp_setores) if not imp_setores.is_empty() else ""], Color(1, 0.7, 0.5))
+	var saldo_tag := "▲ superávit" if saldo_com >= 0 else "▼ déficit"
+	_add_data_row("Saldo comercial", "%s  %s" % [_money(saldo_com), saldo_tag], Color(0.4, 1, 0.6) if saldo_com >= 0 else Color(1, 0.5, 0.4))
+	if n.commodity_multiplier != 1.0:
+		_add_hint_label("🛢 Choque energético: preços de energia ×%.1f (afeta export E import)" % n.commodity_multiplier)
+	# Dependência crítica de importação (vulnerabilidade a choques)
+	for setor in n.import_dependencia:
+		var dep: float = float(n.import_dependencia[setor])
+		if dep >= 0.5:
+			_add_data_row("  ⚠ dependência de %s" % _setor_nome(setor), "%d%% importado" % int(dep * 100), Color(1, 0.6, 0.4))
 	_add_separator()
 	_add_section_title("RECURSOS NATURAIS")
 	var rec: Dictionary = n.recursos

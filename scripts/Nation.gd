@@ -33,6 +33,14 @@ var confianca_investidor: float = 50.0
 var empresas_sairam: int = 0        # acumulado no jogo (p/ manchetes)
 var tesouro_desviado_total: float = 0.0  # total roubado pela corrupção (p/ UI/eventos)
 
+# ── BALANÇA COMERCIAL (import/export por setor) ──
+# 4 setores: energia, alimentos, industriais, materias_primas. Exporta o que
+# tem em abundância; importa o que falta. Saldo afeta receita, IED e inflação.
+# import_dependencia[setor] = 0-1 (fração da demanda suprida por importação).
+var exportacoes: Dictionary = {}    # setor -> $B/ano
+var importacoes: Dictionary = {}    # setor -> $B/ano
+var import_dependencia: Dictionary = {}  # setor -> 0..1 (vulnerabilidade)
+
 # Eleições
 var proxima_eleicao_turno = null  # Variant: int ou null
 var intervalo_eleicoes: int = 20
@@ -168,6 +176,9 @@ func from_dict(data: Dictionary, code: String, baked_tier: String = "") -> Natio
 	# Confiança do investidor inicial: derivada das instituições de partida
 	confianca_investidor = clamp(55.0 - corrupcao * 0.6 + (estabilidade_politica - 50.0) * 0.3, 10.0, 90.0)
 
+	# Balança comercial inicial (pra UI ter valores no turno 0)
+	update_balanca_comercial()
+
 	return self
 
 # ─────────────────────────────────────────────────────────────────
@@ -233,27 +244,86 @@ func calc_tax_rate() -> float:
 	if "AUTORITA" in regime_politico: return 0.18
 	return 0.20
 
-# Receita de exportação de recursos (separada pra UI mostrar o breakdown
-# e o efeito dos choques de commodities em tempo real)
+# ── BALANÇA COMERCIAL ──
+# Setores de comércio e os recursos que os abastecem (oferta doméstica).
+const TRADE_SECTORS := {
+	"energia":       ["petroleo", "gas_natural", "carvao", "energias_renovaveis", "uranio"],
+	"alimentos":     ["agricultura", "terras_araveis", "pesca", "peixes"],
+	"industriais":   ["tecnologia", "manufatura", "servicos", "servicos_financeiros"],
+	"materias_primas": ["minerios", "minerios_raros", "ferro", "ouro", "diamantes", "madeira", "cobre"],
+}
+
+# Oferta doméstica de um setor (0-100): melhor recurso que o abastece.
+# Industriais também sobem com techs concluídas (país que domina tecnologia).
+func _setor_oferta(setor: String) -> float:
+	var melhor: float = 0.0
+	for r in TRADE_SECTORS.get(setor, []):
+		melhor = maxf(melhor, float(recursos.get(r, 0)))
+	if setor == "industriais":
+		melhor = maxf(melhor, clampf(tecnologias_concluidas.size() * 3.0, 0.0, 90.0))
+	return melhor
+
+var _saldo_comercial_cache: float = 0.0  # cacheado por update (perf)
+
+# Recalcula exportações, importações e dependência a cada turno.
+# Exporta setor com oferta ≥60; importa setor com oferta <50. O volume escala
+# com o PIB (rendimentos DECRESCENTES via PIB^0.85) e os valores brutos são
+# COMPRIMIDOS para uma faixa realista: saldo típico fica em poucos % do PIB
+# (no mundo real, superávit de 5-10% do PIB já é enorme). Sem isso o comércio
+# virava a força dominante ($255T no fim de jogo).
+func update_balanca_comercial() -> void:
+	exportacoes.clear()
+	importacoes.clear()
+	import_dependencia.clear()
+	var pib_q: float = pib_bilhoes_usd / 4.0
+	# Base com damping: comércio é fração grande de economia pequena, menor de
+	# economia madura. Coeficiente calibrado p/ saldo típico ~±10% do PIB.
+	var base: float = pow(maxf(1.0, pib_bilhoes_usd), 0.85) / 4.0 * 0.28
+	var exp_sum: float = 0.0
+	var imp_sum: float = 0.0
+	for setor in TRADE_SECTORS:
+		var oferta: float = _setor_oferta(setor)
+		var mult: float = commodity_multiplier if setor == "energia" else 1.0
+		if oferta >= 60.0:
+			var forca: float = (oferta - 60.0) / 40.0  # 0..1
+			var e: float = base * (0.3 + 0.7 * forca) * mult
+			exportacoes[setor] = e
+			exp_sum += e
+		elif oferta < 50.0:
+			var carencia: float = (50.0 - oferta) / 50.0  # 0..1
+			var im: float = base * 0.7 * carencia * mult
+			importacoes[setor] = im
+			imp_sum += im
+			import_dependencia[setor] = carencia
+	# Compressão final: satura o saldo em ±15% do PIB trimestral (impede que
+	# o comércio domine a economia, mantendo a direção e a proporção relativa).
+	var saldo: float = exp_sum - imp_sum
+	var cap: float = pib_q * 0.15
+	_saldo_comercial_cache = clampf(saldo, -cap, cap)
+
+# Saldo comercial trimestral (cacheado — recalculado só em update_balanca_comercial).
+func calc_balanca_comercial() -> float:
+	return _saldo_comercial_cache
+
+# Receita de exportação (mantém o nome p/ compat de UI): agora é a soma real
+# das exportações por setor da balança comercial.
 func calc_receita_exportacao() -> float:
-	var vals: Array = recursos.values() if recursos else []
-	var avg_resource: float = 30.0
-	if vals.size() > 0:
-		var sum: float = 0.0
-		for v in vals: sum += float(v)
-		avg_resource = sum / vals.size()
-	return pib_bilhoes_usd * (avg_resource / 100.0) * 0.02 / 4.0 * commodity_multiplier
+	var s: float = 0.0
+	for v in exportacoes.values(): s += float(v)
+	return s
 
 func calc_receita() -> float:
 	var tax_rate := calc_tax_rate()
 	var impostos: float = (pib_bilhoes_usd * tax_rate / 4.0) + 5.0
-	var export_bonus: float = calc_receita_exportacao()
 	var bur_pct: float = (burocracia_eficiencia - 50.0) / 50.0
 	var cor_pct: float = (50.0 - corrupcao) / 50.0
 	var eficiencia: float = 1.0 + (bur_pct * 0.075) + (cor_pct * 0.075)
 	var infl_penalty: float = max(0.0, (inflacao - 15.0) / 100.0)
 	var infl_factor: float = max(0.5, 1.0 - infl_penalty * 0.6)
-	return (impostos + export_bonus) * eficiencia * infl_factor
+	# Balança comercial: superávit soma divisas, déficit as drena.
+	# Importações são custo pleno; exportações entram com a eficiência tributária.
+	var saldo_comercial: float = calc_balanca_comercial()
+	return (impostos * eficiencia * infl_factor) + saldo_comercial
 
 func calc_despesas() -> float:
 	var mil_budget: float = float(militar.get("orcamento_militar_bilhoes", 0)) / 4.0
@@ -294,6 +364,8 @@ var frontier_pib_pc: float = 0.0
 var commodity_multiplier: float = 1.0
 
 func update_pib(global_factor: float = 1.0) -> void:
+	# Atualiza a balança comercial antes de tudo (usada por receita e PIB)
+	update_balanca_comercial()
 	var stab: float = estabilidade_politica / 100.0
 	var happy: float = felicidade / 100.0
 	var corr: float = corrupcao / 100.0
@@ -334,6 +406,10 @@ func update_pib(global_factor: float = 1.0) -> void:
 		growth += ied_delta * 0.004
 	else:
 		growth += ied_delta * 0.005  # êxodo pesa mais que influxo
+	# BALANÇA COMERCIAL no crescimento: superávit sustentado impulsiona
+	# (economia exportadora), déficit crônico freia. Normalizado pelo PIB.
+	var saldo_pct: float = calc_balanca_comercial() / max(1.0, pib_bilhoes_usd / 4.0)
+	growth += clampf(saldo_pct, -0.5, 0.5) * 0.004
 	growth = clamp(growth, -0.03, 0.035)
 	pib_bilhoes_usd *= (1.0 + growth)
 
@@ -412,7 +488,11 @@ func process_turn_finances() -> void:
 	# Pressão social suavizada (×4, antes ×10): com gasto social escalado ao PIB
 	# a pressão vira um custo gerenciável, não uma sentença de hiperinflação
 	var social_pressure: float = max(0.0, (social_sum / gdp_q) - 0.5)
-	var inflacao_target: float = 2.0 + deficit_ratio * 25.0 + mil_pressure * 1.5 + war_pressure + social_pressure * 4.0
+	# Déficit comercial pressiona a inflação (pressão cambial: importar mais do
+	# que exporta enfraquece a moeda). Só déficit conta; superávit não deflaciona.
+	var trade_deficit_ratio: float = max(0.0, -calc_balanca_comercial()) / gdp_q
+	var trade_pressure: float = trade_deficit_ratio * 6.0
+	var inflacao_target: float = 2.0 + deficit_ratio * 25.0 + mil_pressure * 1.5 + war_pressure + social_pressure * 4.0 + trade_pressure
 	# Perk "Banco Central Sólido": subidas de inflação são amortecidas em N%
 	# (quedas passam na íntegra — o perk só protege contra alta)
 	var decay_pct: float = float(get_meta("perk_inflation_decay", 0)) / 100.0

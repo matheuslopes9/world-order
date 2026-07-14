@@ -244,11 +244,15 @@ func _run() -> void:
 	_check(E.nations["JP"].pib_bilhoes_usd < jp_pib0, "recessão global derruba PIB")
 	E._process_global_shocks()
 	_check(E.active_shock.is_empty(), "choque expira e limpa")
+	# Choque de commodities dobra a exportação de ENERGIA de um exportador
+	n_p.recursos["petroleo"] = 90.0  # garante exportador de energia
 	n_p.commodity_multiplier = 2.0
-	var exp1: float = n_p.calc_receita_exportacao()
+	n_p.update_balanca_comercial()
+	var exp1: float = float(n_p.exportacoes.get("energia", 0.0))
 	n_p.commodity_multiplier = 1.0
-	var exp0: float = n_p.calc_receita_exportacao()
-	_check(exp1 > exp0 * 1.9, "multiplicador de commodities dobra exportações")
+	n_p.update_balanca_comercial()
+	var exp0: float = float(n_p.exportacoes.get("energia", 0.0))
+	_check(exp1 > exp0 * 1.9, "choque de commodities dobra exportação de energia ($%.1f vs $%.1f)" % [exp1, exp0])
 
 	print("[12d] Economia de escala científica")
 	var fake_n = load("res://scripts/Nation.gd").new()
@@ -428,6 +432,35 @@ func _run() -> void:
 	n_hi.update_pib(1.0)
 	n_lo.update_pib(1.0)
 	_check(n_hi.pib_bilhoes_usd > n_lo.pib_bilhoes_usd, "IED alto cresce mais que IED baixo ($%.1fB vs $%.1fB)" % [n_hi.pib_bilhoes_usd, n_lo.pib_bilhoes_usd])
+
+	# ── 16. Balança comercial (import/export por setor) ──
+	print("[16] Balança comercial")
+	# Petro-estado: só petróleo → exporta energia, importa o resto
+	var petro = load("res://scripts/Nation.gd").new()
+	petro.from_dict({"nome": "Petro", "pib_bilhoes_usd": 800.0, "populacao": 30000000, "recursos": {"petroleo": 95, "gas_natural": 80}}, "XP2")
+	petro.update_balanca_comercial()
+	_check(float(petro.exportacoes.get("energia", 0)) > 0.0, "petro-estado exporta energia ($%.1fB)" % float(petro.exportacoes.get("energia", 0)))
+	_check(petro.importacoes.has("alimentos") and petro.importacoes.has("industriais"), "petro-estado importa alimentos e industriais (carências)")
+	# Nação diversificada: superávit; nação carente: déficit
+	var div = load("res://scripts/Nation.gd").new()
+	div.from_dict({"nome": "Div", "pib_bilhoes_usd": 800.0, "populacao": 30000000, "recursos": {"petroleo": 80, "agricultura": 85, "minerios": 75, "manufatura": 70}}, "XD2")
+	div.update_balanca_comercial()
+	var carente = load("res://scripts/Nation.gd").new()
+	carente.from_dict({"nome": "Carente", "pib_bilhoes_usd": 800.0, "populacao": 30000000, "recursos": {"turismo": 40}}, "XC2")
+	carente.update_balanca_comercial()
+	_check(div.calc_balanca_comercial() > carente.calc_balanca_comercial(), "diversificada tem saldo melhor que carente (%.1f vs %.1f)" % [div.calc_balanca_comercial(), carente.calc_balanca_comercial()])
+	_check(carente.calc_balanca_comercial() < 0.0, "nação sem recursos tem DÉFICIT comercial (%.1f)" % carente.calc_balanca_comercial())
+	# Dependência de importação é registrada
+	_check(carente.import_dependencia.size() > 0, "dependência de importação registrada (%d setores)" % carente.import_dependencia.size())
+	# Déficit comercial pressiona inflação: compara alvo com/sem déficit
+	var infl_antes: float = carente.inflacao
+	for i in 8: carente.process_turn_finances()
+	var div_infl: float = div.inflacao
+	for i in 8: div.process_turn_finances()
+	_check(carente.inflacao >= div_infl - 1.0, "déficit comercial pressiona inflação (carente %.1f vs div %.1f)" % [carente.inflacao, div.inflacao])
+	# Saldo comercial entra na receita
+	var rec_com: float = div.calc_receita()
+	_check(rec_com > 0.0, "receita inclui saldo comercial ($%.1fB)" % rec_com)
 
 # ─────────────────────────────────────────────────────────────────
 
