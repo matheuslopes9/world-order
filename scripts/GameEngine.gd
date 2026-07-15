@@ -1149,16 +1149,30 @@ func player_toggle_legal_tender() -> Dictionary:
 # Cumpre a promessa dos tooltips da etapa 3 (antes só armazenada como meta).
 # "mista" é o baseline (sem efeito). Números pequenos e compostos: são um viés
 # de longo prazo, não um atalho — coerente com "governar bem > especular".
+# Roda a doutrina econômica de TODAS as nações 1×/turno. O jogador usa a doutrina
+# escolhida no wizard (meta "economic_doctrine"); os bots usam a ideologia econômica
+# da sua personalidade (personalities.json → ideologia_economica). Isso faz o rumo
+# econômico de cada país refletir a ideologia do líder (comunista→planejada, etc.).
 func _process_economic_doctrine() -> void:
-	var n = player_nation
-	if n == null:
-		return
-	# NOTA: o "+5 corrupção" do Livre Mercado é estrutural (aplicado 1× no takeover,
-	# ver _apply_economic_doctrine_once). Aqui só os efeitos marcados "/turno".
-	# CALIBRAÇÃO: as taxas são pequenas de propósito — compostas por 400 turnos (1
-	# século) elas dão um VIÉS sensível mas não dominante (Livre ~1,5× PIB, Planej
-	# ~0,9×, Nórdico ~0,85×). Taxas grandes (1%/turno) explodiriam/aniquilariam o PIB.
-	match String(n.get_meta("economic_doctrine", "mista")):
+	for code in nations.keys():
+		_apply_doctrine_turn(nations[code], _doctrine_for(nations[code]))
+
+# Resolve a doutrina econômica de uma nação: o jogador tem a meta explícita do wizard;
+# os bots herdam da ideologia_economica da personalidade. Default "mista".
+func _doctrine_for(n) -> String:
+	if n == player_nation:
+		return String(n.get_meta("economic_doctrine", "mista"))
+	var personalities: Dictionary = personalities_data.get("personalities", {})
+	var pers: Dictionary = personalities.get(n.personalidade, {})
+	return String(pers.get("ideologia_economica", "mista"))
+
+# Aplica o efeito POR TURNO da doutrina a uma nação.
+# CALIBRAÇÃO: taxas pequenas de propósito — compostas por 400 turnos (1 século) dão
+# um VIÉS sensível mas não dominante (Livre ~1,5× PIB, Planej ~0,9×, Nórdico ~0,85×).
+# Taxas grandes (1%/turno) explodiriam/aniquilariam o PIB. O "+5 corrupção" do Livre
+# Mercado é estrutural (1× no takeover, ver _apply_economic_doctrine_once).
+func _apply_doctrine_turn(n, doctrine: String) -> void:
+	match doctrine:
 		"livre_mercado":
 			n.pib_bilhoes_usd *= 1.001         # PIB ~1,5× no século
 		"planejada":
@@ -1170,7 +1184,7 @@ func _process_economic_doctrine() -> void:
 		_:
 			pass  # "mista" e desconhecidas: baseline, sem efeito
 
-# Efeito ESTRUTURAL (uma vez) da doutrina, aplicado no momento do takeover.
+# Efeito ESTRUTURAL (uma vez) da doutrina, aplicado no momento do takeover (jogador).
 func _apply_economic_doctrine_once(n) -> void:
 	if String(n.get_meta("economic_doctrine", "mista")) == "livre_mercado":
 		n.corrupcao = clampf(n.corrupcao + 5.0, 0.0, 100.0)  # +5 corrupção (custo institucional)

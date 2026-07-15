@@ -630,8 +630,23 @@ func _run() -> void:
 	nb.set_meta("economic_doctrine", "mista")
 	var pib3: float = nb.pib_bilhoes_usd
 	var fel3: float = nb.felicidade
-	E._process_economic_doctrine()
+	E._apply_doctrine_turn(nb, E._doctrine_for(nb))
 	_check(nb.pib_bilhoes_usd == pib3 and nb.felicidade == fel3, "mista: baseline, sem efeito de doutrina")
+	# Bots herdam a doutrina da IDEOLOGIA da personalidade (não da meta do jogador)
+	var bot_nat = null
+	for c in E.nations.keys():
+		if c != nb.codigo_iso:
+			bot_nat = E.nations[c]
+			break
+	if bot_nat != null:
+		bot_nat.personalidade = "milei_libertario"   # ideologia_economica = livre_mercado
+		_check(E._doctrine_for(bot_nat) == "livre_mercado", "bot com personalidade milei → doutrina livre_mercado")
+		bot_nat.personalidade = "xi_hegemonico"       # ideologia_economica = planejada
+		_check(E._doctrine_for(bot_nat) == "planejada", "bot com personalidade xi → doutrina planejada")
+		var bp0: float = bot_nat.pib_bilhoes_usd
+		bot_nat.personalidade = "milei_libertario"
+		E._apply_doctrine_turn(bot_nat, E._doctrine_for(bot_nat))
+		_check(bot_nat.pib_bilhoes_usd > bp0, "doutrina do bot afeta o PIB do próprio bot (não do jogador)")
 
 	# ── 21. Crises globais: decisão universal + efeitos globais estendidos ──
 	print("[21] Crises globais (2008/COVID/Ucrânia)")
