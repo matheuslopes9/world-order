@@ -206,3 +206,52 @@ economia de escala científica, embaixada via API, bot military ofensivo.
 0..3 | % { Start-Process .\Godot_v4.6.2-stable_win64_console.exe -ArgumentList "--headless","--path",".","res://scenes/MegaSim.tscn","--","--shard=$_","--shards=4","--games=250" }
 # Resultados: %APPDATA%\Godot\app_userdata\World Order\megasim_shard_N.json
 ```
+
+---
+
+# 🪙 Validação da Economia — Fases 3 & 4 (bolsa + cripto)
+
+Data: 2026-07-15 · Harness: `scenes/MegaSim.tscn` · Godot 4.7.1 · PC novo (12 núcleos)
+**489 campanhas completas** (2000→2100): 195 (1 ciclo balanced) + 294 (2 shards × 196
+games = 4 ciclos das personas balanced/economic/military/diplomat) · `--active=1`.
+
+## Veredito: ✅ economia validada. Cripto oscila saudável e é complementar.
+
+| Métrica | Resultado | Leitura |
+|---|---|---|
+| Anomalias / crashes | **0** em 489 jogos | motor sólido |
+| Performance | **~17,6 ms/turno** (p90 19,5) | saturação do PC antigo RESOLVIDA |
+| Cripto preço final | med **$1.293** (p10 435 · p90 2.008) | oscila, não morre |
+| Cripto no piso (≤$200) | **1,6%** | reversão à média funciona ✅ |
+| Economic tocaram cripto | **96,9%** (95/98) | bot economic usa a mecânica ✅ |
+| P&L cripto (economic) | med **+166** (p10 −19 · p90 +7.444) | risco real, retorno assimétrico ✅ |
+| Bolsa (fase 3) jogada | **97,5%** · índice med 4.752 | complementar, não explode |
+
+## 🟡 Achado de balanceamento (não é bug, é ajuste fino)
+
+**Cap prudencial da cripto (12% do PIB) é violado em 14/489 (2,9%).** Causa: o cap
+limita a COMPRA, mas o preço pode subir depois e inflar a posição além de 12% (até
+25% do PIB nos extremos). Nesses casos a cripto vira **~50% do portfólio** (≈ bolsa),
+mais que "complementar". **Nenhum** desses casos quebrou a economia (todos LEGADO/
+POTÊNCIA DO SÉCULO). Opções: (a) aceitar (é realista — não forçar venda na alta);
+(b) rebalancear passivo se `crypto_val > cap` (haircut suave); (c) cap de compra mais
+baixo (~8%). Recomendação: (a) por ora, revisitar se testers humanos reclamarem.
+
+## 🟡 Crescimento do PIB alto no late-game
+
+`growth_x` mediano **746×** em 100 anos (p90 4.301× · max 32.069×). Herança do
+relatório de 1000 campanhas (era 533×). Não quebra nada, mas infla os números do fim
+do século. Candidato a damping no crescimento composto — fora do escopo da economia.
+
+## Desfecho por persona (todas ativas)
+
+| Persona | LEGADO | POTÊNCIA | REVOLUÇÃO | GOLPE |
+|---|---|---|---|---|
+| balanced (195) | 107 | 86 | 2 | 0 |
+| economic (98) | 60 | 36 | 1 | 1 |
+| military (98) | 48 | 37 | 6 | 7 | ← mais derrotas (esperado: guerra é arriscada) |
+| diplomat (98) | 52 | 44 | 1 | 1 |
+
+Military tem ~13% de derrota (revolução+golpe) vs ~2% das outras — coerente com o
+design (militarismo é a rota de alto risco). Economic sobrevive bem mesmo arriscando
+cripto.
