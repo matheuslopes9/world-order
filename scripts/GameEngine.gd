@@ -88,6 +88,13 @@ var player_crypto_invested: float = 0.0
 var player_crypto_coins: float = 0.0
 var crypto_legal_tender: bool = false  # adotou cripto como moeda legal?
 const CRYPTO_HISTORY_MAX: int = 40
+# Haircut prudencial: o cap de COMPRA é 12% do PIB, mas a valorização pode inflar
+# a posição além disso. Se passar de HAIRCUT_TETO do PIB por alta de preço, o
+# excedente é realizado aos poucos (HAIRCUT_FRAC/turno) — corta a super-exposição
+# sem forçar venda total na alta (mantém o upside da aposta). Ver MEGASIM_FINDINGS.
+const CRYPTO_HAIRCUT_TETO: float = 0.15   # 15% do PIB
+const CRYPTO_HAIRCUT_FRAC: float = 0.10   # realiza 10% do excedente por turno
+var _crypto_haircut_avisado: bool = false
 # Posição do jogador no ranking de poder, registrada por turno (sparkline da UI)
 var player_power_rank_history: Array = []
 const POWER_RANK_HISTORY_MAX: int = 60
@@ -1041,6 +1048,33 @@ func _process_crypto() -> void:
 	# Adoção como moeda legal: expõe a nação à volatilidade (estabilidade oscila)
 	if crypto_legal_tender and player_nation != null and body == "colapso":
 		player_nation.estabilidade_politica = maxf(0.0, player_nation.estabilidade_politica - 4.0)
+	# Haircut prudencial: se a valorização levou a posição acima do teto do PIB,
+	# realiza o excedente aos poucos (evita super-exposição silenciosa da cripto).
+	_apply_crypto_haircut()
+
+# Se a posição em cripto excede CRYPTO_HAIRCUT_TETO do PIB (por alta de preço, não
+# por compra), vende o excedente em fatias de CRYPTO_HAIRCUT_FRAC/turno. Avisa o
+# jogador 1× ao cruzar o teto. Vale para humano e bot (via player_sell_crypto).
+func _apply_crypto_haircut() -> void:
+	var n = player_nation
+	if n == null or player_crypto_coins <= 0.0:
+		_crypto_haircut_avisado = false
+		return
+	var teto: float = n.pib_bilhoes_usd * CRYPTO_HAIRCUT_TETO
+	var pos: float = player_crypto_value()
+	if pos <= teto:
+		_crypto_haircut_avisado = false
+		return
+	if not _crypto_haircut_avisado:
+		_crypto_haircut_avisado = true
+		_log_news({
+			"type": "cripto",
+			"headline": "₿ Exposição à WorldCoin acima do prudente (%.0f%% do PIB)" % (pos / maxf(1.0, n.pib_bilhoes_usd) * 100.0),
+			"body": "Sua posição em cripto disparou com a alta. O tesouro nacional começa a realizar lucro aos poucos para reduzir o risco.",
+			"involves_player": true,
+			"color": Color(1, 0.75, 0.2),
+		}, [n.codigo_iso], n.continente)
+	player_sell_crypto((pos - teto) * CRYPTO_HAIRCUT_FRAC)
 
 func player_crypto_value() -> float:
 	return player_crypto_coins * (crypto_price / 1000.0)

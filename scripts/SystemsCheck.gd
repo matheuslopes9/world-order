@@ -583,6 +583,26 @@ func _run() -> void:
 	_check(tl.get("ok", false) and E.crypto_legal_tender and nb.confianca_investidor > conf_pre, "adotar moeda legal liga a flag e sinaliza inovação (+confiança)")
 	E.player_toggle_legal_tender()
 	_check(not E.crypto_legal_tender, "revogar moeda legal desliga a flag")
+	# Haircut prudencial: posição inflada por valorização acima do teto é realizada aos poucos
+	nb.pib_bilhoes_usd = 1000.0
+	nb.tesouro = 500.0
+	E.crypto_price = 1000.0
+	E.player_crypto_coins = 0.0
+	E.player_crypto_invested = 0.0
+	E._crypto_haircut_avisado = false
+	E.player_buy_crypto(120.0)                       # ~12% do PIB (no cap de compra)
+	E.crypto_price = 3000.0                            # preço triplica → posição ~36% do PIB
+	var pos_pre: float = E.player_crypto_value()
+	E._apply_crypto_haircut()                          # 1 turno de haircut
+	var pos_pos: float = E.player_crypto_value()
+	_check(pos_pos < pos_pre and pos_pos > nb.pib_bilhoes_usd * E.CRYPTO_HAIRCUT_TETO, "haircut realiza excedente aos poucos (%.0f→%.0f, ainda acima do teto)" % [pos_pre, pos_pos])
+	# Repetindo o haircut muitos turnos, a posição converge para perto do teto e
+	# ESTABILIZA (não zera): a venda para quando o excedente vira < $1B/turno.
+	for _i in 80:
+		E._apply_crypto_haircut()
+	var teto: float = nb.pib_bilhoes_usd * E.CRYPTO_HAIRCUT_TETO
+	var conv: float = E.player_crypto_value()
+	_check(conv > teto and conv < teto * 1.15, "haircut converge para perto do teto sem zerar (pos $%.0fB, teto $%.0fB)" % [conv, teto])
 
 # ─────────────────────────────────────────────────────────────────
 

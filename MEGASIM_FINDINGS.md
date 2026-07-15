@@ -255,3 +255,25 @@ do século. Candidato a damping no crescimento composto — fora do escopo da ec
 Military tem ~13% de derrota (revolução+golpe) vs ~2% das outras — coerente com o
 design (militarismo é a rota de alto risco). Economic sobrevive bem mesmo arriscando
 cripto.
+
+## ✅ Haircut da cripto — implementado e validado (2026-07-15)
+
+Escolhida a opção **haircut suave** para o achado do cap. Impl.: `_apply_crypto_haircut()`
+em GameEngine (1×/turno, sem recursão financeira). Se `crypto_val > 15% do PIB` por
+valorização, realiza 10% do excedente/turno + avisa o jogador 1×. Cobre humano e bot.
+SystemsCheck: **112/112** (2 checks novos: realiza excedente + converge sem zerar).
+
+Re-validação (392 campanhas, economic exercitando cripto):
+
+| cripto/PIB (economic) | Antes | Depois |
+|---|---|---|
+| mediana | 0,080 | **0,073** |
+| casos > 18% do PIB | vários (até 25%) | **4** |
+| preço no piso (≤$200) | 1,6% | 2,0% (ruído) |
+| desfecho dos super-expostos | vitória | vitória |
+
+O haircut corta a **exposição sustentada** (mediana e cauda >18% caem). Os poucos
+casos remanescentes em ~25% são **picos de preço no último turno** (turno 400), onde
+o haircut gradual só teve 1 turno para agir — inerente ao design gradual (não força
+venda total na alta, preservando o upside da aposta). Nenhum quebrou a economia.
+**Veredito: cap resolvido de forma realista. Fase 4 fechada.**
