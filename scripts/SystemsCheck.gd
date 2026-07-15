@@ -452,15 +452,60 @@ func _run() -> void:
 	_check(carente.calc_balanca_comercial() < 0.0, "nação sem recursos tem DÉFICIT comercial (%.1f)" % carente.calc_balanca_comercial())
 	# Dependência de importação é registrada
 	_check(carente.import_dependencia.size() > 0, "dependência de importação registrada (%d setores)" % carente.import_dependencia.size())
-	# Déficit comercial pressiona inflação: compara alvo com/sem déficit
-	var infl_antes: float = carente.inflacao
-	for i in 8: carente.process_turn_finances()
-	var div_infl: float = div.inflacao
-	for i in 8: div.process_turn_finances()
-	_check(carente.inflacao >= div_infl - 1.0, "déficit comercial pressiona inflação (carente %.1f vs div %.1f)" % [carente.inflacao, div.inflacao])
+	# Déficit comercial pressiona inflação: a nação carente (déficit) converge
+	# para inflação MAIOR que a diversificada (superávit). Média de 20 turnos
+	# pra lavar o ruído do shock aleatório de inflação.
+	for i in 20: carente.process_turn_finances()
+	for i in 20: div.process_turn_finances()
+	var soma_car := 0.0
+	var soma_div := 0.0
+	for i in 10:
+		carente.process_turn_finances(); soma_car += carente.inflacao
+		div.process_turn_finances(); soma_div += div.inflacao
+	_check(soma_car / 10.0 > soma_div / 10.0, "déficit comercial pressiona inflação (carente %.1f vs div %.1f, média 10t)" % [soma_car / 10.0, soma_div / 10.0])
 	# Saldo comercial entra na receita
 	var rec_com: float = div.calc_receita()
 	_check(rec_com > 0.0, "receita inclui saldo comercial ($%.1fB)" % rec_com)
+
+	# ── 17. Empréstimos proativos + rating de crédito ──
+	print("[17] Empréstimos + rating de crédito")
+	var nb = E.player_nation
+	nb.divida_publica = 0.0
+	nb.estabilidade_politica = 80.0
+	nb.confianca_investidor = 70.0
+	nb.defaults_no_historico = 0
+	var rating_bom: float = nb.rating_credito()
+	# Rating cai com dívida alta
+	nb.divida_publica = nb.pib_bilhoes_usd * 2.0
+	var rating_endividado: float = nb.rating_credito()
+	_check(rating_endividado < rating_bom, "dívida alta derruba o rating (%.0f → %.0f)" % [rating_bom, rating_endividado])
+	# Juros: rating ruim paga mais caro
+	nb.divida_publica = 0.0
+	var juros_bom: float = nb.juros_emprestimo()
+	nb.divida_publica = nb.pib_bilhoes_usd * 2.0
+	var juros_ruim: float = nb.juros_emprestimo()
+	_check(juros_ruim > juros_bom, "rating ruim = juros mais caros (%.1f%% vs %.1f%%)" % [juros_ruim*100, juros_bom*100])
+	# Empréstimo proativo entra no tesouro e cria dívida
+	nb.divida_publica = 0.0
+	nb.estabilidade_politica = 80.0
+	nb.tesouro = 200.0
+	var tes_antes: float = nb.tesouro
+	var div_antes: float = nb.divida_publica
+	var loan: Dictionary = E.player_take_loan(100.0)
+	_check(loan.get("ok", false) and nb.tesouro == tes_antes + 100.0 and nb.divida_publica == div_antes + 100.0, "empréstimo entra no tesouro e vira dívida")
+	# Acima do limite é negado
+	var loan_grande: Dictionary = E.player_take_loan(nb.pib_bilhoes_usd * 10.0)
+	_check(not loan_grande.get("ok", true), "empréstimo acima do limite de crédito é negado")
+	# Amortização reduz dívida e melhora rating
+	nb.tesouro = 500.0
+	var rating_antes_pgto: float = nb.rating_credito()
+	E.player_repay_debt(100.0)
+	_check(nb.rating_credito() >= rating_antes_pgto, "amortizar dívida melhora (ou mantém) o rating")
+	# Calote queima o rating
+	nb.divida_publica = 0.0
+	var r_limpo: float = nb.rating_credito()
+	nb.defaults_no_historico = 2
+	_check(nb.rating_credito() < r_limpo, "histórico de calote derruba o rating")
 
 # ─────────────────────────────────────────────────────────────────
 

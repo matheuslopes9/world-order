@@ -449,6 +449,46 @@ func _render_economia() -> void:
 		if dep >= 0.5:
 			_add_data_row("  ⚠ dependência de %s" % _setor_nome(setor), "%d%% importado" % int(dep * 100), Color(1, 0.6, 0.4))
 	_add_separator()
+	# ── CRÉDITO & DÍVIDA ──
+	_add_section_title("CRÉDITO & DÍVIDA")
+	var rating: float = n.rating_credito()
+	var letra: String = n.rating_letra()
+	var rating_cor := Color(0.4, 1, 0.6) if rating >= 66.0 else (Color(1, 0.5, 0.4) if rating < 42.0 else Color(1, 0.82, 0.3))
+	_add_data_row("Rating de crédito", "%s  (%d/100)" % [letra, int(rating)], rating_cor)
+	_add_data_row("Juros de novos empréstimos", "%.1f%%/ano" % (n.juros_emprestimo() * 100.0))
+	var limite: float = n.limite_emprestimo()
+	_add_data_row("Crédito disponível", _money(limite), Color(0.5, 0.8, 1))
+	# Botões: captar empréstimo / amortizar (passo de 5% do PIB)
+	var passo: float = maxf(20.0, n.pib_bilhoes_usd * 0.05)
+	var loan_row := HBoxContainer.new()
+	loan_row.add_theme_constant_override("separation", 8)
+	var btn_loan := Button.new()
+	btn_loan.text = "🏦 Captar %s" % _money(minf(passo, limite))
+	btn_loan.custom_minimum_size = Vector2(0, 30)
+	btn_loan.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_loan.disabled = limite < 1.0
+	btn_loan.pressed.connect(func():
+		var r: Dictionary = GameEngine.player_take_loan(minf(passo, GameEngine.player_nation.limite_emprestimo()))
+		if r.get("ok", false):
+			_log_global_news("🏦 EMPRÉSTIMO", "Captado %s a %.1f%%/ano" % [_money(r.get("valor", 0)), float(r.get("juros", 0)) * 100.0], Color(0.5, 0.8, 1))
+		else:
+			_log_global_news("⚠ CRÉDITO", String(r.get("reason", "")), Color(1, 0.6, 0.4))
+		_render_panel("economia")
+		_refresh_top_bar_external())
+	loan_row.add_child(btn_loan)
+	if n.divida_publica > 1.0 and n.tesouro > 1.0:
+		var btn_pay := Button.new()
+		btn_pay.text = "💳 Amortizar %s" % _money(minf(passo, n.divida_publica))
+		btn_pay.custom_minimum_size = Vector2(0, 30)
+		btn_pay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn_pay.pressed.connect(func():
+			GameEngine.player_repay_debt(minf(passo, GameEngine.player_nation.divida_publica))
+			_render_panel("economia")
+			_refresh_top_bar_external())
+		loan_row.add_child(btn_pay)
+	panel_content.add_child(loan_row)
+	_add_hint_label("💡 Empréstimo bem investido (infra, tech) acelera; mal usado, afunda em juros. Rating melhor = juro mais barato.")
+	_add_separator()
 	_add_section_title("RECURSOS NATURAIS")
 	var rec: Dictionary = n.recursos
 	for k in ["petroleo", "gas_natural", "minerios_raros", "uranio", "ferro", "terras_araveis"]:

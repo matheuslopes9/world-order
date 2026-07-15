@@ -235,6 +235,8 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 		"empresas_sairam": n.empresas_sairam,
 		"desviado": snappedf(n.tesouro_desviado_total, 0.1),
 		"balanca": snappedf(n.calc_balanca_comercial() * 4.0, 0.1),
+		"rating": snappedf(n.rating_credito(), 0.1),
+		"divida_f": snappedf(n.divida_publica, 0.1),
 		"treaties": _count_treaties(code),
 		"wars": wars_player,
 		"decisions": _decisions,

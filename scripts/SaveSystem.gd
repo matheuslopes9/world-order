@@ -176,6 +176,7 @@ static func _serialize_nations(nations: Dictionary) -> Dictionary:
 			"confianca_investidor": n.confianca_investidor,
 			"empresas_sairam": n.empresas_sairam,
 			"tesouro_desviado_total": n.tesouro_desviado_total,
+			"defaults_no_historico": n.defaults_no_historico,
 			"recursos": n.recursos,
 			"militar": n.militar,
 			"tecnologias_concluidas": n.tecnologias_concluidas,

@@ -530,6 +530,24 @@ func _manage_ministry_budgets() -> void:
 	for pasta in prio:
 		var verba: float = total_rd * float(prio[pasta]) / max(soma_peso, 0.01)
 		_engine.player_alloc_rd(pasta, verba)
+	_manage_debt(n)
+
+# Alavancagem estratégica: capta empréstimo quando o crédito é BOM e o tesouro
+# está baixo (investir cedo), e amortiza quando sobra caixa e a dívida é grande.
+func _manage_debt(n) -> void:
+	if not n.has_method("rating_credito"):
+		return
+	var rating: float = n.rating_credito()
+	var limite: float = n.limite_emprestimo()
+	var tesouro_baixo: bool = n.tesouro < n.pib_bilhoes_usd * 0.08
+	if rating >= 60.0 and tesouro_baixo and limite > 50.0 and n.estabilidade_politica >= 55.0:
+		var alvo: float = n.pib_bilhoes_usd * (0.15 if personality == "economic" else 0.08)
+		var valor: float = minf(alvo, limite)
+		if valor >= 20.0:
+			_engine.player_take_loan(valor)
+			return
+	if n.divida_publica > n.pib_bilhoes_usd * 0.8 and n.tesouro > n.pib_bilhoes_usd * 0.15:
+		_engine.player_repay_debt(minf(n.tesouro * 0.4, n.divida_publica * 0.3))
 
 func _do_panel_action(action_id: String) -> bool:
 	var res: Dictionary = _engine.player_panel_action(action_id)

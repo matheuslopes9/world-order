@@ -715,6 +715,49 @@ func decline_bailout() -> void:
 	}, [player_nation.codigo_iso], player_nation.continente)
 
 # ─────────────────────────────────────────────────────────────────
+# EMPRÉSTIMO PROATIVO — alavancagem estratégica (Fase 2 da economia)
+# O jogador ESCOLHE tomar dívida para investir cedo (não só o FMI em crise).
+# Limite e juros vêm do RATING DE CRÉDITO da nação. Não consome ação — é
+# decisão orçamentária, feita livremente no painel Fazenda.
+# ─────────────────────────────────────────────────────────────────
+
+func player_take_loan(valor: float) -> Dictionary:
+	var n = player_nation
+	if n == null:
+		return {"ok": false, "reason": "Sem nação"}
+	var limite: float = n.limite_emprestimo()
+	if valor <= 0.0:
+		return {"ok": false, "reason": "Valor inválido"}
+	if valor > limite:
+		return {"ok": false, "reason": "Acima do limite de crédito ($%dB). Melhore o rating." % int(limite)}
+	# O empréstimo entra no tesouro; a dívida cresce pelo principal (juros
+	# são cobrados por turno em calc_despesas, conforme o rating vigente).
+	n.tesouro += valor
+	n.divida_publica += valor
+	var juros_pct: float = n.juros_emprestimo() * 100.0
+	_log_news({
+		"type": "emprestimo",
+		"headline": "🏦 %s capta $%dB no mercado (rating %s)" % [n.nome, int(valor), n.rating_letra()],
+		"body": "Juros de %.1f%%/ano. Alavancagem para investir — se bem usada, acelera; se não, afunda." % juros_pct,
+		"involves_player": true,
+		"color": Color(0.5, 0.8, 1),
+	}, [n.codigo_iso], n.continente)
+	return {"ok": true, "valor": valor, "juros": n.juros_emprestimo()}
+
+# Amortização antecipada: paga parte da dívida com o tesouro (melhora rating,
+# reduz juros futuros). Não consome ação.
+func player_repay_debt(valor: float) -> Dictionary:
+	var n = player_nation
+	if n == null:
+		return {"ok": false, "reason": "Sem nação"}
+	valor = clampf(valor, 0.0, minf(n.tesouro, n.divida_publica))
+	if valor <= 0.0:
+		return {"ok": false, "reason": "Sem tesouro ou sem dívida para pagar"}
+	n.tesouro -= valor
+	n.divida_publica = maxf(0.0, n.divida_publica - valor)
+	return {"ok": true, "valor": valor}
+
+# ─────────────────────────────────────────────────────────────────
 # CHOQUES ECONÔMICOS GLOBAIS — o mundo pós-2035 não é piloto automático
 # ─────────────────────────────────────────────────────────────────
 

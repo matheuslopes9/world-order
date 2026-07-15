@@ -305,6 +305,47 @@ func update_balanca_comercial() -> void:
 func calc_balanca_comercial() -> float:
 	return _saldo_comercial_cache
 
+# ── RATING DE CRÉDITO (0-100) ──
+# Solvência soberana: quanto o mercado confia em emprestar à nação. Deriva de
+# dívida/PIB (peso maior), estabilidade, saldo fiscal e histórico de calote.
+# Usado p/ definir o LIMITE e os JUROS de empréstimos proativos (Fase 2).
+var defaults_no_historico: int = 0  # nº de vezes que deu calote (dispara em process_turn_finances)
+
+func rating_credito() -> float:
+	var divida_ratio: float = divida_publica / maxf(1.0, pib_bilhoes_usd)  # 0..2.5+
+	var score: float = 100.0
+	score -= clampf(divida_ratio, 0.0, 2.5) * 28.0     # dívida alta derruba (até -70)
+	score -= clampf((50.0 - estabilidade_politica), 0.0, 50.0) * 0.4  # instabilidade
+	score -= defaults_no_historico * 12.0               # calote queima reputação
+	if inflacao > 20.0:
+		score -= clampf((inflacao - 20.0) * 0.3, 0.0, 10.0)
+	score += clampf((confianca_investidor - 50.0), -30.0, 30.0) * 0.2
+	return clampf(score, 5.0, 100.0)
+
+# Faixa de rating em letra (p/ UI): AAA, AA, A, BBB, BB, B, CCC, D
+func rating_letra() -> String:
+	var r: float = rating_credito()
+	if r >= 90.0: return "AAA"
+	if r >= 78.0: return "AA"
+	if r >= 66.0: return "A"
+	if r >= 54.0: return "BBB"
+	if r >= 42.0: return "BB"
+	if r >= 30.0: return "B"
+	if r >= 18.0: return "CCC"
+	return "D"
+
+# Juros anuais de um novo empréstimo, definidos pelo rating (bom rating = juro
+# barato). Vai de ~3% (AAA) a ~18% (D).
+func juros_emprestimo() -> float:
+	return lerpf(0.18, 0.03, rating_credito() / 100.0)
+
+# Teto de empréstimo proativo: espaço de endividamento saudável até 2.0×PIB,
+# modulado pelo rating (rating ruim = pouco crédito disponível).
+func limite_emprestimo() -> float:
+	var teto_saudavel: float = pib_bilhoes_usd * 2.0
+	var espaco: float = maxf(0.0, teto_saudavel - divida_publica)
+	return espaco * (rating_credito() / 100.0)
+
 # Receita de exportação (mantém o nome p/ compat de UI): agora é a soma real
 # das exportações por setor da balança comercial.
 func calc_receita_exportacao() -> float:
@@ -330,7 +371,10 @@ func calc_despesas() -> float:
 	# 8% do PIB (antes 10%): com 10%, potências com orçamento militar alto
 	# (EUA) tinham déficit ESTRUTURAL e faliam até sem fazer nada
 	var gov_spend: float = pib_bilhoes_usd * 0.08 / 4.0
-	var interest: float = divida_publica * 0.025
+	# Juros da dívida agora dependem do RATING: nação confiável paga barato,
+	# nação de rating ruim paga caro (custo de rolar a dívida sobe na crise).
+	var juros_anual: float = juros_emprestimo()
+	var interest: float = divida_publica * juros_anual / 4.0
 	var social_sum: float = 0.0
 	for v in gasto_social.values(): social_sum += float(v)
 	var social_spend: float = social_sum / 4.0
@@ -451,6 +495,8 @@ func process_turn_finances() -> void:
 		else:
 			divida_publica += deficit
 			tesouro = 0.0
+			if default_turnos == 0:
+				defaults_no_historico += 1  # novo episódio de calote queima o rating
 			default_turnos += 1
 			estabilidade_politica = max(0.0, estabilidade_politica - 8.0)
 			felicidade            = max(0.0, felicidade            - 5.0)
