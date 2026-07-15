@@ -103,6 +103,12 @@ func _reset_engine() -> void:
 	E.market_history.clear()
 	E.player_stocks_invested = 0.0
 	E.player_stocks_shares = 0.0
+	E.crypto_price = 1000.0
+	E.crypto_history.clear()
+	E.crypto_cycle = 0.0
+	E.player_crypto_invested = 0.0
+	E.player_crypto_coins = 0.0
+	E.crypto_legal_tender = false
 	E._war_score.clear()
 	E.settings["difficulty"] = "normal"
 	E.settings["mode"] = "inspirado"
@@ -244,6 +250,9 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 		"stocks_val": snappedf(E.player_stocks_value(), 0.1),
 		"stocks_inv": snappedf(E.player_stocks_invested, 0.1),
 		"market_f": snappedf(E.market_index, 0.1),
+		"crypto_val": snappedf(E.player_crypto_value(), 0.1),
+		"crypto_inv": snappedf(E.player_crypto_invested, 0.1),
+		"crypto_f": snappedf(E.crypto_price, 0.1),
 		"treaties": _count_treaties(code),
 		"wars": wars_player,
 		"decisions": _decisions,

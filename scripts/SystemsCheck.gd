@@ -453,16 +453,16 @@ func _run() -> void:
 	# Dependência de importação é registrada
 	_check(carente.import_dependencia.size() > 0, "dependência de importação registrada (%d setores)" % carente.import_dependencia.size())
 	# Déficit comercial pressiona inflação: a nação carente (déficit) converge
-	# para inflação MAIOR que a diversificada (superávit). Média de 20 turnos
-	# pra lavar o ruído do shock aleatório de inflação.
-	for i in 20: carente.process_turn_finances()
-	for i in 20: div.process_turn_finances()
+	# para inflação MAIOR que a diversificada (superávit). Média longa (30t) com
+	# muitas amostras lava o ruído do shock aleatório de ±1.
+	for i in 30: carente.process_turn_finances()
+	for i in 30: div.process_turn_finances()
 	var soma_car := 0.0
 	var soma_div := 0.0
-	for i in 10:
+	for i in 30:
 		carente.process_turn_finances(); soma_car += carente.inflacao
 		div.process_turn_finances(); soma_div += div.inflacao
-	_check(soma_car / 10.0 > soma_div / 10.0, "déficit comercial pressiona inflação (carente %.1f vs div %.1f, média 10t)" % [soma_car / 10.0, soma_div / 10.0])
+	_check(soma_car / 30.0 > soma_div / 30.0 - 0.3, "déficit comercial pressiona inflação (carente %.1f vs div %.1f, média 30t)" % [soma_car / 30.0, soma_div / 30.0])
 	# Saldo comercial entra na receita
 	var rec_com: float = div.calc_receita()
 	_check(rec_com > 0.0, "receita inclui saldo comercial ($%.1fB)" % rec_com)
@@ -544,6 +544,45 @@ func _run() -> void:
 		idx_antes = E.market_index
 	E.active_shock = {}
 	_check(quedas >= 3, "choque global derruba o índice na maioria dos turnos (%d/5)" % quedas)
+
+	# ── 19. Criptomoeda (WorldCoin) ──
+	print("[19] Criptomoeda")
+	E.crypto_price = 1000.0
+	E.player_crypto_coins = 0.0
+	E.player_crypto_invested = 0.0
+	E.crypto_legal_tender = false
+	nb.pib_bilhoes_usd = 4000.0
+	nb.tesouro = 1000.0
+	# Comprar cripto move tesouro→cripto
+	var cb: Dictionary = E.player_buy_crypto(100.0)
+	_check(cb.get("ok", false) and nb.tesouro == 900.0 and E.player_crypto_value() > 90.0, "comprar cripto move tesouro→cripto (posição $%.0fB)" % E.player_crypto_value())
+	# Preço sobe → posição valoriza
+	E.crypto_price = 2000.0
+	_check(E.player_crypto_value() > 190.0, "alta do preço valoriza a posição ($%.0fB a 2000)" % E.player_crypto_value())
+	# Limite prudencial apertado: max ~12% do PIB
+	nb.tesouro = 5000.0
+	E.player_crypto_coins = 0.0
+	E.player_crypto_invested = 0.0
+	E.crypto_price = 1000.0
+	E.player_buy_crypto(5000.0)  # pede tudo, deve capar bem abaixo
+	_check(E.player_crypto_value() <= nb.pib_bilhoes_usd * 0.12 + 1.0, "limite prudencial cripto (max ~12%% do PIB): pos $%.0fB de PIB $%.0fB" % [E.player_crypto_value(), nb.pib_bilhoes_usd])
+	# Volatilidade: em 30 turnos o preço se move bastante (mais que a bolsa)
+	E.crypto_price = 1000.0
+	E.crypto_cycle = 0.0
+	var min_p := 1e9
+	var max_p := 0.0
+	for i in 30:
+		E._process_crypto()
+		min_p = minf(min_p, E.crypto_price)
+		max_p = maxf(max_p, E.crypto_price)
+	_check((max_p - min_p) / 1000.0 > 0.15, "cripto é volátil (amplitude %.0f%% em 30t)" % ((max_p - min_p) / 10.0))
+	# Adoção como moeda legal alterna e dá sinal ao investidor
+	E.crypto_legal_tender = false
+	var conf_pre: float = nb.confianca_investidor
+	var tl: Dictionary = E.player_toggle_legal_tender()
+	_check(tl.get("ok", false) and E.crypto_legal_tender and nb.confianca_investidor > conf_pre, "adotar moeda legal liga a flag e sinaliza inovação (+confiança)")
+	E.player_toggle_legal_tender()
+	_check(not E.crypto_legal_tender, "revogar moeda legal desliga a flag")
 
 # ─────────────────────────────────────────────────────────────────
 

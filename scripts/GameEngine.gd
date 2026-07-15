@@ -76,6 +76,18 @@ var market_history: Array = []       # últimos N valores (sparkline)
 var player_stocks_invested: float = 0.0   # $B que o jogador aportou (custo)
 var player_stocks_shares: float = 0.0      # "cotas" compradas (valor = shares × index/1000)
 const MARKET_HISTORY_MAX: int = 40
+
+# ── CRIPTOMOEDA — WorldCoin (Fase 4 da economia) ──
+# Ativo de ALTÍSSIMA volatilidade: ciclos bull/bear pronunciados + risco de
+# COLAPSO súbito. Alto risco/retorno, COMPLEMENTAR (não domina). Base 1000.
+# Nações sob sanção podem usar cripto p/ driblar bloqueios (realista).
+var crypto_price: float = 1000.0
+var crypto_history: Array = []
+var crypto_cycle: float = 0.0        # fase do ciclo bull/bear (-1 bear … +1 bull)
+var player_crypto_invested: float = 0.0
+var player_crypto_coins: float = 0.0
+var crypto_legal_tender: bool = false  # adotou cripto como moeda legal?
+const CRYPTO_HISTORY_MAX: int = 40
 # Posição do jogador no ranking de poder, registrada por turno (sparkline da UI)
 var player_power_rank_history: Array = []
 const POWER_RANK_HISTORY_MAX: int = 60
@@ -412,6 +424,8 @@ func end_turn() -> void:
 	_process_corruption()
 	# Mercado de ações: atualiza o índice global
 	_process_market()
+	# Criptomoeda: ciclos bull/bear e risco de colapso
+	_process_crypto()
 	# Diplomacia: aplica tratados, processa propostas
 	if diplomacy:
 		diplomacy.process_turn()
@@ -988,6 +1002,108 @@ func player_sell_stocks(valor: float) -> Dictionary:
 	player_stocks_invested *= (1.0 - frac)
 	n.tesouro += valor
 	return {"ok": true, "valor": valor}
+
+# ─────────────────────────────────────────────────────────────────
+# CRIPTOMOEDA — WorldCoin: volátil, cíclica, com risco de colapso (Fase 4)
+# ─────────────────────────────────────────────────────────────────
+
+func _process_crypto() -> void:
+	# Modelo: preço oscila em torno de uma ÂNCORA que sobe devagar (adoção
+	# crescente ao longo do século), com REVERSÃO À MÉDIA forte (crashes se
+	# recuperam, bolhas se desinflam) + ciclo bull/bear + volatilidade extrema
+	# + risco de colapso. Sem a reversão, os crashes levavam a cripto ao piso
+	# e ela morria; com ela, oscila de verdade (fundo → recuperação → topo).
+	var ancora: float = 800.0 + current_turn * 4.0   # cresce ~$16/ano
+	crypto_cycle = clampf(crypto_cycle + (randf() - 0.5) * 0.18, -1.0, 1.0)
+	var trend: float = crypto_cycle * 0.05           # ±5%/turno conforme o ciclo
+	var reversao: float = clampf((ancora - crypto_price) / ancora, -0.5, 0.5) * 0.12  # puxa p/ âncora
+	var vol: float = (randf() - 0.5) * 0.20          # ±10% de ruído (volatilidade extrema)
+	# Colapso súbito: ~2%/turno de chance de crash de 35-55% (mais provável no topo)
+	var body := ""
+	if randf() < 0.02 + maxf(0.0, crypto_cycle) * 0.03:
+		var crash: float = randf_range(0.35, 0.55)
+		crypto_price = maxf(150.0, crypto_price * (1.0 - crash))
+		crypto_cycle = -0.7  # vira bear após o crash (mas a reversão recupera depois)
+		body = "colapso"
+		if player_crypto_coins > 0.0 or crypto_legal_tender:
+			_log_news({
+				"type": "cripto",
+				"headline": "₿ COLAPSO da WorldCoin: -%d%% num único dia" % int(crash * 100),
+				"body": "Pânico no mercado cripto. Quem estava exposto amargou perdas pesadas." + (" Nações que adotaram a moeda tremem." if crypto_legal_tender else ""),
+				"involves_player": true,
+				"color": Color(1, 0.3, 0.3),
+			})
+	else:
+		crypto_price = maxf(150.0, crypto_price * (1.0 + trend + reversao + vol))
+	crypto_history.append(snappedf(crypto_price, 0.1))
+	if crypto_history.size() > CRYPTO_HISTORY_MAX:
+		crypto_history.pop_front()
+	# Adoção como moeda legal: expõe a nação à volatilidade (estabilidade oscila)
+	if crypto_legal_tender and player_nation != null and body == "colapso":
+		player_nation.estabilidade_politica = maxf(0.0, player_nation.estabilidade_politica - 4.0)
+
+func player_crypto_value() -> float:
+	return player_crypto_coins * (crypto_price / 1000.0)
+
+func player_buy_crypto(valor: float) -> Dictionary:
+	var n = player_nation
+	if n == null:
+		return {"ok": false, "reason": "Sem nação"}
+	valor = clampf(valor, 0.0, n.tesouro)
+	if valor < 1.0:
+		return {"ok": false, "reason": "Tesouro insuficiente"}
+	# Limite prudencial APERTADO (cripto é mais arriscada que a bolsa):
+	# max 20% do caixa e max 12% do PIB
+	var pos_atual: float = player_crypto_value()
+	var teto: float = minf((n.tesouro + pos_atual) * 0.20, n.pib_bilhoes_usd * 0.12)
+	if pos_atual + valor > teto:
+		valor = maxf(0.0, teto - pos_atual)
+	if valor < 1.0:
+		return {"ok": false, "reason": "Posição no limite prudencial (cripto é alto risco)"}
+	n.tesouro -= valor
+	player_crypto_invested += valor
+	player_crypto_coins += valor / (crypto_price / 1000.0)
+	return {"ok": true, "valor": valor}
+
+func player_sell_crypto(valor: float) -> Dictionary:
+	var n = player_nation
+	if n == null:
+		return {"ok": false, "reason": "Sem nação"}
+	var pos: float = player_crypto_value()
+	valor = clampf(valor, 0.0, pos)
+	if valor < 1.0:
+		return {"ok": false, "reason": "Sem posição para vender"}
+	var frac: float = valor / maxf(0.01, pos)
+	player_crypto_coins *= (1.0 - frac)
+	player_crypto_invested *= (1.0 - frac)
+	n.tesouro += valor
+	return {"ok": true, "valor": valor}
+
+# Adota (ou revoga) a cripto como moeda legal. Bônus: +IED/inovação e permite
+# driblar sanções; risco: exposição à volatilidade (estabilidade sofre em crash).
+func player_toggle_legal_tender() -> Dictionary:
+	var n = player_nation
+	if n == null:
+		return {"ok": false, "reason": "Sem nação"}
+	crypto_legal_tender = not crypto_legal_tender
+	if crypto_legal_tender:
+		n.confianca_investidor = min(100.0, n.confianca_investidor + 5.0)  # sinal de inovação
+		_log_news({
+			"type": "cripto",
+			"headline": "₿ %s adota a WorldCoin como moeda legal" % n.nome,
+			"body": "Aposta ousada: atrai capital de inovação e driblará sanções — mas expõe o país à volatilidade cripto.",
+			"involves_player": true,
+			"color": Color(1, 0.75, 0.2),
+		}, [n.codigo_iso], n.continente)
+	else:
+		_log_news({
+			"type": "cripto",
+			"headline": "₿ %s revoga o curso legal da WorldCoin" % n.nome,
+			"body": "Recuo diante da volatilidade. Estabilidade em primeiro lugar.",
+			"involves_player": true,
+			"color": Color(0.7, 0.75, 0.85),
+		}, [n.codigo_iso], n.continente)
+	return {"ok": true, "legal": crypto_legal_tender}
 
 # ─────────────────────────────────────────────────────────────────
 # EMBAIXADA — via API central (consome ação como toda iniciativa)

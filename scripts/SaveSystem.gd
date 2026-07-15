@@ -33,6 +33,11 @@ static func save_game(engine) -> bool:
 		"market_index": engine.market_index,
 		"player_stocks_invested": engine.player_stocks_invested,
 		"player_stocks_shares": engine.player_stocks_shares,
+		"crypto_price": engine.crypto_price,
+		"crypto_cycle": engine.crypto_cycle,
+		"player_crypto_invested": engine.player_crypto_invested,
+		"player_crypto_coins": engine.player_crypto_coins,
+		"crypto_legal_tender": engine.crypto_legal_tender,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
@@ -79,6 +84,11 @@ static func load_game(engine) -> bool:
 	engine.market_index = float(data.get("market_index", 1000.0))
 	engine.player_stocks_invested = float(data.get("player_stocks_invested", 0.0))
 	engine.player_stocks_shares = float(data.get("player_stocks_shares", 0.0))
+	engine.crypto_price = float(data.get("crypto_price", 1000.0))
+	engine.crypto_cycle = float(data.get("crypto_cycle", 0.0))
+	engine.player_crypto_invested = float(data.get("player_crypto_invested", 0.0))
+	engine.player_crypto_coins = float(data.get("player_crypto_coins", 0.0))
+	engine.crypto_legal_tender = bool(data.get("crypto_legal_tender", false))
 	engine.defcon = int(data.get("defcon", 5))
 	engine.settings = data.get("settings", engine.settings)
 	# Restaura nações

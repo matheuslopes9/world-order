@@ -535,6 +535,63 @@ func _render_economia() -> void:
 	panel_content.add_child(stock_row)
 	_add_hint_label("💡 A bolsa sobe com prosperidade e paz, cai em crises e guerras. Bom para render tesouro ocioso — mas governar bem rende mais.")
 	_add_separator()
+	# ── CRIPTOMOEDA (WorldCoin) ──
+	_add_section_title("₿ CRIPTOMOEDA — WorldCoin")
+	var cp: float = GameEngine.crypto_price
+	var ctrend := "→"
+	var ctrend_cor := Color(0.8, 0.85, 0.9)
+	var chist: Array = GameEngine.crypto_history
+	if chist.size() >= 3:
+		var cantes: float = float(chist[max(0, chist.size() - 3)])
+		if cp > cantes * 1.02: ctrend = "▲"; ctrend_cor = Color(0.4, 1, 0.6)
+		elif cp < cantes * 0.98: ctrend = "▼"; ctrend_cor = Color(1, 0.5, 0.4)
+	var ciclo := "🐂 bull" if GameEngine.crypto_cycle > 0.2 else ("🐻 bear" if GameEngine.crypto_cycle < -0.2 else "lateral")
+	_add_data_row("Cotação WorldCoin", "%d  %s  (%s)" % [int(cp), ctrend, ciclo], ctrend_cor)
+	var cpos: float = GameEngine.player_crypto_value()
+	if cpos > 1.0:
+		var clucro: float = cpos - GameEngine.player_crypto_invested
+		var clucro_cor := Color(0.4, 1, 0.6) if clucro >= 0 else Color(1, 0.5, 0.4)
+		_add_data_row("Sua posição", "%s  (%s%s)" % [_money(cpos), "+" if clucro >= 0 else "", _money(clucro)], clucro_cor)
+	# Botões: comprar / vender
+	var passo_c: float = maxf(10.0, n.pib_bilhoes_usd * 0.03)
+	var crypto_row := HBoxContainer.new()
+	crypto_row.add_theme_constant_override("separation", 8)
+	var btn_cbuy := Button.new()
+	btn_cbuy.text = "₿ Comprar %s" % _money(minf(passo_c, n.tesouro))
+	btn_cbuy.custom_minimum_size = Vector2(0, 30)
+	btn_cbuy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_cbuy.disabled = n.tesouro < 1.0
+	btn_cbuy.pressed.connect(func():
+		var r: Dictionary = GameEngine.player_buy_crypto(minf(passo_c, GameEngine.player_nation.tesouro))
+		if not r.get("ok", false):
+			_log_global_news("⚠ CRIPTO", String(r.get("reason", "")), Color(1, 0.6, 0.4))
+		_render_panel("economia")
+		_refresh_top_bar_external())
+	crypto_row.add_child(btn_cbuy)
+	if cpos > 1.0:
+		var btn_csell := Button.new()
+		btn_csell.text = "💵 Vender %s" % _money(minf(passo_c, cpos))
+		btn_csell.custom_minimum_size = Vector2(0, 30)
+		btn_csell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn_csell.pressed.connect(func():
+			GameEngine.player_sell_crypto(minf(passo_c, GameEngine.player_crypto_value()))
+			_render_panel("economia")
+			_refresh_top_bar_external())
+		crypto_row.add_child(btn_csell)
+	panel_content.add_child(crypto_row)
+	# Adoção como moeda legal
+	var btn_legal := Button.new()
+	btn_legal.text = "🏛 Revogar curso legal da WorldCoin" if GameEngine.crypto_legal_tender else "🏛 Adotar WorldCoin como moeda legal"
+	btn_legal.custom_minimum_size = Vector2(0, 30)
+	btn_legal.pressed.connect(func():
+		GameEngine.player_toggle_legal_tender()
+		_render_panel("economia"))
+	panel_content.add_child(btn_legal)
+	if GameEngine.crypto_legal_tender:
+		_add_hint_label("⚠ WorldCoin é moeda legal: atrai capital de inovação e dribla sanções, mas colapsos abalam a estabilidade.")
+	else:
+		_add_hint_label("₿ Alto risco/retorno: sobe e desce muito mais que a bolsa, com risco de COLAPSO súbito. Aposte só o que pode perder.")
+	_add_separator()
 	_add_section_title("RECURSOS NATURAIS")
 	var rec: Dictionary = n.recursos
 	for k in ["petroleo", "gas_natural", "minerios_raros", "uranio", "ferro", "terras_araveis"]:
