@@ -2718,10 +2718,10 @@ func _show_takeover_step_3(country_code: String) -> void:
 	content.add_child(HSeparator.new())
 	var doc_btns: Array = []
 	var doctrines := [
-		{"id": "livre_mercado", "label": "💹 Livre Mercado",      "tip": "+1% PIB/turno, +5 corrupção"},
-		{"id": "mista",         "label": "⚖ Economia Mista",      "tip": "Balanceada (atual)"},
-		{"id": "planejada",     "label": "🏭 Planejamento Estatal","tip": "+5% tesouro/turno, -0.5% PIB"},
-		{"id": "nordica",       "label": "🌲 Modelo Nórdico",      "tip": "+5 felicidade/turno, -1% PIB"},
+		{"id": "livre_mercado", "label": "💹 Livre Mercado",      "tip": "Crescimento do PIB acelerado ao longo dos anos, mas +5 corrupção"},
+		{"id": "mista",         "label": "⚖ Economia Mista",      "tip": "Balanceada (atual) — sem viés"},
+		{"id": "planejada",     "label": "🏭 Planejamento Estatal","tip": "Tesouro cresce mais; PIB um pouco mais lento"},
+		{"id": "nordica",       "label": "🌲 Modelo Nórdico",      "tip": "Bem-estar/felicidade em alta; PIB mais lento"},
 	]
 	for doc in doctrines:
 		var btn := Button.new()
@@ -2946,8 +2946,9 @@ func _apply_takeover_choices(n) -> void:
 		n.regime_politico = new_gov
 		n.tesouro = max(0.0, n.tesouro - 50.0)
 		n.estabilidade_politica = clamp(n.estabilidade_politica - 10.0, 0.0, 100.0)
-	# Doutrina econômica (efeitos aplicados gradualmente em end_turn — só armazena estado por enquanto)
-	# Os efeitos serão aplicados em GameEngine se essa meta existir
+	# Doutrina econômica: o efeito ESTRUTURAL (1×) é aplicado agora; o efeito
+	# POR TURNO roda em GameEngine._process_economic_doctrine (lê a meta gravada acima).
+	GameEngine._apply_economic_doctrine_once(n)
 	# Primeiros passos (3 ações grátis sem custar tesouro nem ações)
 	var steps: Array = _takeover_state.get("first_steps", [])
 	for sid in steps:

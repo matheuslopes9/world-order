@@ -433,6 +433,8 @@ func end_turn() -> void:
 	_process_market()
 	# Criptomoeda: ciclos bull/bear e risco de colapso
 	_process_crypto()
+	# Doutrina econômica escolhida no wizard: aplica o efeito por turno prometido
+	_process_economic_doctrine()
 	# Diplomacia: aplica tratados, processa propostas
 	if diplomacy:
 		diplomacy.process_turn()
@@ -1138,6 +1140,40 @@ func player_toggle_legal_tender() -> Dictionary:
 			"color": Color(0.7, 0.75, 0.85),
 		}, [n.codigo_iso], n.continente)
 	return {"ok": true, "legal": crypto_legal_tender}
+
+# ─────────────────────────────────────────────────────────────────
+# DOUTRINA ECONÔMICA — efeito por turno da escolha do wizard (etapa 3)
+# ─────────────────────────────────────────────────────────────────
+
+# Aplica, 1×/turno, o efeito da doutrina econômica escolhida em "Tomar Posse".
+# Cumpre a promessa dos tooltips da etapa 3 (antes só armazenada como meta).
+# "mista" é o baseline (sem efeito). Números pequenos e compostos: são um viés
+# de longo prazo, não um atalho — coerente com "governar bem > especular".
+func _process_economic_doctrine() -> void:
+	var n = player_nation
+	if n == null:
+		return
+	# NOTA: o "+5 corrupção" do Livre Mercado é estrutural (aplicado 1× no takeover,
+	# ver _apply_economic_doctrine_once). Aqui só os efeitos marcados "/turno".
+	# CALIBRAÇÃO: as taxas são pequenas de propósito — compostas por 400 turnos (1
+	# século) elas dão um VIÉS sensível mas não dominante (Livre ~1,5× PIB, Planej
+	# ~0,9×, Nórdico ~0,85×). Taxas grandes (1%/turno) explodiriam/aniquilariam o PIB.
+	match String(n.get_meta("economic_doctrine", "mista")):
+		"livre_mercado":
+			n.pib_bilhoes_usd *= 1.001         # PIB ~1,5× no século
+		"planejada":
+			n.tesouro *= 1.005                 # tesouro ~1,2× ao longo do século
+			n.pib_bilhoes_usd *= 0.9997        # PIB ~0,89× (menos dinamismo)
+		"nordica":
+			n.felicidade = clampf(n.felicidade + 0.3, 0.0, 100.0)  # bem-estar sustentado
+			n.pib_bilhoes_usd *= 0.9996        # PIB ~0,85× (carga tributária alta)
+		_:
+			pass  # "mista" e desconhecidas: baseline, sem efeito
+
+# Efeito ESTRUTURAL (uma vez) da doutrina, aplicado no momento do takeover.
+func _apply_economic_doctrine_once(n) -> void:
+	if String(n.get_meta("economic_doctrine", "mista")) == "livre_mercado":
+		n.corrupcao = clampf(n.corrupcao + 5.0, 0.0, 100.0)  # +5 corrupção (custo institucional)
 
 # ─────────────────────────────────────────────────────────────────
 # EMBAIXADA — via API central (consome ação como toda iniciativa)
