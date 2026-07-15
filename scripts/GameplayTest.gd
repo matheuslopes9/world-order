@@ -204,18 +204,30 @@ func _phase_boot_and_select() -> void:
 func _phase_panel_actions() -> void:
 	print("\n[3] BOTÕES DE AÇÃO DOS PAINÉIS (ações via clique real, por ministério)")
 	var overlay = wm.game_overlay
+	# Ações PADRÃO (via PANEL_ACTIONS) consomem ação-de-turno + custo. O painel
+	# economia TAMBÉM tem botões FINANCEIROS (empréstimo/dívida/bolsa/cripto) que
+	# movem dinheiro sem consumir ação-de-turno — testados à parte (ver SystemsCheck).
 	var expected := {"governo": 4, "economia": 6, "seguranca": 8, "saude": 3, "educacao": 3}
 	for panel_id in expected.keys():
 		wm._open_overlay_modal(panel_id)
 		await get_tree().process_frame
-		var count: int = _panel_action_buttons(overlay).size()
-		_test("Painel %s: %d botões de ação (esperado %d)" % [panel_id, count, expected[panel_id]],
-			count == expected[panel_id])
+		var all_btns: Array = _panel_action_buttons(overlay)
+		# Separa financeiros (prefixo de ícone $) das ações padrão de ministério
+		var std_btns: Array = []
+		var fin_btns: Array = []
+		for b in all_btns:
+			if _is_financial_button(b as Button):
+				fin_btns.append(b)
+			else:
+				std_btns.append(b)
+		_test("Painel %s: %d ações padrão (esperado %d)" % [panel_id, std_btns.size(), expected[panel_id]],
+			std_btns.size() == expected[panel_id])
 		var ok_all := true
-		# Pressiona por ÍNDICE, recoletando a lista FRESCA a cada clique
-		# (o painel se re-renderiza e destrói os botões antigos)
-		for i in count:
-			var fresh: Array = _panel_action_buttons(overlay)
+		# Pressiona por ÍNDICE só as ações PADRÃO, recoletando a lista FRESCA a cada
+		# clique (o painel se re-renderiza e destrói os botões antigos)
+		for i in std_btns.size():
+			var fresh_all: Array = _panel_action_buttons(overlay)
+			var fresh: Array = fresh_all.filter(func(b): return not _is_financial_button(b as Button))
 			if i >= fresh.size():
 				break
 			var b: Button = fresh[i]
@@ -229,7 +241,11 @@ func _phase_panel_actions() -> void:
 			if not (consumed and paid):
 				ok_all = false
 				_test("  ação '%s' consome ação+custo" % label, false)
-		_test("Painel %s: todas as ações aplicam efeito (custo + ação consumida)" % panel_id, ok_all)
+		_test("Painel %s: ações padrão aplicam efeito (custo + ação consumida)" % panel_id, ok_all)
+		# Botões financeiros do painel economia: existem e movem dinheiro (sem consumir ação)
+		if panel_id == "economia":
+			_test("Painel economia: botões financeiros presentes (empréstimo/bolsa/cripto)", fin_btns.size() >= 2)
+			await _test_financial_buttons(overlay)
 		wm._close_top_modal()
 		await get_tree().process_frame
 	# Caminhos negativos
@@ -256,6 +272,43 @@ func _phase_panel_actions() -> void:
 		_test("Sem ações: custo NÃO cobrado", GameEngine.player_nation.tesouro == tes0)
 	wm._close_top_modal()
 	await get_tree().process_frame
+
+# Botões financeiros (empréstimo/dívida/bolsa/cripto) do painel economia movem
+# dinheiro entre tesouro e ativos SEM consumir ação-de-turno. Identificados pelo
+# VERBO ("Captar $34B", "Comprar $20B") — não pelo ícone, que colide com ações
+# padrão (🏦 APERTO MONETÁRIO, 💵 SUBSÍDIOS). Semântica detalhada no SystemsCheck.
+const _FINANCIAL_VERBS := ["Captar", "Amortizar", "Comprar", "Vender", "Investir", "Resgatar"]
+func _is_financial_button(b: Button) -> bool:
+	var first_line: String = b.text.split("\n")[0]
+	for verbo in _FINANCIAL_VERBS:
+		if verbo in first_line:
+			return true
+	return false
+
+# Clica os botões financeiros presentes e confirma que o tesouro MUDA (entra ou sai)
+# sem exigir consumo de ação-de-turno. Recoleta a lista a cada clique (re-render).
+func _test_financial_buttons(overlay) -> void:
+	var seen := {}
+	for _iter in 6:
+		var fin: Array = _panel_action_buttons(overlay).filter(func(b): return _is_financial_button(b as Button))
+		var target: Button = null
+		for b in fin:
+			var key: String = (b as Button).text.split(" ")[0]
+			if not seen.has(key):
+				target = b
+				seen[key] = true
+				break
+		if target == null:
+			break
+		_topup()
+		GameEngine.player_nation.tesouro = maxf(GameEngine.player_nation.tesouro, 500.0)
+		var tes0: float = GameEngine.player_nation.tesouro
+		var act0: int = GameEngine.player_actions_remaining
+		var label: String = target.text.split("\n")[0].strip_edges()
+		await _press(target, "economia fin: %s" % label)
+		var moved: bool = abs(GameEngine.player_nation.tesouro - tes0) > 0.001
+		var keeps_action: bool = GameEngine.player_actions_remaining == act0
+		_test("  financeiro '%s' move dinheiro sem gastar ação-de-turno" % label, moved and keeps_action)
 
 # ─────────────────────────────────────────────────────────────────
 # FASE 4 — DOSSIÊ: DIPLOMACIA/INTEL/GUERRA COMPLETOS

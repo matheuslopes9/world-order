@@ -604,6 +604,35 @@ func _run() -> void:
 	var conv: float = E.player_crypto_value()
 	_check(conv > teto and conv < teto * 1.15, "haircut converge para perto do teto sem zerar (pos $%.0fB, teto $%.0fB)" % [conv, teto])
 
+	# ── 20. Doutrina econômica (efeito por turno do wizard "Tomar Posse") ──
+	print("[20] Doutrina econômica")
+	# Livre mercado: +1% PIB/turno e +5 corrupção estrutural (1×)
+	nb.pib_bilhoes_usd = 1000.0
+	nb.corrupcao = 30.0
+	nb.set_meta("economic_doctrine", "livre_mercado")
+	E._apply_economic_doctrine_once(nb)
+	_check(nb.corrupcao == 35.0, "livre mercado: +5 corrupção estrutural (1×)")
+	var pib_pre: float = nb.pib_bilhoes_usd
+	E._process_economic_doctrine()
+	_check(nb.pib_bilhoes_usd > pib_pre, "livre mercado: +1%% PIB/turno (%.1f→%.1f)" % [pib_pre, nb.pib_bilhoes_usd])
+	# Planejamento estatal: tesouro cresce, PIB encolhe um pouco
+	nb.set_meta("economic_doctrine", "planejada")
+	nb.tesouro = 100.0
+	var pib2: float = nb.pib_bilhoes_usd
+	E._process_economic_doctrine()
+	_check(nb.tesouro > 100.0 and nb.pib_bilhoes_usd < pib2, "planejamento: tesouro sobe, PIB desce (tes $%.2fB)" % nb.tesouro)
+	# Nórdico: felicidade sobe, PIB encolhe um pouco
+	nb.set_meta("economic_doctrine", "nordica")
+	nb.felicidade = 50.0
+	E._process_economic_doctrine()
+	_check(nb.felicidade > 50.0, "nórdico: felicidade sobe (%.1f)" % nb.felicidade)
+	# Mista: baseline, PIB inalterado por doutrina
+	nb.set_meta("economic_doctrine", "mista")
+	var pib3: float = nb.pib_bilhoes_usd
+	var fel3: float = nb.felicidade
+	E._process_economic_doctrine()
+	_check(nb.pib_bilhoes_usd == pib3 and nb.felicidade == fel3, "mista: baseline, sem efeito de doutrina")
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:
