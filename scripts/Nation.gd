@@ -45,6 +45,16 @@ var import_dependencia: Dictionary = {}  # setor -> 0..1 (vulnerabilidade)
 var proxima_eleicao_turno = null  # Variant: int ou null
 var intervalo_eleicoes: int = 20
 
+# ── LIDERANÇA (rotatividade de poder) ──
+# Cada nação tem um líder com nome, idade e ideologia. Líder impopular/velho pode
+# cair e ser substituído por outro de ideologia diferente — o país muda de rumo.
+# Democracias trocam por eleição/impopularidade; autocracias só por morte/golpe.
+var lider_nome: String = ""
+var lider_idade: int = 55
+var lider_desde_turno: int = 0
+var turnos_impopular: int = 0   # contador p/ queda por impopularidade prolongada
+var lideres_passados: int = 0   # quantas trocas de líder já houve (p/ histórico/UI)
+
 # Recursos & Militar (Dictionaries)
 var recursos: Dictionary = {}
 var militar: Dictionary = {}

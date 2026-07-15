@@ -671,6 +671,59 @@ func _run() -> void:
 	E.timeline.historic_event_decision.disconnect(crisis_cb)
 	_check(got_signal["v"], "global_decision abre modal mesmo com jogador != país-epicentro")
 
+	# ── 22. Rotatividade de liderança (Fase 2) ──
+	print("[22] Rotatividade de liderança")
+	E.current_turn = 100   # turno avançado o bastante p/ cálculos de mandato
+	# Pega uma nação-bot (não o jogador)
+	var lead_nat = null
+	for c in E.nations.keys():
+		if c != E.player_nation.codigo_iso:
+			lead_nat = E.nations[c]
+			break
+	# Inicializa líder na 1ª passagem
+	lead_nat.lider_nome = ""
+	E._process_leadership(lead_nat)
+	_check(lead_nat.lider_nome != "", "líder inicializado na 1ª passagem (%s)" % lead_nat.lider_nome)
+	# Autocracia NÃO cai por impopularidade prolongada (só democracia)
+	lead_nat.regime_politico = "DITADURA_MILITAR"
+	lead_nat.personalidade = "putin_russo"
+	lead_nat.ideologia_dominante = "planejada"
+	lead_nat.apoio_popular = 10.0
+	lead_nat.estabilidade_politica = 60.0   # estável o bastante p/ não haver golpe
+	lead_nat.lider_idade = 55               # jovem o bastante p/ não morrer
+	lead_nat.turnos_impopular = 0
+	var pers_pre: String = lead_nat.personalidade
+	for _i in 20:
+		E._process_leadership(lead_nat)
+	_check(lead_nat.personalidade == pers_pre, "autocracia NÃO troca líder por impopularidade (só morte/golpe)")
+	# Democracia CAI por impopularidade prolongada (após mandato mínimo) → novo líder
+	lead_nat.regime_politico = "DEMOCRACIA"
+	lead_nat.apoio_popular = 10.0
+	lead_nat.estabilidade_politica = 60.0
+	lead_nat.lider_idade = 55
+	lead_nat.turnos_impopular = 0
+	lead_nat.lider_desde_turno = E.current_turn - E.LEADER_MIN_TENURE  # já cumpriu o mandato mínimo
+	var trocas_pre: int = lead_nat.lideres_passados
+	for _i in (E.LEADER_UNPOP_LIMIT + 2):
+		E._process_leadership(lead_nat)
+	_check(lead_nat.lideres_passados > trocas_pre, "democracia troca líder após impopularidade prolongada")
+	# Morte por idade força sucessão mesmo em autocracia
+	lead_nat.regime_politico = "DITADURA_MILITAR"
+	lead_nat.apoio_popular = 80.0
+	lead_nat.estabilidade_politica = 80.0
+	lead_nat.lider_idade = 95   # acima do máximo
+	var trocas_pre2: int = lead_nat.lideres_passados
+	var morreu := false
+	for _i in 150:   # 0.94^150 ≈ 0.01% de não morrer — teste robusto a randf()
+		lead_nat.lider_idade = maxi(lead_nat.lider_idade, 95)  # mantém velho após reset
+		E._process_leadership(lead_nat)
+		if lead_nat.lideres_passados > trocas_pre2:
+			morreu = true
+			break
+	_check(morreu, "líder muito velho (95) morre e é sucedido mesmo em autocracia")
+	# Sucessão define ideologia válida
+	_check(lead_nat.ideologia_dominante in ["livre_mercado", "mista", "planejada", "nordica"], "sucessor tem ideologia econômica válida (%s)" % lead_nat.ideologia_dominante)
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:

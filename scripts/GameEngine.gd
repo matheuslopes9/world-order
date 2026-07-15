@@ -403,6 +403,7 @@ func end_turn() -> void:
 		n.update_approval()
 		n.process_turn_finances()
 		n.update_elections()
+		_process_leadership(n)
 		n.record_history()
 		# Gabinete: verba de P&D alocada rende XP contínuo ao ministério
 		if n.ministerios != null:
@@ -1188,6 +1189,139 @@ func _apply_doctrine_turn(n, doctrine: String) -> void:
 func _apply_economic_doctrine_once(n) -> void:
 	if String(n.get_meta("economic_doctrine", "mista")) == "livre_mercado":
 		n.corrupcao = clampf(n.corrupcao + 5.0, 0.0, 100.0)  # +5 corrupção (custo institucional)
+
+# ─────────────────────────────────────────────────────────────────
+# ROTATIVIDADE DE LIDERANÇA (Fase 2) — líder ruim cai, novo líder muda o rumo
+# ─────────────────────────────────────────────────────────────────
+
+# Idade máxima antes de forçar sucessão (vida ~ até idade avançada).
+const LEADER_MAX_AGE: int = 90
+# Turnos de impopularidade extrema antes de uma democracia trocar de líder.
+# ~4 anos (16 trimestres) de impopularidade sustentada — um mandato ruim inteiro,
+# não uma má fase passageira. Mantém as trocas raras e significativas.
+const LEADER_UNPOP_LIMIT: int = 16
+# Mandato mínimo: um líder recém-empossado tem carência antes de poder cair por
+# impopularidade (evita porta-giratória). ~3 anos.
+const LEADER_MIN_TENURE: int = 12
+# Turnos entre "envelhecimentos" — 1 turno = 1 trimestre, então idade +1 a cada 4 turnos.
+const TURNS_PER_YEAR: int = 4
+
+func _is_autocracy(n) -> bool:
+	var r: String = n.regime_politico
+	return ("DITADURA" in r) or ("AUTORITARISMO" in r) or ("TEOCRACIA" in r) or ("COMUNISMO" in r) or ("MONARQUIA" in r)
+
+# Roda 1×/turno por nação (exceto o jogador — o líder do jogador é ele mesmo).
+# Decide se o líder atual cai (por eleição perdida, impopularidade, morte ou golpe)
+# e, se cair, empossa um sucessor de ideologia possivelmente diferente.
+func _process_leadership(n) -> void:
+	if n == player_nation:
+		return
+	# Inicializa o líder na primeira passagem
+	if n.lider_nome == "":
+		n.lider_nome = _leader_name_for(n)
+		n.lider_desde_turno = current_turn
+	# Envelhece o líder (idade +1 por ano de jogo)
+	if current_turn > 0 and current_turn % TURNS_PER_YEAR == 0:
+		n.lider_idade += 1
+	# Conta impopularidade prolongada
+	if n.apoio_popular < 30.0:
+		n.turnos_impopular += 1
+	else:
+		n.turnos_impopular = 0
+	# ── Gatilhos de queda (raros e significativos — mandatos, não porta-giratória) ──
+	var motivo: String = ""
+	var tenure: int = current_turn - n.lider_desde_turno
+	# 1. Morte natural (vale para TODOS, inclusive ditadores — Rússia-like)
+	if n.lider_idade >= LEADER_MAX_AGE and randf() < 0.06:
+		motivo = "morte"
+	elif n.lider_idade >= 78 and randf() < 0.004:
+		motivo = "morte"  # chance pequena de morte após 78
+	# 2. Golpe/revolução: estabilidade MUITO baixa e sustentada (vale para todos, raro)
+	elif n.estabilidade_politica < 12.0 and randf() < 0.03:
+		motivo = "golpe"
+	# 3. Democracia: perde por impopularidade prolongada após cumprir mandato mínimo
+	#    (autocracia NÃO cai por impopularidade — só morte/golpe).
+	elif not _is_autocracy(n) and tenure >= LEADER_MIN_TENURE and n.turnos_impopular >= LEADER_UNPOP_LIMIT:
+		motivo = "eleicao"
+	if motivo != "":
+		_succeed_leader(n, motivo)
+
+# Empossa um novo líder, possivelmente de ideologia diferente → o país muda de rumo.
+func _succeed_leader(n, motivo: String) -> void:
+	var ideo_antiga: String = n.ideologia_dominante
+	# Golpe/revolução pode inverter o regime; eleição/morte mantém o regime.
+	if motivo == "golpe" and randf() < 0.5:
+		n.regime_politico = "DITADURA_MILITAR" if not _is_autocracy(n) else "DEMOCRACIA"
+	# Sorteia um novo arquétipo de personalidade (com viés a MUDAR de ideologia)
+	var novo_pers: String = _pick_successor_personality(n)
+	n.personalidade = novo_pers
+	var personalities: Dictionary = personalities_data.get("personalities", {})
+	var pers: Dictionary = personalities.get(novo_pers, {})
+	n.ideologia_dominante = String(pers.get("ideologia_economica", "mista"))
+	# Reset do líder
+	n.lider_nome = _leader_name_for(n)
+	n.lider_idade = randi_range(45, 65)
+	n.lider_desde_turno = current_turn
+	n.turnos_impopular = 0
+	n.lideres_passados += 1
+	# Golpe abala; eleição/sucessão pacífica dá fôlego
+	match motivo:
+		"golpe":
+			n.estabilidade_politica = clampf(n.estabilidade_politica - 8.0, 0.0, 100.0)
+			n.apoio_popular = clampf(n.apoio_popular + 10.0, 0.0, 100.0)  # "lua de mel" do novo regime
+		"eleicao":
+			n.apoio_popular = clampf(n.apoio_popular + 15.0, 0.0, 100.0)
+			n.estabilidade_politica = clampf(n.estabilidade_politica + 5.0, 0.0, 100.0)
+		"morte":
+			n.estabilidade_politica = clampf(n.estabilidade_politica - 3.0, 0.0, 100.0)
+	# Notícia (escopo conforme relevância do país)
+	var mudou_ideo: bool = n.ideologia_dominante != ideo_antiga
+	var verbo: String = String({"golpe": "toma o poder em um golpe", "eleicao": "vence as eleições", "morte": "assume após a morte do antecessor"}.get(motivo, "assume"))
+	var rumo: String = (" — o país vira para %s" % _ideo_label(n.ideologia_dominante)) if mudou_ideo else ""
+	_log_news({
+		"type": "lideranca",
+		"headline": "🎙 %s: %s %s%s" % [n.nome, n.lider_nome, verbo, rumo],
+		"body": "Nova liderança em %s. Ideologia econômica: %s." % [n.nome, _ideo_label(n.ideologia_dominante)],
+		"involves_player": false,
+		"color": Color(1, 0.8, 0.3) if motivo != "golpe" else Color(1, 0.4, 0.3),
+	}, [n.codigo_iso], n.continente)
+
+# Sorteia um arquétipo sucessor. Viés: 60% de chance de MUDAR a ideologia econômica
+# (o país muda de rumo); 40% mantém continuidade ideológica.
+func _pick_successor_personality(n) -> String:
+	var personalities: Dictionary = personalities_data.get("personalities", {})
+	if personalities.is_empty():
+		return n.personalidade
+	var ideo_atual: String = n.ideologia_dominante
+	var candidatos: Array = personalities.keys()
+	var quer_mudar: bool = randf() < 0.6
+	var filtrados: Array = []
+	for pid in candidatos:
+		var pi: String = String(personalities[pid].get("ideologia_economica", "mista"))
+		if quer_mudar and pi != ideo_atual:
+			filtrados.append(pid)
+		elif not quer_mudar and pi == ideo_atual:
+			filtrados.append(pid)
+	if filtrados.is_empty():
+		filtrados = candidatos
+	return String(filtrados[randi() % filtrados.size()])
+
+func _ideo_label(ideo: String) -> String:
+	return {"livre_mercado": "livre mercado", "planejada": "economia planejada",
+		"nordica": "modelo nórdico", "mista": "economia mista"}.get(ideo, ideo)
+
+# Gera um nome de líder procedural (sobrenome regional simples). Determinístico o
+# suficiente para variar entre nações sem depender de tabelas gigantes.
+func _leader_name_for(n) -> String:
+	var titulos := ["Pres.", "Chanceler", "PM", "Líder"]
+	var t: String = titulos[randi() % titulos.size()]
+	return "%s %s" % [t, _random_surname(n)]
+
+func _random_surname(n) -> String:
+	var nomes := ["Silva", "Kane", "Moretti", "Adler", "Novak", "Reyes", "Haddad",
+		"Okoro", "Tanaka", "Ilić", "Andersson", "Costa", "Volkov", "Mensah",
+		"Larsen", "Farah", "Petrov", "Duarte", "Nasser", "Weber"]
+	return nomes[randi() % nomes.size()]
 
 # ─────────────────────────────────────────────────────────────────
 # EMBAIXADA — via API central (consome ação como toda iniciativa)
