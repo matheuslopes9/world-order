@@ -1220,6 +1220,11 @@ func _process_leadership(n) -> void:
 	if n.lider_nome == "":
 		n.lider_nome = _leader_name_for(n)
 		n.lider_desde_turno = current_turn
+		# Sincroniza a ideologia econômica com a personalidade inicial (o campo do save
+		# guardava o REGIME, não a doutrina — normaliza para exibir/dirigir a economia).
+		var personalities0: Dictionary = personalities_data.get("personalities", {})
+		var pers0: Dictionary = personalities0.get(n.personalidade, {})
+		n.ideologia_dominante = String(pers0.get("ideologia_economica", "mista"))
 	# Envelhece o líder (idade +1 por ano de jogo)
 	if current_turn > 0 and current_turn % TURNS_PER_YEAR == 0:
 		n.lider_idade += 1
@@ -1276,15 +1281,21 @@ func _succeed_leader(n, motivo: String) -> void:
 			n.estabilidade_politica = clampf(n.estabilidade_politica - 3.0, 0.0, 100.0)
 	# Notícia (escopo conforme relevância do país)
 	var mudou_ideo: bool = n.ideologia_dominante != ideo_antiga
-	var verbo: String = String({"golpe": "toma o poder em um golpe", "eleicao": "vence as eleições", "morte": "assume após a morte do antecessor"}.get(motivo, "assume"))
-	var rumo: String = (" — o país vira para %s" % _ideo_label(n.ideologia_dominante)) if mudou_ideo else ""
-	_log_news({
-		"type": "lideranca",
-		"headline": "🎙 %s: %s %s%s" % [n.nome, n.lider_nome, verbo, rumo],
-		"body": "Nova liderança em %s. Ideologia econômica: %s." % [n.nome, _ideo_label(n.ideologia_dominante)],
-		"involves_player": false,
-		"color": Color(1, 0.8, 0.3) if motivo != "golpe" else Color(1, 0.4, 0.3),
-	}, [n.codigo_iso], n.continente)
+	# Só noticia trocas RELEVANTES (senão 194 nações poluem o feed): grandes potências,
+	# nações do continente do jogador, ou qualquer golpe (sempre dramático).
+	var relevante: bool = (motivo == "golpe") \
+		or (n.pib_bilhoes_usd >= _world_max_pib * 0.15) \
+		or (player_nation != null and n.continente == player_nation.continente)
+	if relevante:
+		var verbo: String = String({"golpe": "toma o poder em um golpe", "eleicao": "vence as eleições", "morte": "assume após a morte do antecessor"}.get(motivo, "assume"))
+		var rumo: String = (" — o país vira para %s" % _ideo_label(n.ideologia_dominante)) if mudou_ideo else ""
+		_log_news({
+			"type": "lideranca",
+			"headline": "🎙 %s: %s %s%s" % [n.nome, n.lider_nome, verbo, rumo],
+			"body": "Nova liderança em %s. Ideologia econômica: %s." % [n.nome, _ideo_label(n.ideologia_dominante)],
+			"involves_player": false,
+			"color": Color(1, 0.8, 0.3) if motivo != "golpe" else Color(1, 0.4, 0.3),
+		}, [n.codigo_iso], n.continente)
 
 # Sorteia um arquétipo sucessor. Viés: 60% de chance de MUDAR a ideologia econômica
 # (o país muda de rumo); 40% mantém continuidade ideológica.

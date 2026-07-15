@@ -2178,6 +2178,12 @@ func _fill_preview_panel(code: String) -> void:
 		["Inflação",     "%.1f%%" % n.inflacao],
 		["Personalid.",  String(n.personalidade).capitalize()],
 	]
+	# Liderança (Fase 2/3): líder atual e ideologia econômica do país
+	if n.lider_nome != "":
+		stats.append(["Líder", "%s (%d anos)" % [n.lider_nome, n.lider_idade]])
+	# Ideologia econômica derivada da personalidade (consistente desde o turno 1,
+	# antes de _process_leadership normalizar o campo do save).
+	stats.append(["Ideologia", GameEngine._ideo_label(GameEngine._doctrine_for(n)).capitalize()])
 	if n.divida_publica > 0:
 		stats.append(["Dívida",       "$%dB" % int(n.divida_publica)])
 	if n.em_guerra.size() > 0:
