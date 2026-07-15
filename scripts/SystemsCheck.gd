@@ -507,6 +507,44 @@ func _run() -> void:
 	nb.defaults_no_historico = 2
 	_check(nb.rating_credito() < r_limpo, "histórico de calote derruba o rating")
 
+	# ── 18. Mercado de ações ──
+	print("[18] Mercado de ações")
+	E.market_index = 1000.0
+	E.player_stocks_shares = 0.0
+	E.player_stocks_invested = 0.0
+	nb.divida_publica = 0.0
+	nb.tesouro = 1000.0
+	# Investir tira do tesouro e cria posição
+	var inv: Dictionary = E.player_invest_stocks(200.0)
+	_check(inv.get("ok", false) and nb.tesouro == 800.0 and E.player_stocks_value() > 190.0, "investir move tesouro→bolsa (posição $%.0fB)" % E.player_stocks_value())
+	# Índice sobe → posição valoriza
+	E.market_index = 1200.0
+	_check(E.player_stocks_value() > 220.0, "alta do índice valoriza a posição ($%.0fB a index 1200)" % E.player_stocks_value())
+	# Resgatar credita o tesouro
+	var pos_antes: float = E.player_stocks_value()
+	var tes_pre: float = nb.tesouro
+	var sell: Dictionary = E.player_sell_stocks(pos_antes)
+	_check(sell.get("ok", false) and nb.tesouro > tes_pre, "resgatar credita o tesouro (+$%.0fB)" % (nb.tesouro - tes_pre))
+	# Limite prudencial DUPLO: não deixa investir all-in (min de 40% caixa e 25% PIB)
+	nb.pib_bilhoes_usd = 4000.0  # PIB alto → o teto que morde é o do caixa (40%)
+	nb.tesouro = 1000.0
+	E.player_stocks_shares = 0.0
+	E.player_stocks_invested = 0.0
+	E.player_invest_stocks(900.0)  # pede 90%, deve capar
+	var teto_esperado: float = minf((nb.tesouro + E.player_stocks_value()) * 0.5, nb.pib_bilhoes_usd * 0.25)
+	_check(E.player_stocks_value() <= teto_esperado + 1.0, "limite prudencial cap posição: pos $%.0fB (teto ~$%.0fB)" % [E.player_stocks_value(), teto_esperado])
+	# Choque global derruba o índice
+	E.market_index = 1000.0
+	E.active_shock = {"id": "colapso_financeiro", "nome": "Colapso", "icon": "📉", "turns_remaining": 2, "dur_total": 2}
+	var idx_antes: float = E.market_index
+	var quedas := 0
+	for i in 5:
+		E._process_market()
+		if E.market_index < idx_antes: quedas += 1
+		idx_antes = E.market_index
+	E.active_shock = {}
+	_check(quedas >= 3, "choque global derruba o índice na maioria dos turnos (%d/5)" % quedas)
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:

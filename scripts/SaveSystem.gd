@@ -30,6 +30,9 @@ static func save_game(engine) -> bool:
 		"nemesis_declared": engine.nemesis_declared,
 		"victory_achieved": engine.victory_achieved,
 		"power_rank_history": engine.player_power_rank_history,
+		"market_index": engine.market_index,
+		"player_stocks_invested": engine.player_stocks_invested,
+		"player_stocks_shares": engine.player_stocks_shares,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
@@ -73,6 +76,9 @@ static func load_game(engine) -> bool:
 	engine.current_turn = int(data.get("current_turn", 0))
 	engine.date_quarter = int(data.get("date_quarter", 1))
 	engine.date_year = int(data.get("date_year", 2024))
+	engine.market_index = float(data.get("market_index", 1000.0))
+	engine.player_stocks_invested = float(data.get("player_stocks_invested", 0.0))
+	engine.player_stocks_shares = float(data.get("player_stocks_shares", 0.0))
 	engine.defcon = int(data.get("defcon", 5))
 	engine.settings = data.get("settings", engine.settings)
 	# Restaura nações

@@ -99,6 +99,10 @@ func _reset_engine() -> void:
 	E.active_shock = {}
 	E._last_shock_turn = 0
 	E._last_corruption_event_turn = -99
+	E.market_index = 1000.0
+	E.market_history.clear()
+	E.player_stocks_invested = 0.0
+	E.player_stocks_shares = 0.0
 	E._war_score.clear()
 	E.settings["difficulty"] = "normal"
 	E.settings["mode"] = "inspirado"
@@ -237,6 +241,9 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 		"balanca": snappedf(n.calc_balanca_comercial() * 4.0, 0.1),
 		"rating": snappedf(n.rating_credito(), 0.1),
 		"divida_f": snappedf(n.divida_publica, 0.1),
+		"stocks_val": snappedf(E.player_stocks_value(), 0.1),
+		"stocks_inv": snappedf(E.player_stocks_invested, 0.1),
+		"market_f": snappedf(E.market_index, 0.1),
 		"treaties": _count_treaties(code),
 		"wars": wars_player,
 		"decisions": _decisions,

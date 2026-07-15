@@ -548,6 +548,13 @@ func _manage_debt(n) -> void:
 			return
 	if n.divida_publica > n.pib_bilhoes_usd * 0.8 and n.tesouro > n.pib_bilhoes_usd * 0.15:
 		_engine.player_repay_debt(minf(n.tesouro * 0.4, n.divida_publica * 0.3))
+	# Tesouro OCIOSO (sem dívida cara e com caixa gordo) → aplica parte na bolsa.
+	# Complementar: só o excedente, nunca all-in. Economic é mais ativo.
+	if n.divida_publica < n.pib_bilhoes_usd * 0.3 and n.tesouro > n.pib_bilhoes_usd * 0.18:
+		var ocioso: float = n.tesouro - n.pib_bilhoes_usd * 0.15
+		var frac: float = 0.5 if personality == "economic" else 0.3
+		if ocioso > 20.0:
+			_engine.player_invest_stocks(ocioso * frac)
 
 func _do_panel_action(action_id: String) -> bool:
 	var res: Dictionary = _engine.player_panel_action(action_id)

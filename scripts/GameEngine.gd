@@ -65,6 +65,17 @@ var _last_bailout_turn: int = -999
 # ── Choques econômicos globais (pós-2035) ──
 var active_shock: Dictionary = {}   # {id, nome, turns_remaining, ...}
 var _last_shock_turn: int = 0
+
+# ── MERCADO DE AÇÕES (Fase 3 da economia) ──
+# Índice global compartilhado por todas as nações. Flutua com o estado do
+# mundo (choques derrubam, prosperidade + paz sobem) + ruído. O jogador
+# investe tesouro OCIOSO; retorno é real mas COMPLEMENTAR (não domina —
+# governar bem rende mais que especular). Base 1000.
+var market_index: float = 1000.0
+var market_history: Array = []       # últimos N valores (sparkline)
+var player_stocks_invested: float = 0.0   # $B que o jogador aportou (custo)
+var player_stocks_shares: float = 0.0      # "cotas" compradas (valor = shares × index/1000)
+const MARKET_HISTORY_MAX: int = 40
 # Posição do jogador no ranking de poder, registrada por turno (sparkline da UI)
 var player_power_rank_history: Array = []
 const POWER_RANK_HISTORY_MAX: int = 60
@@ -399,6 +410,8 @@ func end_turn() -> void:
 	_process_global_shocks()
 	# Corrupção do jogador: escândalos, fuga de empresas, operações anticorrupção
 	_process_corruption()
+	# Mercado de ações: atualiza o índice global
+	_process_market()
 	# Diplomacia: aplica tratados, processa propostas
 	if diplomacy:
 		diplomacy.process_turn()
@@ -910,6 +923,71 @@ func _process_corruption() -> void:
 			"involves_player": true,
 			"color": Color(0.4, 0.9, 0.6),
 		}, [n.codigo_iso], n.continente)
+
+# ─────────────────────────────────────────────────────────────────
+# MERCADO DE AÇÕES — índice global compartilhado (Fase 3 da economia)
+# ─────────────────────────────────────────────────────────────────
+
+func _process_market() -> void:
+	# Deriva trimestral do índice. Tendência de alta secular (bolsa real ~7%/ano
+	# nominal = ~1.7%/tri), pontuada por CRASHES em crises/guerras. O drift-base
+	# alto garante que o buy-and-hold de longo prazo seja lucrativo (senão a
+	# bolsa vira só armadilha e ninguém usa), mas a volatilidade cria timing.
+	var drift: float = 0.017  # ~7%/ano de alta secular
+	if not active_shock.is_empty():
+		drift -= 0.055        # CRASH: crise global despenca a bolsa
+	if defcon <= 2:
+		drift -= 0.020        # só tensão MILITAR aguda (DEFCON 1-2) assusta o mercado
+	if player_nation != null and player_nation.inflacao > 25.0:
+		drift -= 0.012        # inflação descontrolada
+	var noise: float = (randf() - 0.5) * 0.06   # ±3% de ruído/turno (volatilidade)
+	market_index = maxf(100.0, market_index * (1.0 + drift + noise))
+	market_history.append(snappedf(market_index, 0.1))
+	if market_history.size() > MARKET_HISTORY_MAX:
+		market_history.pop_front()
+
+# Valor atual da posição do jogador (cotas × preço).
+func player_stocks_value() -> float:
+	return player_stocks_shares * (market_index / 1000.0)
+
+# Investe $valor do tesouro no mercado (compra cotas ao preço atual).
+func player_invest_stocks(valor: float) -> Dictionary:
+	var n = player_nation
+	if n == null:
+		return {"ok": false, "reason": "Sem nação"}
+	valor = clampf(valor, 0.0, n.tesouro)
+	if valor < 1.0:
+		return {"ok": false, "reason": "Tesouro insuficiente"}
+	# Limite prudencial DUPLO (a bolsa é complementar, não pode dominar):
+	#  - no máx 40% do caixa (tesouro + posição) — evita all-in
+	#  - no máx 25% do PIB em novos aportes — evita a bolsa virar a economia
+	var pos_atual: float = player_stocks_value()
+	var teto_caixa: float = (n.tesouro + pos_atual) * 0.40
+	var teto_pib: float = n.pib_bilhoes_usd * 0.25
+	var teto: float = minf(teto_caixa, teto_pib)
+	if pos_atual + valor > teto:
+		valor = maxf(0.0, teto - pos_atual)
+	if valor < 1.0:
+		return {"ok": false, "reason": "Posição no limite prudencial (bolsa é complementar)"}
+	n.tesouro -= valor
+	player_stocks_invested += valor
+	player_stocks_shares += valor / (market_index / 1000.0)
+	return {"ok": true, "valor": valor}
+
+# Resgata $valor da posição (vende cotas ao preço atual, credita o tesouro).
+func player_sell_stocks(valor: float) -> Dictionary:
+	var n = player_nation
+	if n == null:
+		return {"ok": false, "reason": "Sem nação"}
+	var pos: float = player_stocks_value()
+	valor = clampf(valor, 0.0, pos)
+	if valor < 1.0:
+		return {"ok": false, "reason": "Sem posição para resgatar"}
+	var frac: float = valor / maxf(0.01, pos)
+	player_stocks_shares *= (1.0 - frac)
+	player_stocks_invested *= (1.0 - frac)
+	n.tesouro += valor
+	return {"ok": true, "valor": valor}
 
 # ─────────────────────────────────────────────────────────────────
 # EMBAIXADA — via API central (consome ação como toda iniciativa)

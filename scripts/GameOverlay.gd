@@ -489,6 +489,52 @@ func _render_economia() -> void:
 	panel_content.add_child(loan_row)
 	_add_hint_label("💡 Empréstimo bem investido (infra, tech) acelera; mal usado, afunda em juros. Rating melhor = juro mais barato.")
 	_add_separator()
+	# ── MERCADO DE AÇÕES ──
+	_add_section_title("MERCADO DE AÇÕES")
+	var idx: float = GameEngine.market_index
+	# Tendência: compara com o valor de alguns turnos atrás
+	var trend := "→"
+	var trend_cor := Color(0.8, 0.85, 0.9)
+	var hist: Array = GameEngine.market_history
+	if hist.size() >= 3:
+		var antes: float = float(hist[max(0, hist.size() - 4)])
+		if idx > antes * 1.005: trend = "▲"; trend_cor = Color(0.4, 1, 0.6)
+		elif idx < antes * 0.995: trend = "▼"; trend_cor = Color(1, 0.5, 0.4)
+	_add_data_row("🌐 Índice Global WON", "%d  %s" % [int(idx), trend], trend_cor)
+	var pos: float = GameEngine.player_stocks_value()
+	if pos > 1.0:
+		var lucro: float = pos - GameEngine.player_stocks_invested
+		var lucro_cor := Color(0.4, 1, 0.6) if lucro >= 0 else Color(1, 0.5, 0.4)
+		_add_data_row("Sua posição", "%s  (%s%s)" % [_money(pos), "+" if lucro >= 0 else "", _money(lucro)], lucro_cor)
+	# Botões: investir / resgatar (passo de 5% do PIB)
+	var passo_b: float = maxf(20.0, n.pib_bilhoes_usd * 0.05)
+	var stock_row := HBoxContainer.new()
+	stock_row.add_theme_constant_override("separation", 8)
+	var btn_buy := Button.new()
+	btn_buy.text = "📈 Investir %s" % _money(minf(passo_b, n.tesouro))
+	btn_buy.custom_minimum_size = Vector2(0, 30)
+	btn_buy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_buy.disabled = n.tesouro < 1.0
+	btn_buy.pressed.connect(func():
+		var r: Dictionary = GameEngine.player_invest_stocks(minf(passo_b, GameEngine.player_nation.tesouro))
+		if not r.get("ok", false):
+			_log_global_news("⚠ BOLSA", String(r.get("reason", "")), Color(1, 0.6, 0.4))
+		_render_panel("economia")
+		_refresh_top_bar_external())
+	stock_row.add_child(btn_buy)
+	if pos > 1.0:
+		var btn_sell := Button.new()
+		btn_sell.text = "📉 Resgatar %s" % _money(minf(passo_b, pos))
+		btn_sell.custom_minimum_size = Vector2(0, 30)
+		btn_sell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn_sell.pressed.connect(func():
+			GameEngine.player_sell_stocks(minf(passo_b, GameEngine.player_stocks_value()))
+			_render_panel("economia")
+			_refresh_top_bar_external())
+		stock_row.add_child(btn_sell)
+	panel_content.add_child(stock_row)
+	_add_hint_label("💡 A bolsa sobe com prosperidade e paz, cai em crises e guerras. Bom para render tesouro ocioso — mas governar bem rende mais.")
+	_add_separator()
 	_add_section_title("RECURSOS NATURAIS")
 	var rec: Dictionary = n.recursos
 	for k in ["petroleo", "gas_natural", "minerios_raros", "uranio", "ferro", "terras_araveis"]:
