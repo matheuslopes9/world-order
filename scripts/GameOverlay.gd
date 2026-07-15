@@ -500,7 +500,7 @@ func _render_economia() -> void:
 		var antes: float = float(hist[max(0, hist.size() - 4)])
 		if idx > antes * 1.005: trend = "▲"; trend_cor = Color(0.4, 1, 0.6)
 		elif idx < antes * 0.995: trend = "▼"; trend_cor = Color(1, 0.5, 0.4)
-	_add_data_row("🌐 Índice Global WON", "%d  %s" % [int(idx), trend], trend_cor)
+	_add_data_row("🌐 Índice Global de Ações", "%d  %s" % [int(idx), trend], trend_cor)
 	var pos: float = GameEngine.player_stocks_value()
 	if pos > 1.0:
 		var lucro: float = pos - GameEngine.player_stocks_invested
@@ -1288,20 +1288,33 @@ class SparklineWidget extends Control:
 # PAINEL: NOTÍCIAS
 # ─────────────────────────────────────────────────────────────────
 
+# As três emissoras do jogo, por escopo da notícia.
+const NEWS_NETWORKS := {
+	"national": {"nome": "National News", "sigla": "NN", "icon": "🏛", "cor": Color(1, 0.82, 0.3),
+		"slogan": "Boa noite. Aqui é a National News — o seu país em primeiro lugar."},
+	"regional": {"nome": "Regional News", "sigla": "RN", "icon": "📡", "cor": Color(0.5, 0.85, 0.65),
+		"slogan": "Aqui é a Regional News, cobrindo a sua vizinhança no continente."},
+	"global":   {"nome": "Global News",   "sigla": "GN", "icon": "🌍", "cor": Color(0.4, 0.7, 1),
+		"slogan": "Boa noite. Aqui é a Global News, sua janela para o planeta."},
+}
+
 func _render_noticias() -> void:
 	var n = GameEngine.player_nation
-	# Cabeçalho de estúdio: âncora do WON — World Order News
 	var hist: Array = GameEngine.news_history
+	# Descobre a última manchete urgente e a emissora dela (define quem "abre" o telejornal)
 	var last_urgent := ""
+	var urgent_scope := "global"
 	for i in range(hist.size() - 1, -1, -1):
 		var t: String = String(hist[i].get("type", ""))
-		if t in ["guerra", "choque", "guerra_vencida", "fmi"]:
+		if t in ["guerra", "choque", "guerra_vencida", "fmi", "corrupcao"]:
 			last_urgent = String(hist[i].get("headline", ""))
+			urgent_scope = String(hist[i].get("scope", "global"))
 			break
+	var net: Dictionary = NEWS_NETWORKS.get(urgent_scope, NEWS_NETWORKS["global"])
 	var anchor_expr := "urgente" if last_urgent != "" else "neutro"
-	var anchor_fala: String = "PLANTÃO: " + last_urgent if last_urgent != "" else "Boa noite. Aqui é o World Order News, sua janela para o planeta."
+	var anchor_fala: String = ("PLANTÃO: " + last_urgent) if last_urgent != "" else String(net["slogan"])
 	if n != null:
-		_add_advisor_header("ancora", "📺 WON — WORLD ORDER NEWS", anchor_fala, anchor_expr, Color(0.25, 0.55, 0.9))
+		_add_advisor_header("ancora", "%s %s — %s" % [net["icon"], String(net["sigla"]), String(net["nome"]).to_upper()], anchor_fala, anchor_expr, net["cor"])
 
 	if hist.is_empty():
 		_add_hint_label("Sem notícias ainda. O mundo desperta a cada turno.")
@@ -1317,15 +1330,12 @@ func _render_noticias() -> void:
 		_add_news_card(ev)
 		shown += 1
 
-## Card de notícia estilo tarja de TV: cor por escopo, turno e manchete.
+## Card de notícia estilo tarja de TV: identidade da emissora por escopo.
 func _add_news_card(ev: Dictionary) -> void:
 	var scope: String = String(ev.get("scope", "global"))
-	var accent := Color(0.45, 0.6, 0.8)  # global
-	var tag := "🌍 MUNDO"
-	if scope == "national":
-		accent = Color(1, 0.82, 0.3); tag = "🎙 NACIONAL"
-	elif scope == "regional":
-		accent = Color(0.5, 0.85, 0.65); tag = "📡 REGIÃO"
+	var net: Dictionary = NEWS_NETWORKS.get(scope, NEWS_NETWORKS["global"])
+	var accent: Color = net["cor"]
+	var tag: String = "%s %s" % [net["icon"], String(net["sigla"])]
 	var t: String = String(ev.get("type", ""))
 	if t == "guerra" or t == "guerra_vencida":
 		accent = Color(1, 0.4, 0.4)

@@ -840,13 +840,22 @@ func _open_news_modal() -> void:
 		var arow := HBoxContainer.new()
 		arow.add_theme_constant_override("separation", 12)
 		anchor_row.add_child(arow)
-		# Detecta a última manchete urgente pra expressão + fala
+		# Detecta a última manchete urgente + o ESCOPO dela (define a emissora)
 		var urgent := ""
+		var urgent_scope := "global"
 		for i in range(GameEngine.news_history.size() - 1, -1, -1):
 			var ht: String = String(GameEngine.news_history[i].get("type", ""))
-			if ht in ["guerra", "choque", "guerra_vencida", "fmi"]:
+			if ht in ["guerra", "choque", "guerra_vencida", "fmi", "corrupcao"]:
 				urgent = String(GameEngine.news_history[i].get("headline", ""))
+				urgent_scope = String(GameEngine.news_history[i].get("scope", "global"))
 				break
+		# Identidade da emissora por escopo (National / Regional / Global News)
+		var nets := {
+			"national": ["🏛 NN — NATIONAL NEWS", Color(1, 0.82, 0.3), "Aqui é a National News — o seu país em primeiro lugar."],
+			"regional": ["📡 RN — REGIONAL NEWS", Color(0.5, 0.85, 0.65), "Aqui é a Regional News, cobrindo o continente."],
+			"global": ["🌍 GN — GLOBAL NEWS", Color(0.4, 0.7, 1), "Boa noite. Aqui é a Global News — o mundo em tempo real."],
+		}
+		var net: Array = nets.get(urgent_scope, nets["global"])
 		var apv := PortraitView.make(GameEngine.player_nation.codigo_iso, "ancora",
 			"urgente" if urgent != "" else "neutro", 62.0)
 		apv.custom_minimum_size = Vector2(62, 74)
@@ -857,12 +866,12 @@ func _open_news_modal() -> void:
 		atxt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		arow.add_child(atxt)
 		var wonlbl := Label.new()
-		wonlbl.text = "📺 WON — WORLD ORDER NEWS"
-		wonlbl.add_theme_color_override("font_color", Color(0.4, 0.7, 1))
+		wonlbl.text = String(net[0])
+		wonlbl.add_theme_color_override("font_color", net[1])
 		wonlbl.add_theme_font_size_override("font_size", 11)
 		atxt.add_child(wonlbl)
 		var falalbl := Label.new()
-		falalbl.text = ("🔴 PLANTÃO: " + urgent) if urgent != "" else "“Boa noite. Aqui é o World Order News — o mundo em tempo real.”"
+		falalbl.text = ("🔴 PLANTÃO: " + urgent) if urgent != "" else "“%s”" % String(net[2])
 		falalbl.add_theme_color_override("font_color", Color(0.9, 0.94, 1) if urgent != "" else Color(0.78, 0.85, 0.95))
 		falalbl.add_theme_font_size_override("font_size", 13)
 		falalbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2985,7 +2994,7 @@ func _apply_first_step(n, step_id: String) -> void:
 func _show_tutorial() -> void:
 	var pages := [
 		{
-			"title": "🌍 Bem-vindo ao WORLD ORDER",
+			"title": "🌍 Bem-vindo a NATIONS: NEW DAWN",
 			"body": "Você assumiu o comando geopolítico de uma nação real. Sua missão: levar seu país à hegemonia mundial — ou pelo menos sobreviver. Cada turno equivale a 3 meses (1 trimestre)."
 		},
 		{

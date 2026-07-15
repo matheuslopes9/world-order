@@ -132,7 +132,7 @@ func _show_intro_lore() -> void:
 			"color": Color(1, 0.85, 0.3, 1),
 		},
 		{
-			"prefix": "WORLD ORDER",
+			"prefix": "NATIONS: NEW DAWN",
 			"text": "100 anos. 195 nações. 838 eventos.\nUma simulação. Sua história.",
 			"color": Color(0, 1, 0.55, 1),
 		},
@@ -577,7 +577,7 @@ func _show_credits_modal() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(title)
 	var sub := Label.new()
-	sub.text = "WORLD ORDER v0.5.0"
+	sub.text = "NATIONS: NEW DAWN v0.5.0"
 	sub.add_theme_color_override("font_color", Color(0.55, 0.7, 0.85))
 	sub.add_theme_font_size_override("font_size", 12)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

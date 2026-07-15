@@ -10,8 +10,8 @@ config_version=5
 
 [application]
 
-config/name="World Order"
-config/description="Simulador Geopolítico Global — porte para Godot"
+config/name="Nations: New Dawn"
+config/description="Simulador Geopolítico Global — 195 nações, 2000-2100"
 config/version="0.1.0-godot"
 run/main_scene="res://scenes/MainMenu.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
