@@ -633,6 +633,29 @@ func _run() -> void:
 	E._process_economic_doctrine()
 	_check(nb.pib_bilhoes_usd == pib3 and nb.felicidade == fel3, "mista: baseline, sem efeito de doutrina")
 
+	# ── 21. Crises globais: decisão universal + efeitos globais estendidos ──
+	print("[21] Crises globais (2008/COVID/Ucrânia)")
+	# effects_global agora aplica estabilidade/inflação a TODAS as nações (não só pib)
+	var estab_pre: float = E.nations["AR"].estabilidade_politica
+	var infl_pre: float = E.nations["AR"].inflacao
+	E.timeline._apply_global_effects({"estabilidade_fator": -5.0, "inflacao": 3.0})
+	_check(E.nations["AR"].estabilidade_politica == clamp(estab_pre - 5.0, 0.0, 100.0) and E.nations["AR"].inflacao == clamp(infl_pre + 3.0, 0.0, 200.0), "effects_global aplica estabilidade+inflação a todas as nações")
+	# Os 3 eventos de crise global estão marcados global_decision no JSON
+	var crises := {"lehman_crash": false, "covid_19": false, "russia_ucrania": false}
+	for ev in E.timeline.pending_events:
+		var eid: String = ev.get("id", "")
+		if crises.has(eid):
+			crises[eid] = bool(ev.get("global_decision", false)) and bool(ev.get("modal_decision", false))
+	_check(crises["lehman_crash"] and crises["covid_19"] and crises["russia_ucrania"], "2008/COVID/Ucrânia são decisões GLOBAIS (todo jogador escolhe)")
+	# global_decision faz o modal disparar mesmo se o jogador NÃO é o país-epicentro
+	var got_signal := {"v": false}
+	var crisis_cb := func(_ev): got_signal["v"] = true
+	E.timeline.historic_event_decision.connect(crisis_cb)
+	var fake_global := {"id": "_test_global_crisis", "trigger": {"primary_country": "ZZ"}, "modal_decision": true, "global_decision": true, "choices": [{"id": "a", "effects": {}}], "categories": ["crise"], "headline": "teste"}
+	E.timeline._fire_event(fake_global)
+	E.timeline.historic_event_decision.disconnect(crisis_cb)
+	_check(got_signal["v"], "global_decision abre modal mesmo com jogador != país-epicentro")
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:

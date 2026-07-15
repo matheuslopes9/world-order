@@ -269,25 +269,26 @@
       "categories": ["economia", "crise"],
       "trigger": {"primary_country": "US", "involves": ["US"], "region": ""},
       "headline": "💀 Quebra do Lehman Brothers — Crise Financeira Global",
-      "body": "Maior crise desde 1929. Bancos colapsam, desemprego dispara, governos socorrem com trilhões.",
-      "effects": {"US": {"pib_fator": 0.92, "tesouro": -300, "estabilidade_fator": -10.0, "apoio_popular": -15}},
-      "effects_global": {"pib_fator": 0.96},
+      "body": "Maior crise desde 1929. Bancos colapsam, desemprego dispara, o crédito seca no mundo inteiro e governos socorrem com trilhões. Nenhuma economia escapa.",
+      "effects": {"US": {"pib_fator": 0.90, "tesouro": -300, "estabilidade_fator": -12.0, "apoio_popular": -15}},
+      "effects_global": {"pib_fator": 0.93, "estabilidade_fator": -5.0},
       "modal_decision": true,
+      "global_decision": true,
       "choices": [
         {
           "id": "bailout",
           "label": "💰 Bailout — socorro a bancos e indústria",
-          "effects": {"_player": {"tesouro": -200, "estabilidade_fator": 5.0, "pib_fator": 1.02}}
+          "effects": {"_player": {"tesouro": -200, "estabilidade_fator": 6.0, "pib_fator": 1.03, "apoio_popular": -5}}
         },
         {
           "id": "austerity",
           "label": "✂️ Austeridade — cortar gastos públicos",
-          "effects": {"_player": {"apoio_popular": -10, "estabilidade_fator": -5.0, "pib_fator": 0.97}}
+          "effects": {"_player": {"apoio_popular": -12, "estabilidade_fator": -6.0, "pib_fator": 0.96, "tesouro": 50}}
         },
         {
           "id": "intervention",
           "label": "🏛 Intervenção pesada — nacionalizar bancos",
-          "effects": {"_player": {"tesouro": -100, "felicidade": 5, "apoio_popular": 5}}
+          "effects": {"_player": {"tesouro": -120, "felicidade": 5, "apoio_popular": 8, "estabilidade_fator": 3.0}}
         }
       ]
     },
@@ -554,6 +555,7 @@
       "effects": {"CN": {"estabilidade_fator": -8.0, "apoio_popular": -5}},
       "unlock_tech_global": "vacinacao_em_massa",
       "modal_decision": true,
+      "global_decision": true,
       "choices": [
         {
           "id": "lockdown_hard",
@@ -609,8 +611,9 @@
       "headline": "💥 Rússia invade Ucrânia — maior guerra na Europa desde 1945",
       "body": "Putin lança ofensiva. Maiores sanções da história. Crise energética e alimentar global.",
       "effects": {"RU": {"pib_fator": 0.88, "tesouro": -150, "apoio_popular": 12, "estabilidade_fator": -4.0}, "UA": {"pib_fator": 0.85, "estabilidade_fator": -12.0, "apoio_popular": 25}},
-      "effects_global": {"pib_fator": 0.97, "defcon_delta": -2},
+      "effects_global": {"pib_fator": 0.95, "defcon_delta": -2, "inflacao": 3.0},
       "modal_decision": true,
+      "global_decision": true,
       "choices": [
         {
           "id": "heavy_sanctions_ru",

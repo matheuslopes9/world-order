@@ -259,9 +259,13 @@ func _fire_event(ev: Dictionary) -> void:
 	# (ex: AGI breakthrough → US/CN ganham "ia_geral") ou globalmente (vacinação em massa pós-COVID)
 	_apply_tech_unlocks(ev)
 
-	# 2) Decisão? Se sim e jogador é primary, abre modal
+	# 2) Decisão? Abre modal se o jogador é o primary OU se é uma decisão GLOBAL.
+	# global_decision=true: crises que atingem TODO país (2008, COVID) — qualquer
+	# jogador enfrenta a escolha, não só o país-epicentro.
 	var primary: String = ev.get("trigger", {}).get("primary_country", "")
-	var is_player: bool = (engine.player_nation != null and engine.player_nation.codigo_iso == primary)
+	var is_primary: bool = (engine.player_nation != null and engine.player_nation.codigo_iso == primary)
+	var is_global_decision: bool = bool(ev.get("global_decision", false)) and engine.player_nation != null
+	var is_player: bool = is_primary or is_global_decision
 	var has_choice: bool = bool(ev.get("modal_decision", false)) and ev.get("choices", []).size() > 0
 	if has_choice and is_player:
 		# Emite signal pra UI (FASE 4 conecta o modal)
@@ -350,10 +354,33 @@ func _apply_effects_to_nation(code: String, eff: Dictionary) -> void:
 
 func _apply_global_effects(eff: Dictionary) -> void:
 	if engine == null: return
+	# Aplica os fatores per-nação que fazem sentido em escala mundial (crises globais:
+	# 2008, COVID, guerra na Ucrânia). Antes só pib_fator/defcon eram aplicados — os
+	# demais campos em effects_global eram ignorados silenciosamente.
 	if eff.has("pib_fator"):
 		var f: float = float(eff["pib_fator"])
 		for code in engine.nations.keys():
 			engine.nations[code].apply_pib_multiplier(f)
+	if eff.has("estabilidade_fator"):
+		var d: float = float(eff["estabilidade_fator"])
+		for code in engine.nations.keys():
+			var n = engine.nations[code]
+			n.estabilidade_politica = clamp(n.estabilidade_politica + d, 0.0, 100.0)
+	if eff.has("apoio_popular"):
+		var d: float = float(eff["apoio_popular"])
+		for code in engine.nations.keys():
+			var n = engine.nations[code]
+			n.apoio_popular = clamp(n.apoio_popular + d, 0.0, 100.0)
+	if eff.has("felicidade"):
+		var d: float = float(eff["felicidade"])
+		for code in engine.nations.keys():
+			var n = engine.nations[code]
+			n.felicidade = clamp(n.felicidade + d, 0.0, 100.0)
+	if eff.has("inflacao"):
+		var d: float = float(eff["inflacao"])
+		for code in engine.nations.keys():
+			var n = engine.nations[code]
+			n.inflacao = clamp(n.inflacao + d, 0.0, 200.0)
 	if eff.has("defcon_delta"):
 		engine.defcon = clamp(engine.defcon + int(eff["defcon_delta"]), 1, 5)
 
