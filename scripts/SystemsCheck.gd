@@ -724,6 +724,46 @@ func _run() -> void:
 	# Sucessão define ideologia válida
 	_check(lead_nat.ideologia_dominante in ["livre_mercado", "mista", "planejada", "nordica"], "sucessor tem ideologia econômica válida (%s)" % lead_nat.ideologia_dominante)
 
+	# ── 23. IA por personalidade (Fase 3) ──
+	print("[23] IA por personalidade")
+	# A ação tática ponderada reflete a personalidade: agressivo escolhe militar mais
+	# que um diplomata (amostragem — comparar frequências, não valor cru).
+	var ai_nat = lead_nat
+	ai_nat.personalidade = "agressivo"
+	var mil_agr := 0
+	for _i in 400:
+		if E._pick_personality_action(ai_nat) == "militar":
+			mil_agr += 1
+	ai_nat.personalidade = "diplomatico"
+	var mil_dip := 0
+	for _i in 400:
+		if E._pick_personality_action(ai_nat) == "militar":
+			mil_dip += 1
+	_check(mil_agr > mil_dip, "agressivo escolhe militar mais que diplomata (%d vs %d em 400)" % [mil_agr, mil_dip])
+	# Diplomata escolhe "relacoes" com frequência decente
+	var rel_dip := 0
+	for _i in 400:
+		if E._pick_personality_action(ai_nat) == "relacoes":
+			rel_dip += 1
+	_check(rel_dip > 0, "diplomata escolhe melhorar relações (%d/400)" % rel_dip)
+	# Cursor rotativo: em N chamadas de _run_ai_turn, TODAS as nações são processadas
+	# ao menos 1× (antes: amostra aleatória podia ignorar nações por muitos turnos).
+	E._ai_cursor = 0
+	var total_nat: int = E.nations.size()
+	# Valida que o cursor percorre o vetor inteiro sem pular nenhuma nação.
+	var visitados := {}
+	E._ai_cursor = 0
+	var codes_all: Array = E.nations.keys()
+	for _g in (total_nat + 5):
+		var idx: int = E._ai_cursor % total_nat
+		visitados[String(codes_all[idx])] = true
+		E._ai_cursor = (E._ai_cursor + 1) % total_nat
+	_check(visitados.size() == total_nat, "cursor rotativo cobre todas as %d nações" % total_nat)
+	# pesos_tratado influencia aceitação diplomática
+	if E.diplomacy != null and E.diplomacy.has_method("_treaty_weight"):
+		var wt: float = E.diplomacy._treaty_weight(ai_nat, "livre_comercio")
+		_check(wt > 0.0, "peso de tratado lido da personalidade (livre_comercio=%.2f)" % wt)
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:

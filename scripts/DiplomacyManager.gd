@@ -140,7 +140,19 @@ func _ai_evaluate_proposal(prop: Dictionary) -> bool:
 			threshold = -10.0
 	# Adiciona variação por personalidade
 	threshold -= (1.0 - personality_aggro) * 20.0  # pacífica aceita mais
+	# Fase 3: pesos_tratado da personalidade — uma nação que valoriza este tipo de
+	# tratado aceita mais facilmente (peso > 1 baixa o threshold; peso < 1 sobe).
+	var peso: float = _treaty_weight(target, String(prop["type"]))
+	threshold -= (peso - 1.0) * 25.0
 	return rel >= threshold
+
+# Retorna o peso que a personalidade da nação dá a um tipo de tratado (1.0 = neutro).
+func _treaty_weight(nation, treaty_type: String) -> float:
+	if engine == null or not engine.has_method("_get_aggression"):
+		return 1.0
+	var personalities: Dictionary = engine.personalities_data.get("personalities", {})
+	var pesos: Dictionary = personalities.get(nation.personalidade, {}).get("pesos_tratado", {})
+	return float(pesos.get(treaty_type, 1.0))
 
 # Player aceita/rejeita proposta direcionada a ele
 func player_accept(proposal_id: String) -> bool:

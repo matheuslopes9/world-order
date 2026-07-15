@@ -142,7 +142,7 @@ func _log_news(entry: Dictionary, involves: Array = [], region: String = "") -> 
 		news_history = news_history.slice(news_history.size() - NEWS_HISTORY_MAX, news_history.size())
 var settings: Dictionary = {
 	"difficulty": "normal",
-	"ai_speed": 8,
+	"ai_speed": 24,   # nações que agem por turno (cursor rotativo — todas a cada ~8 turnos)
 	"notifications": "all",
 	# Modo da campanha:
 	#   "inspirado" — eventos históricos disparam em janelas reais (11/9 em 2001, etc)
@@ -1399,20 +1399,28 @@ func _update_player_nemesis() -> void:
 # IA — nações NPCs decidem ações por turno
 # ─────────────────────────────────────────────────────────────────
 
+var _ai_cursor: int = 0
+
 func _run_ai_turn() -> void:
-	# Seleciona ~8 nações aleatoriamente (não todas, pra performance) — exclui jogador
+	# Fase 3: cursor ROTATIVO em vez de amostra aleatória — garante que TODAS as
+	# nações ajam periodicamente (antes 8 aleatórias/turno = cada nação agia 1× a cada
+	# ~24 turnos/6 anos; o mundo ficava passivo). Com ai_speed=24, todas agem a cada
+	# ~8 turnos (2 anos). Determinístico e justo, sem custo de shuffle.
 	var codes: Array = nations.keys()
-	codes.shuffle()
-	var max_actors: int = settings.get("ai_speed", 8)
+	var total: int = codes.size()
+	if total <= 1:
+		return
+	var max_actors: int = settings.get("ai_speed", 24)
 	var acted: int = 0
-	for code in codes:
+	var checked: int = 0
+	while acted < max_actors and checked < total:
+		var code: String = String(codes[_ai_cursor % total])
+		_ai_cursor = (_ai_cursor + 1) % total
+		checked += 1
 		if code == player_nation.codigo_iso:
 			continue
-		var n = nations[code]
-		_ai_decide(n)
+		_ai_decide(nations[code])
 		acted += 1
-		if acted >= max_actors:
-			break
 
 func _ai_decide(n) -> void:
 	var aggro: float = _get_aggression(n)
@@ -1493,16 +1501,15 @@ func _ai_decide(n) -> void:
 				tech.start_research(n, String(best.get("id", "")))
 				return
 
-	# 4. AÇÃO TÁTICA simples (investe pequeno em saúde/propaganda)
+	# 4. AÇÃO TÁTICA ponderada pela PERSONALIDADE (Fase 3): a escolha reflete o
+	# arquétipo do líder — agressivo investe em militar, tecnocrata em educação,
+	# diplomata em relações, etc. Usa pesos_acao do personalities.json (antes um
+	# 50/50 fixo entre felicidade e apoio, ignorando a personalidade).
 	if treasury >= 20.0 and randf() < 0.4:
 		treasury -= 20.0
 		n.tesouro = treasury
 		var mult: float = n.get_action_multiplier()
-		if randf() < 0.5:
-			n.felicidade = min(100.0, n.felicidade + 4.0 * mult)
-			n.apoio_popular = min(100.0, n.apoio_popular + 2.0 * mult)
-		else:
-			n.apoio_popular = min(100.0, n.apoio_popular + 10.0 * mult)
+		_apply_personality_action(n, _pick_personality_action(n), mult)
 
 func _get_aggression(n) -> float:
 	var pers_id: String = n.personalidade
@@ -1510,6 +1517,58 @@ func _get_aggression(n) -> float:
 	if personalities.has(pers_id):
 		return float(personalities[pers_id].get("agressividade", 0.5))
 	return 0.5
+
+# Escolhe uma ação tática ponderada pelos pesos_acao da personalidade do líder.
+# Retorna uma categoria: "bem_estar" | "apoio" | "educacao" | "infra" | "militar" | "relacoes".
+func _pick_personality_action(n) -> String:
+	var personalities: Dictionary = personalities_data.get("personalities", {})
+	var pesos: Dictionary = personalities.get(n.personalidade, {}).get("pesos_acao", {})
+	# Mapeia categorias de ação tática para os pesos do JSON (soma de pesos relacionados).
+	var opcoes := {
+		"educacao": float(pesos.get("investir_educacao", 1.0)),
+		"bem_estar": float(pesos.get("investir_saude", 1.0)),
+		"infra": float(pesos.get("invest_infra", 1.0)),
+		"militar": float(pesos.get("mobilizar", 0.0)) + float(pesos.get("recrutar_tanques", 0.0)) + float(pesos.get("recrutar_avioes", 0.0)),
+		"relacoes": float(pesos.get("melhorar_relacoes", 1.0)),
+		"apoio": float(pesos.get("reforma_politica", 1.0)),
+	}
+	# Soma total e sorteio ponderado
+	var total: float = 0.0
+	for k in opcoes:
+		total += maxf(0.0, opcoes[k])
+	if total <= 0.0:
+		return "apoio"
+	var r: float = randf() * total
+	var acc: float = 0.0
+	for k in opcoes:
+		acc += maxf(0.0, opcoes[k])
+		if r <= acc:
+			return k
+	return "apoio"
+
+# Aplica o efeito da ação tática escolhida. Efeitos modestos (é 1 de várias ações/turno).
+func _apply_personality_action(n, categoria: String, mult: float) -> void:
+	match categoria:
+		"educacao":
+			n.velocidade_pesquisa = minf(3.0, n.velocidade_pesquisa + 0.02 * mult)
+			n.felicidade = minf(100.0, n.felicidade + 2.0 * mult)
+		"bem_estar":
+			n.felicidade = minf(100.0, n.felicidade + 4.0 * mult)
+			n.apoio_popular = minf(100.0, n.apoio_popular + 2.0 * mult)
+		"infra":
+			n.pib_bilhoes_usd *= (1.0 + 0.003 * mult)
+			n.estabilidade_politica = minf(100.0, n.estabilidade_politica + 1.0 * mult)
+		"militar":
+			if n.militar != null:
+				n.militar["poder_militar_global"] = float(n.militar.get("poder_militar_global", 0.0)) + 3.0 * mult
+		"relacoes":
+			# Melhora relação com o vizinho mais próximo (aliado potencial)
+			for c in n.relacoes:
+				if c != n.codigo_iso and nations.has(c) and nations[c].continente == n.continente:
+					n.relacoes[c] = clampf(float(n.relacoes[c]) + 4.0 * mult, -100.0, 100.0)
+					break
+		_:  # "apoio"
+			n.apoio_popular = minf(100.0, n.apoio_popular + 10.0 * mult)
 
 func _declare_war(from_code: String, to_code: String) -> void:
 	if not nations.has(from_code) or not nations.has(to_code):
