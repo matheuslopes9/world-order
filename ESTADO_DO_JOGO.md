@@ -187,11 +187,12 @@ Ordenadas por **valor/esforço**. Divididas entre *bugs/dívidas* (corrigir), *j
 
 ## 🎯 Profundidade de jogatina (alto valor)
 
-7. **⭐ Afinidade ideológica na diplomacia.** Agora que os 195 líderes têm ideologia
-   ativa, a diplomacia a **ignora completamente** (0 menções no DiplomacyManager). Fazer
-   nações de ideologia afim se aliarem e opostas terem atrito criaria **blocos
-   geopolíticos emergentes** (bloco comunista vs capitalista, OTAN vs BRICS) — enorme
-   ganho de vida e replay, aproveitando um sistema que já existe. *(médio, altíssimo valor)*
+7. **✅ FEITO (commit 62e87c2) — Afinidade ideológica na diplomacia.** Nações de
+   ideologia afim se atraem, opostas repelem (eixo democracia-mercado × autocracia-
+   planejada). Afeta relação-base inicial, aceitação de tratados e drift por turno →
+   **blocos geopolíticos emergem** ao longo do século. Validado: 95% de coerência
+   relação×ideologia, sem aumentar guerras. *Próximo passo natural: blocos FORMAIS (#11)
+   sobre esta base.*
 8. **⭐ Diferenciar os cenários intermediários.** Década Crítica e Guerra Fria 2.0 hoje
    só mudam janela de anos + bônus inicial. Dar a cada um **objetivos-âncora próprios**
    e 1-2 eventos exclusivos os transformaria em experiências distintas de verdade. *(médio)*
