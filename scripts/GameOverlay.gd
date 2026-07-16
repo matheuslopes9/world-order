@@ -1230,6 +1230,23 @@ func _render_situacao() -> void:
 		var color := Color(1, 1, 1) if b["code"] != n.codigo_iso else Color(0, 1, 0.5)
 		_add_data_row("#%d %s" % [i+1, b["n"].nome], "%d" % int(b["v"]), color)
 
+	# ══ LÍDERES MUNDIAIS (#13) — quem governa as grandes potências ══
+	_add_separator()
+	_add_section_title("LÍDERES MUNDIAIS")
+	_add_hint_label("Cada nação tem um líder com ideologia própria. Líderes caem e sobem — e o país muda de rumo.")
+	var grandes: Array = []
+	for code in GameEngine.nations:
+		grandes.append({"code": code, "n": GameEngine.nations[code], "pib": GameEngine.nations[code].pib_bilhoes_usd})
+	grandes.sort_custom(func(a, b): return a["pib"] > b["pib"])
+	for i in range(min(8, grandes.size())):
+		var g = grandes[i]
+		var gn = g["n"]
+		var lider: String = gn.lider_nome if gn.lider_nome != "" else "—"
+		var ideo: String = GameEngine._ideo_label(GameEngine._doctrine_for(gn)).capitalize()
+		var tipo: String = "🔒 autocracia" if GameEngine._is_autocracy(gn) else "🗳 democracia"
+		var cor := Color(0, 1, 0.5) if g["code"] == n.codigo_iso else Color(0.85, 0.9, 1)
+		_add_data_row("%s · %s" % [gn.nome, lider], "%s · %s" % [ideo, tipo], cor)
+
 # ─────────────────────────────────────────────────────────────────
 # PAINEL: HISTÓRICO
 # ─────────────────────────────────────────────────────────────────
