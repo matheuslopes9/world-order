@@ -485,9 +485,13 @@ func update_pib(global_factor: float = 1.0) -> void:
 	# íntegras (uma potência ainda pode encolher em crise).
 	if growth > 0.0 and pib_inicial > 0.0:
 		var mult_atual: float = pib_bilhoes_usd / pib_inicial
-		if mult_atual > 1500.0:
-			# fator cai de 1.0 (aos 1500×) a ~0.05 (aos ~15000×), logaritmicamente —
-			# corta a cauda rápido: nenhuma nação passa muito de ~10000× no século.
+		# HARD CAP a 15000× o PIB inicial: acima disso, crescimento positivo ZERA
+		# (já é "a maior potência do mundo" — não precisa mais). Corta de vez a cauda
+		# de runaway das micro-nações pobres que 1200 turnos mensais amplificavam.
+		if mult_atual >= 15000.0:
+			growth = 0.0
+		elif mult_atual > 1500.0:
+			# amortecimento progressivo entre 1500× e 15000× (transição suave até o cap)
 			var excesso: float = clampf(log(mult_atual / 1500.0) / log(10.0), 0.0, 1.0)
 			growth *= 1.0 - 0.95 * excesso
 	pib_bilhoes_usd *= (1.0 + growth)
