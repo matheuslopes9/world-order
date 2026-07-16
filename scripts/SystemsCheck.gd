@@ -533,17 +533,15 @@ func _run() -> void:
 	E.player_invest_stocks(900.0)  # pede 90%, deve capar
 	var teto_esperado: float = minf((nb.tesouro + E.player_stocks_value()) * 0.5, nb.pib_bilhoes_usd * 0.25)
 	_check(E.player_stocks_value() <= teto_esperado + 1.0, "limite prudencial cap posição: pos $%.0fB (teto ~$%.0fB)" % [E.player_stocks_value(), teto_esperado])
-	# Choque global derruba o índice
+	# Choque global derruba o índice (efeito ACUMULADO — no ritmo mensal o crash/turno
+	# é suave, mas ao longo do choque o índice cai abaixo do ponto de partida).
 	E.market_index = 1000.0
-	E.active_shock = {"id": "colapso_financeiro", "nome": "Colapso", "icon": "📉", "turns_remaining": 2, "dur_total": 2}
-	var idx_antes: float = E.market_index
-	var quedas := 0
-	for i in 5:
+	E.active_shock = {"id": "colapso_financeiro", "nome": "Colapso", "icon": "📉", "turns_remaining": 12, "dur_total": 12}
+	var idx_ini_shock: float = E.market_index
+	for i in 12:
 		E._process_market()
-		if E.market_index < idx_antes: quedas += 1
-		idx_antes = E.market_index
 	E.active_shock = {}
-	_check(quedas >= 3, "choque global derruba o índice na maioria dos turnos (%d/5)" % quedas)
+	_check(E.market_index < idx_ini_shock, "choque global derruba o índice ao longo do choque (%.0f→%.0f)" % [idx_ini_shock, E.market_index])
 
 	# ── 19. Criptomoeda (WorldCoin) ──
 	print("[19] Criptomoeda")

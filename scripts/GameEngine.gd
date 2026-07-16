@@ -266,11 +266,46 @@ func _apply_year_2000_overrides() -> void:
 		# Recalcula tier de dificuldade SEMPRE (mundo de 2000 é diferente de 2024)
 		# Antes: usava difficulty_tiers.json (que reflete cenário 2024) — gerava inversão NORMAL>DIFICIL
 		n.tier_dificuldade = n._compute_difficulty_tier()
+		# Piso de PIB $2B: micro-economias devastadas (Eritreia $0.7B em 2000, pós-guerra
+		# com a Etiópia) colapsavam deterministicamente ao piso e ficavam injogáveis
+		# (PIB→0, inflação alta em 4/4 partidas). O piso mantém a nação viável sem
+		# distorcer as demais (só afeta as pouquíssimas abaixo de $2B).
+		n.pib_bilhoes_usd = maxf(n.pib_bilhoes_usd, 2.0)
 		# Snapshot do PIB APÓS o override — pib_inicial deve refletir o ponto
 		# de partida real da campanha (antes guardava o valor de 2024, gerando
 		# caps e títulos de legado inconsistentes)
 		n.pib_inicial = n.pib_bilhoes_usd
+		# PERSONALIDADE: nations.json traz personalidade=null p/ TODAS as nações —
+		# atribui aqui (líder real de leaders_2024, ou arquétipo por regime).
+		_assign_personality(n)
 	print("[2000] Overrides aplicados: %d explícitos + %d via escala global" % [changed_explicit, changed_global])
+
+# Atribui uma personalidade válida à nação: usa o líder real (leaders_2024) quando
+# existe; senão, um arquétipo genérico coerente com o regime político. Determinístico.
+func _assign_personality(n) -> void:
+	# Já tem personalidade válida? (ex.: save carregado) — respeita.
+	var personalities: Dictionary = personalities_data.get("personalities", {})
+	if n.personalidade != null and personalities.has(String(n.personalidade)):
+		return
+	# 1. Líder real de 2024 mapeado por código ISO
+	var leaders: Dictionary = personalities_data.get("leaders_2024", {})
+	if leaders.has(n.codigo_iso):
+		var pid: String = String(leaders[n.codigo_iso].get("personalidade", ""))
+		if personalities.has(pid):
+			n.personalidade = pid
+			return
+	# 2. Fallback por regime político (arquétipo genérico coerente)
+	var r: String = n.regime_politico
+	if ("DITADURA" in r) or ("AUTORITAR" in r):
+		n.personalidade = "agressivo"
+	elif ("TEOCRACIA" in r) or ("COMUNIS" in r):
+		n.personalidade = "isolacionista"
+	elif ("MONARQUIA" in r):
+		n.personalidade = "expansionista"
+	elif n.pib_bilhoes_usd >= 500.0:
+		n.personalidade = "tecnocrata"   # potências médias/grandes: orientadas a tech
+	else:
+		n.personalidade = "diplomatico"  # default pacífico p/ nações menores
 
 # Aplica um cenário (carregado de scenarios.json). Deve ser chamado ANTES
 # do jogo iniciar — define start_year, end_year, bônus, regras.

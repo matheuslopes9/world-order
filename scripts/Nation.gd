@@ -160,7 +160,10 @@ func from_dict(data: Dictionary, code: String, baked_tier: String = "") -> Natio
 	militar = data.get("militar", {}).duplicate(true)
 	geografia = data.get("geografia", {}).duplicate(true)
 	conquistas_historicas = data.get("conquistas_historicas", [])
-	personalidade = data.get("personalidade", "agressivo")
+	# nations.json traz personalidade=null; o valor real é atribuído por
+	# GameEngine._assign_personality. String vazia = "ainda não atribuída".
+	var _p = data.get("personalidade")
+	personalidade = String(_p) if _p != null else ""
 
 	# Tesouro inicial: 5% do PIB anual, piso $60B para jogabilidade
 	if data.has("tesouro"):
@@ -434,15 +437,18 @@ func update_pib(global_factor: float = 1.0) -> void:
 		var gap: float = 1.0 - pc_ratio
 		var inst_quality: float = clamp(stab * 0.5 + bur * 0.3 + (1.0 - corr) * 0.4 - 0.2, 0.0, 1.0)
 		var conv: float = gap * 0.010 * inst_quality
-		# ARMADILHA DA RENDA MÉDIA: na faixa 30-70% da fronteira o catch-up
-		# enfraquece (até -60% no pico, aos 50%) — SALVO capacidade de
-		# inovação: 25+ techs escapam da armadilha (Coreia escapou;
-		# Brasil/México ficaram presos). Sem isto, "pobre + estável" era
-		# milagre infinito: Iêmen cresceu 29.000× em playtest de 1000 jogos.
-		if pc_ratio > 0.30 and pc_ratio < 0.70:
-			var depth: float = clamp(1.0 - abs(pc_ratio - 0.5) / 0.2, 0.0, 1.0)
+		# ARMADILHA DO DESENVOLVIMENTO (contínua, 0-70% da fronteira): sem inovação,
+		# o catch-up é amortecido em TODA a faixa abaixo de 70% — mais forte na
+		# pobreza extrema (piso) e na renda média (~50%). Cobre a lacuna 18-30% que
+		# antes deixava Haiti/Iêmen/Honduras compor até 390.000× em 1200 turnos.
+		# Escapa quem industrializa: 25+ techs zeram o freio (Coreia escapou).
+		if pc_ratio < 0.70:
 			var escape: float = clamp(tecnologias_concluidas.size() / 25.0, 0.0, 1.0)
-			conv *= 1.0 - 0.6 * depth * (1.0 - escape)
+			# damp cresce ao afastar da fronteira: ~0 aos 70%, ~0.55 na renda média,
+			# ~0.80 na pobreza extrema (piso). Só vale para quem NÃO industrializou.
+			var dist_dev: float = clamp((0.70 - pc_ratio) / 0.70, 0.0, 1.0)  # 0→1 conforme empobrece
+			var damp: float = (0.35 + 0.50 * dist_dev) * (1.0 - escape)  # 0.35..0.85
+			conv *= 1.0 - clampf(damp, 0.0, 0.85)
 		growth += conv
 		# Na fronteira (gap < 15%): economia madura desacelera
 		if gap < 0.15:
