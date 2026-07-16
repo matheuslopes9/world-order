@@ -281,6 +281,8 @@ func _apply_year_2000_overrides() -> void:
 	print("[2000] Overrides aplicados: %d explícitos + %d via escala global" % [changed_explicit, changed_global])
 	# Semeia relações iniciais por afinidade ideológica (o mundo já começa com blocos).
 	_seed_ideological_relations()
+	# Membros do mesmo bloco (OTAN, BRICS…) começam como aliados próximos.
+	_seed_bloc_relations()
 
 # Dá a "cara" inicial ao mundo: nações de ideologia afim começam com relação positiva,
 # opostas com relação fria. As relações partiam todas de 0 (neutras) — agora refletem
@@ -487,6 +489,8 @@ func end_turn() -> void:
 	_process_active_sanctions()
 	# Comércio bilateral: transfere $ entre exportador/importador
 	_process_active_trades()
+	# Blocos geopolíticos: bônus de membro (segurança coletiva, comércio interno)
+	_process_bloc_benefits()
 	# Eventos aleatórios
 	_roll_events()
 	# Choques econômicos globais (recessões, crises energéticas...)
@@ -1774,6 +1778,137 @@ func _propose_peace(from_code: String, to_code: String) -> void:
 		"involves_player": involves_player,
 	}, [from_code, to_code], a.continente)
 
+# ─────────────────────────────────────────────────────────────────
+# BLOCOS GEOPOLÍTICOS (#11) — OTAN, BRICS, ASEAN… (data/alliances.json)
+# Os blocos já existiam como dados (defesa coletiva); agora ganham vida:
+# relações intra-bloco altas, bônus de membro por turno, e o jogador entra/sai.
+# ─────────────────────────────────────────────────────────────────
+
+# Retorna a lista de dicts de aliança das quais `code` é membro.
+func _alliances_of(code: String) -> Array:
+	var out: Array = []
+	for alliance in alliances_data:
+		if code in alliance.get("membros", []):
+			out.append(alliance)
+	return out
+
+# Membros do mesmo bloco começam como aliados (relação alta). Faz OTAN/BRICS/etc.
+# serem blocos coesos desde 2000, sobre a base ideológica já semeada.
+func _seed_bloc_relations() -> void:
+	for alliance in alliances_data:
+		var members: Array = alliance.get("membros", [])
+		# Defesa coletiva = laço mais forte (+45); blocos econômicos/soft = +25
+		var laco: float = 45.0 if alliance.get("artigo_defesa", false) else 25.0
+		for i in members.size():
+			var a_code: String = String(members[i])
+			if not nations.has(a_code):
+				continue
+			for j in range(i + 1, members.size()):
+				var b_code: String = String(members[j])
+				if not nations.has(b_code):
+					continue
+				# Reforça (não sobrescreve) — soma ao valor ideológico já semeado, com cap
+				var na = nations[a_code]
+				var nb = nations[b_code]
+				na.relacoes[b_code] = clampf(maxf(float(na.relacoes.get(b_code, 0)), laco), -100.0, 100.0)
+				nb.relacoes[a_code] = clampf(maxf(float(nb.relacoes.get(a_code, 0)), laco), -100.0, 100.0)
+
+# Aplica os bônus de ser membro de bloco(s), 1×/turno. Defesa coletiva reduz custo
+# militar e dá poder de defesa; blocos econômicos dão um leve empurrão de PIB/comércio.
+func _process_bloc_benefits() -> void:
+	for code in nations.keys():
+		var n = nations[code]
+		for alliance in _alliances_of(code):
+			var bonus: Dictionary = alliance.get("bonus_membro", {})
+			# Redução de custo de defesa → alivia despesa militar (via orçamento efetivo)
+			# Modelado como pequeno alívio de estabilidade/tesouro por pertencer a bloco forte.
+			if alliance.get("artigo_defesa", false):
+				n.estabilidade_politica = minf(100.0, n.estabilidade_politica + 0.05)  # segurança coletiva
+			# Blocos econômicos (livre comércio interno) → leve bônus de PIB
+			if bonus.get("bonus_comercio", false) or String(alliance.get("tipo", "")) == "economico":
+				n.pib_bilhoes_usd *= 1.0002
+
+# Blocos abertos ao jogador entrar (por afinidade): precisa de relação média positiva
+# com os membros. Retorna a lista de blocos elegíveis (para a UI).
+func player_eligible_blocs() -> Array:
+	if player_nation == null:
+		return []
+	var out: Array = []
+	for alliance in alliances_data:
+		var members: Array = alliance.get("membros", [])
+		if player_nation.codigo_iso in members:
+			continue
+		# Média de relação com os membros presentes
+		var soma: float = 0.0
+		var cont: int = 0
+		for m in members:
+			if nations.has(m):
+				soma += float(player_nation.relacoes.get(m, 0))
+				cont += 1
+		if cont > 0 and soma / cont >= 20.0:  # bem-quisto pelo bloco
+			out.append(alliance)
+	return out
+
+# Jogador entra num bloco (consome 1 ação). Custa relações com blocos rivais.
+func player_join_bloc(bloc_id: String) -> Dictionary:
+	if player_nation == null:
+		return {"ok": false, "reason": "Sem nação"}
+	var alvo: Dictionary = {}
+	for a in alliances_data:
+		if String(a.get("id", "")) == bloc_id:
+			alvo = a
+			break
+	if alvo.is_empty():
+		return {"ok": false, "reason": "Bloco inexistente"}
+	if player_nation.codigo_iso in alvo.get("membros", []):
+		return {"ok": false, "reason": "Já é membro"}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações neste turno"}
+	alvo["membros"].append(player_nation.codigo_iso)
+	# Relação sobe com os novos aliados
+	for m in alvo.get("membros", []):
+		if m != player_nation.codigo_iso and nations.has(m):
+			player_nation.relacoes[m] = clampf(float(player_nation.relacoes.get(m, 0)) + 20, -100, 100)
+			nations[m].relacoes[player_nation.codigo_iso] = clampf(float(nations[m].relacoes.get(player_nation.codigo_iso, 0)) + 20, -100, 100)
+	_log_news({
+		"type": "diplomacia",
+		"headline": "🤝 %s adere ao bloco %s" % [player_nation.nome, alvo.get("nome", bloc_id)],
+		"body": "Um novo alinhamento geopolítico. Segurança coletiva e cooperação com os membros.",
+		"involves_player": true,
+		"color": Color(0.4, 0.85, 1),
+	}, [player_nation.codigo_iso], player_nation.continente)
+	return {"ok": true, "bloc": alvo.get("nome", bloc_id)}
+
+# Jogador sai de um bloco (consome 1 ação). Penaliza relações com ex-aliados.
+func player_leave_bloc(bloc_id: String) -> Dictionary:
+	if player_nation == null:
+		return {"ok": false, "reason": "Sem nação"}
+	var alvo: Dictionary = {}
+	for a in alliances_data:
+		if String(a.get("id", "")) == bloc_id:
+			alvo = a
+			break
+	if alvo.is_empty() or not (player_nation.codigo_iso in alvo.get("membros", [])):
+		return {"ok": false, "reason": "Não é membro"}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações neste turno"}
+	alvo["membros"].erase(player_nation.codigo_iso)
+	var pen: float = float(alvo.get("penalidade_saida", {}).get("relacoes_membros", -30))
+	for m in alvo.get("membros", []):
+		if nations.has(m):
+			player_nation.relacoes[m] = clampf(float(player_nation.relacoes.get(m, 0)) + pen, -100, 100)
+			nations[m].relacoes[player_nation.codigo_iso] = clampf(float(nations[m].relacoes.get(player_nation.codigo_iso, 0)) + pen, -100, 100)
+	_log_news({
+		"type": "diplomacia",
+		"headline": "🚪 %s deixa o bloco %s" % [player_nation.nome, alvo.get("nome", bloc_id)],
+		"body": "Rompimento diplomático. Os ex-aliados veem a saída como traição.",
+		"involves_player": true,
+		"color": Color(1, 0.5, 0.3),
+	}, [player_nation.codigo_iso], player_nation.continente)
+	return {"ok": true, "bloc": alvo.get("nome", bloc_id)}
+
+# Defesa coletiva (Artigo 5): quando `defender_code` é atacado, os membros dos seus
+# blocos de defesa podem entrar na guerra contra o agressor.
 func _trigger_collective_defense(attacker_code: String, defender_code: String) -> Array:
 	var responders: Array = []
 	for alliance in alliances_data:

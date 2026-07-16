@@ -22,6 +22,7 @@ static func save_game(engine) -> bool:
 		"fired_event_ids": engine.timeline.fired_event_ids if engine.timeline else [],
 		"decision_log": engine.timeline.decision_log if engine.timeline else [],
 		"player_actions_remaining": engine.player_actions_remaining,
+		"alliances_data": engine.alliances_data,  # membership de blocos muda no jogo (#11)
 		"active_sanctions": engine.active_sanctions,
 		"active_trades": engine.active_trades,
 		"storyline_active_arcs": engine.storylines.active_arcs if engine.storylines else [],
@@ -91,6 +92,9 @@ static func load_game(engine) -> bool:
 	engine.crypto_legal_tender = bool(data.get("crypto_legal_tender", false))
 	engine.defcon = int(data.get("defcon", 5))
 	engine.settings = data.get("settings", engine.settings)
+	# Restaura membership de blocos (#11) se o save a tiver
+	if data.has("alliances_data"):
+		engine.alliances_data = data.get("alliances_data", engine.alliances_data)
 	# Restaura nações
 	_deserialize_nations(engine.nations, data.get("nations", {}))
 	# Restaura jogador

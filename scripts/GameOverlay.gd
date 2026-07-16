@@ -635,16 +635,52 @@ func _render_diplomacia() -> void:
 			_add_data_row(meta.get("nome", t["type"]), "%s • %d turnos" % [other, turns_left], Color(0.4, 0.85, 1))
 	_add_separator()
 
-	# ── ALIANÇAS PRÉ-EXISTENTES ──
-	_add_section_title("ALIANÇAS")
+	# ── BLOCOS GEOPOLÍTICOS (#11) — membro (sair) + elegíveis (aderir) ──
+	_add_section_title("BLOCOS GEOPOLÍTICOS")
 	var found_alliance := false
 	for alliance in GameEngine.alliances_data:
 		var members: Array = alliance.get("membros", [])
 		if n.codigo_iso in members:
-			_add_data_row(alliance.get("nome", "?"), "%d membros" % members.size(), Color(0.4, 0.85, 1))
 			found_alliance = true
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			var lbl := Label.new()
+			lbl.text = "🛡 %s · %d membros" % [alliance.get("nome", "?"), members.size()]
+			lbl.add_theme_color_override("font_color", Color(0.4, 0.85, 1))
+			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(lbl)
+			var bid: String = String(alliance.get("id", ""))
+			var btn_out := Button.new()
+			btn_out.text = "🚪 Sair"
+			btn_out.tooltip_text = "Sair do bloco (custa relações com os membros)"
+			btn_out.pressed.connect(func():
+				GameEngine.player_leave_bloc(bid)
+				_render_panel("diplomacia"))
+			row.add_child(btn_out)
+			panel_content.add_child(row)
 	if not found_alliance:
-		_add_hint_label("Você não é membro de nenhuma aliança.")
+		_add_hint_label("Você não é membro de nenhum bloco.")
+	# Blocos elegíveis para aderir (bem-quisto pelos membros)
+	var eligibles: Array = GameEngine.player_eligible_blocs()
+	if not eligibles.is_empty():
+		_add_hint_label("Blocos abertos a você (boas relações com os membros):")
+		for alliance in eligibles:
+			var row2 := HBoxContainer.new()
+			row2.add_theme_constant_override("separation", 8)
+			var lbl2 := Label.new()
+			lbl2.text = "  %s · %d membros" % [alliance.get("nome", "?"), alliance.get("membros", []).size()]
+			lbl2.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
+			lbl2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row2.add_child(lbl2)
+			var bid2: String = String(alliance.get("id", ""))
+			var btn_in := Button.new()
+			btn_in.text = "🤝 Aderir"
+			btn_in.tooltip_text = "Entrar no bloco (consome 1 ação; +relações com os membros)"
+			btn_in.pressed.connect(func():
+				GameEngine.player_join_bloc(bid2)
+				_render_panel("diplomacia"))
+			row2.add_child(btn_in)
+			panel_content.add_child(row2)
 	_add_separator()
 
 	# ── RELAÇÕES (top 5 aliados / rivais) ──

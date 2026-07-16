@@ -120,6 +120,9 @@ func _reset_engine() -> void:
 		var tier: String = E.difficulty_tiers.get(c, "")
 		n.from_dict(ns_dict[c], c, tier)
 		E.nations[c] = n
+	# Recarrega blocos do JSON (membership pode ter sido mutada em partida anterior)
+	var _al = E._load_json("res://data/alliances.json")
+	E.alliances_data = _al.get("alliances", []) if _al else []
 	E._apply_year_2000_overrides()
 	E.diplomacy = load("res://scripts/DiplomacyManager.gd").new(E)
 	E.tech = load("res://scripts/TechManager.gd").new(E)

@@ -796,6 +796,38 @@ func _run() -> void:
 		E._drift_ideological_relations(n1)
 	_check(float(n1.relacoes[n2.codigo_iso]) < -5.0, "drift afasta nações opostas (rel=%.1f)" % float(n1.relacoes[n2.codigo_iso]))
 
+	# ── 25. Blocos geopolíticos (#11) ──
+	print("[25] Blocos geopolíticos")
+	_check(E.alliances_data.size() >= 10, "blocos carregados (%d)" % E.alliances_data.size())
+	# _alliances_of encontra os blocos de uma nação (EUA está na OTAN)
+	var us_blocs: Array = E._alliances_of("US")
+	_check(us_blocs.size() > 0, "EUA pertence a blocos (%d)" % us_blocs.size())
+	# Relações intra-bloco: semeadura eleva membros do mesmo bloco a aliados
+	if E.nations.has("US") and E.nations.has("DE"):
+		E.nations["US"].relacoes["DE"] = 0.0
+		E.nations["DE"].relacoes["US"] = 0.0
+		E._seed_bloc_relations()
+		_check(float(E.nations["US"].relacoes.get("DE", -999)) >= 40.0, "membros do mesmo bloco viram aliados (US-DE=%.0f)" % float(E.nations["US"].relacoes.get("DE", 0)))
+	# Jogador entra num bloco elegível: escolhe um em que não está e força relações altas
+	var bloc_test: Dictionary = {}
+	for a in E.alliances_data:
+		if not (E.player_nation.codigo_iso in a.get("membros", [])):
+			bloc_test = a
+			break
+	if not bloc_test.is_empty():
+		# Força elegibilidade: +relação alta com todos os membros
+		for m in bloc_test.get("membros", []):
+			if E.nations.has(m):
+				E.player_nation.relacoes[m] = 60.0
+		E.player_actions_remaining = 3
+		var membros_pre: int = bloc_test.get("membros", []).size()
+		var jr: Dictionary = E.player_join_bloc(String(bloc_test.get("id", "")))
+		_check(jr.get("ok", false) and bloc_test.get("membros", []).size() == membros_pre + 1, "jogador entra em bloco (%s)" % bloc_test.get("nome", "?"))
+		# E consegue sair
+		E.player_actions_remaining = 3
+		var lr: Dictionary = E.player_leave_bloc(String(bloc_test.get("id", "")))
+		_check(lr.get("ok", false) and not (E.player_nation.codigo_iso in bloc_test.get("membros", [])), "jogador sai do bloco")
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:
