@@ -495,6 +495,11 @@ func update_pib(global_factor: float = 1.0) -> void:
 			var excesso: float = clampf(log(mult_atual / 1500.0) / log(10.0), 0.0, 1.0)
 			growth *= 1.0 - 0.95 * excesso
 	pib_bilhoes_usd *= (1.0 + growth)
+	# TETO ABSOLUTO do PIB a 15000× o inicial — pega TODAS as fontes de crescimento
+	# (inclusive multiplicadores de eventos/choques que rodam fora daqui e escapavam
+	# o cap sobre `growth`, gerando overshoot até ~67000× na cauda).
+	if pib_inicial > 0.0:
+		pib_bilhoes_usd = minf(pib_bilhoes_usd, pib_inicial * 15000.0)
 
 	# Crescimento populacional (transição demográfica: pobres crescem mais) — /3 (mensal)
 	if populacao > 0:
