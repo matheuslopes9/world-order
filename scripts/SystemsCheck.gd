@@ -828,6 +828,30 @@ func _run() -> void:
 		var lr: Dictionary = E.player_leave_bloc(String(bloc_test.get("id", "")))
 		_check(lr.get("ok", false) and not (E.player_nation.codigo_iso in bloc_test.get("membros", [])), "jogador sai do bloco")
 
+	# ── 26. Coalizão de contenção (#9) ──
+	print("[26] Coalizão de contenção")
+	# Torna o jogador um hegemon esmagador e vê a coalizão esfriar suas relações
+	E.current_turn = 120
+	E._containment_active = false
+	nb.pib_bilhoes_usd = 5_000_000.0   # domina o PIB mundial
+	nb.militar = nb.militar if nb.militar else {}
+	nb.militar["poder_militar_global"] = 5000.0
+	# Zera relações do jogador com as grandes potências p/ medir o efeito
+	var grandes_test: Array = []
+	for c in E.nations.keys():
+		if c != nb.codigo_iso and E.nations[c].pib_bilhoes_usd >= 500.0:
+			grandes_test.append(c)
+			nb.relacoes[c] = 0.0
+			E.nations[c].relacoes[nb.codigo_iso] = 0.0
+	var rel_antes: float = 0.0
+	for c in grandes_test:
+		rel_antes += float(nb.relacoes.get(c, 0))
+	E._process_containment_coalition()
+	var rel_depois: float = 0.0
+	for c in grandes_test:
+		rel_depois += float(nb.relacoes.get(c, 0))
+	_check(E._containment_active and rel_depois < rel_antes, "hegemon dispara coalizão de contenção (relações %.0f→%.0f)" % [rel_antes, rel_depois])
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:

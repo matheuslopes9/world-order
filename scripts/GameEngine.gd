@@ -535,6 +535,10 @@ func end_turn() -> void:
 	# Atualiza tracking de antagonista (nação rival recorrente)
 	_update_player_nemesis()
 
+	# Coalizão de contenção: se o jogador vira hegemon, as grandes potências se unem
+	# contra ele (balancing realista — o mundo reage à ascensão).
+	_process_containment_coalition()
+
 	# Recuperação de DEFCON: 4 turnos sem nova guerra → tensão mundial alivia
 	# (antes o DEFCON só descia — o mundo travava em alerta nuclear permanente)
 	_turns_since_war += 1
@@ -1533,6 +1537,56 @@ func _update_player_nemesis() -> void:
 			# Aplica pequena penalidade contínua de relação (rival ataca)
 			player_nation.relacoes[player_nemesis] = clamp(float(player_nation.relacoes.get(player_nemesis, 0)) - 3, -100, 100)
 			rival.relacoes[player_nation.codigo_iso] = clamp(float(rival.relacoes.get(player_nation.codigo_iso, 0)) - 3, -100, 100)
+
+# COALIZÃO DE CONTENÇÃO (#9): quando o jogador domina o mundo, as outras grandes
+# potências se unem para conter sua hegemonia (balancing realista — ninguém quer um
+# hegemon absoluto). Ativa quando o jogador é #1 E muito mais forte que o #2. As
+# rivais esfriam relações com o jogador e se aproximam entre si (bloco anti-hegemonia).
+var _containment_active: bool = false
+
+func _process_containment_coalition() -> void:
+	if player_nation == null:
+		return
+	# Só reage a partir do meio do jogo (turno ~120 = ~2010) e a cada 6 meses
+	if current_turn < 120 or current_turn % 6 != 0:
+		return
+	# O jogador é hegemon? #1 de poder E ≥1,6× o poder do #2 entre os grandes.
+	var my_score: float = compute_power_score(player_nation)
+	var maiores: Array = []
+	for code in nations.keys():
+		if code == player_nation.codigo_iso:
+			continue
+		if nations[code].pib_bilhoes_usd >= 500.0:
+			maiores.append(code)
+	if maiores.size() < 3:
+		return
+	maiores.sort_custom(func(a, b): return compute_power_score(nations[a]) > compute_power_score(nations[b]))
+	var segundo_score: float = compute_power_score(nations[maiores[0]])
+	var hegemon: bool = my_score > segundo_score * 1.6 and get_power_rank(player_nation.codigo_iso) == 1
+	if not hegemon:
+		if _containment_active:
+			_containment_active = false  # perdeu o status; coalizão se dissolve
+		return
+	# Ativa/mantém a coalizão: as 5 maiores rivais formam o bloco de contenção
+	var coalizao: Array = maiores.slice(0, mini(5, maiores.size()))
+	if not _containment_active:
+		_containment_active = true
+		_log_news({
+			"type": "coalizao",
+			"headline": "🌐 Coalizão de contenção se forma contra %s" % player_nation.nome,
+			"body": "As grandes potências, alarmadas com o poder de %s, cerram fileiras para conter sua hegemonia." % player_nation.nome,
+			"involves_player": true,
+			"color": Color(1, 0.5, 0.3),
+		}, [player_nation.codigo_iso], "")
+	# Efeito por ativação: rivais esfriam com o jogador e se aproximam entre si
+	for i in coalizao.size():
+		var ri = nations[coalizao[i]]
+		ri.relacoes[player_nation.codigo_iso] = clampf(float(ri.relacoes.get(player_nation.codigo_iso, 0)) - 4.0, -100.0, 100.0)
+		player_nation.relacoes[coalizao[i]] = clampf(float(player_nation.relacoes.get(coalizao[i], 0)) - 4.0, -100.0, 100.0)
+		for j in range(i + 1, coalizao.size()):
+			var rj = nations[coalizao[j]]
+			ri.relacoes[coalizao[j]] = clampf(float(ri.relacoes.get(coalizao[j], 0)) + 3.0, -100.0, 100.0)
+			rj.relacoes[coalizao[i]] = clampf(float(rj.relacoes.get(coalizao[i], 0)) + 3.0, -100.0, 100.0)
 
 # ─────────────────────────────────────────────────────────────────
 # IA — nações NPCs decidem ações por turno
