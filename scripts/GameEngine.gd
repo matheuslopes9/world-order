@@ -364,11 +364,11 @@ func apply_scenario(scenario_id: String) -> void:
 			nations[code].pib_bilhoes_usd *= pib_bonus
 			nations[code].pib_inicial = nations[code].pib_bilhoes_usd
 	if tech_bonus > 0 and tech and tech_data.has("tecnologias"):
-		# Dá tech_bonus tecnologias aleatórias pra cada nação grande (PIB > 500B)
+		# Dá tech_bonus tecnologias aleatórias pra cada nação grande (PIB > 500B).
+		# tech_data.tecnologias é uma LISTA de 57 techs (não um dict de categorias).
 		var all_tech_ids: Array = []
-		for cat in tech_data.get("tecnologias", {}).values():
-			for t in cat:
-				all_tech_ids.append(t.get("id", ""))
+		for t in tech_data.get("tecnologias", []):
+			all_tech_ids.append(t.get("id", ""))
 		for code in nations.keys():
 			var n = nations[code]
 			if n.pib_bilhoes_usd >= 500.0:
@@ -376,6 +376,20 @@ func apply_scenario(scenario_id: String) -> void:
 					var rand_id: String = String(all_tech_ids[randi() % all_tech_ids.size()])
 					if rand_id != "" and not (rand_id in n.tecnologias_concluidas):
 						n.tecnologias_concluidas.append(rand_id)
+	# Modificadores TEMÁTICOS (#8): dão identidade própria a cada cenário além da janela.
+	# Instabilidade inicial (Década Crítica: mundo mais frágil)
+	var start_instab: float = float(found.get("start_instability", 0))
+	if start_instab != 0.0:
+		for code in nations.keys():
+			nations[code].estabilidade_politica = clampf(nations[code].estabilidade_politica + start_instab, 0.0, 100.0)
+	# DEFCON inicial (Guerra Fria 2.0: tensão elevada desde o começo)
+	if found.has("start_defcon"):
+		defcon = clampi(int(found.get("start_defcon", 5)), 1, 5)
+	# Velocidade de pesquisa (Guerra Fria 2.0: corrida tecnológica)
+	var research_mult: float = float(found.get("research_speed_mult", 1.0))
+	if research_mult != 1.0:
+		for code in nations.keys():
+			nations[code].velocidade_pesquisa *= research_mult
 	print("[SCENARIO] %s aplicado: %d → %d (modo: %s)" % [scenario_id, int(found.get("start_year", 2000)), int(found.get("end_year", 2100)), settings.get("mode", "?")])
 
 # Verifica se cenário atual desabilita game over (sandbox)
@@ -905,9 +919,13 @@ func _process_global_shocks() -> void:
 		return
 	# Rola novo choque: pós-2035, cooldown de 15 anos. Ritmo MENSAL: cooldown ×3
 	# (180 meses) e probabilidade ÷3 (0.004/mês) — mesma frequência anual de choques.
-	if date_year < 2035 or current_turn - _last_shock_turn < 180:
+	# Cenários com shock_frequency_mult (Década Crítica) ativam mais cedo e mais vezes.
+	var shock_mult: float = float(active_scenario.get("shock_frequency_mult", 1.0)) if not active_scenario.is_empty() else 1.0
+	var ano_min: int = 2035 if shock_mult <= 1.0 else 2008
+	var cooldown: int = int(180.0 / shock_mult)
+	if date_year < ano_min or current_turn - _last_shock_turn < cooldown:
 		return
-	if randf() > 0.004:
+	if randf() > 0.004 * shock_mult:
 		return
 	var meta: Dictionary = SHOCK_TYPES[randi() % SHOCK_TYPES.size()]
 	# Duração do choque ×3 (em meses) para durar o mesmo tempo real

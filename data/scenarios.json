@@ -31,6 +31,9 @@
       "estimated_turns": 168,
       "estimated_hours": "1-2h",
       "starting_pib_bonus": 1.4,
+      "shock_frequency_mult": 1.8,
+      "start_instability": -8,
+      "objetivo": "Sobreviva à década mais turbulenta do século: atravesse a COVID e as crises sem colapsar, e termine 2024 mais forte que começou.",
       "unlocked_by_default": true
     },
     {
@@ -47,6 +50,9 @@
       "estimated_hours": "3-4h",
       "starting_pib_bonus": 1.8,
       "starting_tech_bonus": 5,
+      "start_defcon": 3,
+      "research_speed_mult": 1.4,
+      "objetivo": "Vença a corrida tecnológica pelo domínio: lidere em tecnologia (top-3) enquanto EUA e China disputam a hegemonia — e não deixe o mundo cair em guerra nuclear.",
       "unlocked_by_default": true
     },
     {

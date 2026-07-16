@@ -1157,6 +1157,11 @@ func _render_situacao() -> void:
 
 	# ══ OBJETIVOS DE VITÓRIA ══
 	_add_section_title("OBJETIVOS DE VITÓRIA")
+	# Objetivo temático do cenário (Década Crítica, Guerra Fria 2.0…)
+	var cenario_obj: String = String(GameEngine.active_scenario.get("objetivo", "")) if not GameEngine.active_scenario.is_empty() else ""
+	if cenario_obj != "":
+		_add_data_row("🎯 %s" % GameEngine.active_scenario.get("name", "Cenário"), "", Color(0.5, 0.9, 1))
+		_add_hint_label(cenario_obj)
 	if GameEngine.victory_achieved:
 		_add_data_row("🏆 Hegemonia Global", "CONQUISTADA — modo livre", Color(1, 0.85, 0.2))
 	else:

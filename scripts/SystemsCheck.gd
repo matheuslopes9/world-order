@@ -873,6 +873,25 @@ func _run() -> void:
 	E._end_war_with_spoils(nb, perdedor, "vitoria")
 	_check(perdedor.regime_politico == "DEMOCRACIA_PLENA", "vitória 'regime' impõe o regime do vencedor ao perdedor")
 
+	# ── 28. Cenários diferenciados (#8) ──
+	print("[28] Cenários diferenciados")
+	# Guerra Fria 2.0: DEFCON inicial baixo + pesquisa acelerada
+	var estab_pre28: float = 0.0
+	for c in E.nations.keys():
+		estab_pre28 += E.nations[c].velocidade_pesquisa
+	E.apply_scenario("guerra_fria_2")
+	_check(E.defcon <= 3, "Guerra Fria 2.0: DEFCON inicial elevado (%d)" % E.defcon)
+	var pesq_pos: float = 0.0
+	for c in E.nations.keys():
+		pesq_pos += E.nations[c].velocidade_pesquisa
+	_check(pesq_pos > estab_pre28, "Guerra Fria 2.0: pesquisa acelerada (corrida tech)")
+	# Cada cenário intermediário tem objetivo temático próprio
+	var tem_obj := {"decada_critica": false, "guerra_fria_2": false}
+	for s in E.scenarios_data:
+		if tem_obj.has(s.get("id", "")):
+			tem_obj[s.get("id", "")] = String(s.get("objetivo", "")) != ""
+	_check(tem_obj["decada_critica"] and tem_obj["guerra_fria_2"], "cenários intermediários têm objetivo temático próprio")
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:
