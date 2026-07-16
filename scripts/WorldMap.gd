@@ -3049,11 +3049,15 @@ func _show_tutorial() -> void:
 		},
 		{
 			"title": "🤝 Diplomacia & Guerra",
-			"body": "Clique em qualquer país no mapa ou na lista para abrir o dossiê (à direita). Use os botões para: enviar embaixada (+rel), impor sanções (-PIB alvo), propor tratado (alianças, livre comércio, etc.), espionar (8 ops), declarar guerra ou propor paz."
+			"body": "Clique em qualquer país no mapa ou na lista para abrir o dossiê (à direita). Use os botões para: enviar embaixada (+rel), impor sanções (-PIB alvo), propor tratado, espionar (8 ops), ou declarar guerra. Ao declarar guerra, escolha um OBJETIVO (reparações, tomar recursos, mudar o regime) — ele define o que a vitória extrai."
+		},
+		{
+			"title": "🌐 Blocos & Ideologias",
+			"body": "Cada nação tem um LÍDER com ideologia (comunista, liberal, tecnocrata…). Nações de ideologia afim se aliam e formam BLOCOS (OTAN, BRICS…). Você pode aderir a blocos onde é bem-quisto. Cuidado: se você virar hegemon, o mundo pode se unir contra você. Líderes caem e sobem — e os países mudam de rumo."
 		},
 		{
 			"title": "▶ Avançar Turno",
-			"body": "Quando satisfeito com suas decisões, clique no botão circular GRANDE no canto inferior direito. A IA das outras 194 nações decidirá ações, eventos disparam, notícias procedurais aparecem no rodapé. Boa sorte, Comandante!"
+			"body": "Quando satisfeito com suas decisões, clique no botão circular GRANDE no canto inferior direito. A IA das outras 194 nações decide, eventos históricos disparam (11/9, COVID, Ucrânia…), e as notícias aparecem no rodapé. São 100 anos pela frente (mês a mês). Boa sorte, Comandante!"
 		},
 	]
 	_show_tutorial_page(pages, 0)
@@ -4040,14 +4044,12 @@ func _on_turn_advanced(_t: int) -> void:
 # não bloqueia gameplay. Persiste turnos mostrados em user://settings.cfg.
 func _maybe_show_contextual_tip() -> void:
 	var t: int = GameEngine.current_turn
-	if t < 1 or t > 6: return
 	var cfg = ConfigFile.new()
 	cfg.load("user://settings.cfg")
 	var shown_turns: Array = cfg.get_value("tips", "shown_turns", [])
 	if t in shown_turns: return
 	var tip: String = ""
-	# Turnos 2-6: o handler roda APÓS current_turn++ — o turno "1" nunca
-	# chega aqui (a dica antiga do turno 1 era inalcançável)
+	# Dicas dos primeiros turnos (onboarding inicial)
 	match t:
 		2:
 			tip = "💡 DICA: Você tem 3 ações por turno. Use os 9 painéis (G, M, E, etc) para agir antes de avançar com SPACE."
@@ -4056,7 +4058,16 @@ func _maybe_show_contextual_tip() -> void:
 		4:
 			tip = "💡 DICA: Acompanhe a barra de notícias no rodapé — eventos históricos podem disparar decisões importantes."
 		6:
-			tip = "💡 DICA: Sua relação com outros países muda com tempo. Quem cair abaixo de -50 vira rival declarado."
+			tip = "💡 DICA: Sua relação com outros países muda com o tempo. Quem cair abaixo de -50 vira rival declarado."
+		# Onboarding de MÉDIO/LATE-GAME (#14): metas por fase da campanha
+		36:  # ~2003 (3 anos)
+			tip = "🎯 FASE INICIAL: consolide as bases — estabilidade, apoio e um tesouro saudável. Considere aderir a um BLOCO (painel Diplomacia) para ganhar aliados."
+		120:  # ~2010 (10 anos)
+			tip = "🎯 MÉDIO PRAZO: hora de crescer. Invista em Educação (pesquisa) e Economia. Suba o nível da Casa Civil para abrir mais trilhas de pesquisa paralelas."
+		300:  # ~2025 (25 anos)
+			tip = "🎯 ASCENSÃO: mire o top-5 de poder mundial (painel Situação). Techs, PIB e diplomacia contam. Cuidado: virar hegemon faz o mundo se unir contra você."
+		600:  # ~2050 (50 anos)
+			tip = "🎯 LEGADO: meio século se passou. Busque a HEGEMONIA (#1 em poder por 4 anos) ou garanta a Potência do Século (top-5 em 2100)."
 	if tip == "":
 		return
 	_show_tutorial_toast(tip)
