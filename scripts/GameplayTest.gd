@@ -404,14 +404,15 @@ func _phase_dossier_flows() -> void:
 		await get_tree().process_frame
 		_test("Sanção ativa criada", GameEngine.active_sanctions.size() == sanc0 + 1)
 
-	# Guerra (confirmação) e paz
+	# Guerra (modal de objetivo) e paz
 	_topup()
 	wm._on_declare_war_pressed()
 	await get_tree().process_frame
-	var conf2 := _find_button_by_text(wm._modal_stack.back() if not wm._modal_stack.is_empty() else wm, ["CONFIRMAR"])
-	_test("Confirmação de guerra abre", conf2 != null)
+	# Novo modal pede o OBJETIVO de guerra — escolhe "Conter/enfraquecer"
+	var conf2 := _find_button_by_text(wm._modal_stack.back() if not wm._modal_stack.is_empty() else wm, ["CONTER", "REPARAÇÕES", "OBJETIVO"])
+	_test("Modal de objetivo de guerra abre", conf2 != null)
 	if conf2:
-		await _press(conf2, "confirmar guerra")
+		await _press(conf2, "objetivo de guerra")
 		await get_tree().process_frame
 		_test("Guerra declarada contra AR", "AR" in GameEngine.player_nation.em_guerra)
 	_topup()

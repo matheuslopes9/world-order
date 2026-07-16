@@ -23,6 +23,7 @@ static func save_game(engine) -> bool:
 		"decision_log": engine.timeline.decision_log if engine.timeline else [],
 		"player_actions_remaining": engine.player_actions_remaining,
 		"alliances_data": engine.alliances_data,  # membership de blocos muda no jogo (#11)
+		"war_objectives": engine._war_objectives,  # objetivo de cada guerra em andamento
 		"active_sanctions": engine.active_sanctions,
 		"active_trades": engine.active_trades,
 		"storyline_active_arcs": engine.storylines.active_arcs if engine.storylines else [],
@@ -95,6 +96,7 @@ static func load_game(engine) -> bool:
 	# Restaura membership de blocos (#11) se o save a tiver
 	if data.has("alliances_data"):
 		engine.alliances_data = data.get("alliances_data", engine.alliances_data)
+	engine._war_objectives = data.get("war_objectives", {})
 	# Restaura nações
 	_deserialize_nations(engine.nations, data.get("nations", {}))
 	# Restaura jogador

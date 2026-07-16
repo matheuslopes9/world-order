@@ -3383,16 +3383,53 @@ func _show_confirmation_modal(title: String, msg: String, on_confirm: Callable, 
 
 func _on_declare_war_pressed() -> void:
 	if preview_code == "" or preview_code == player_code: return
-	var target_name: String = GameEngine.nations[preview_code].nome
+	_show_war_objective_modal(preview_code)
+
+# Modal de OBJETIVO DE GUERRA: o jogador declara guerra POR ALGO. O objetivo
+# amplifica o espólio correspondente na vitória (reparações / recurso / mudar regime).
+func _show_war_objective_modal(target: String) -> void:
+	var target_name: String = GameEngine.nations[target].nome
 	var cost: float = max(20.0, GameEngine.player_nation.pib_bilhoes_usd * 0.02)
-	_show_confirmation_modal(
-		"⚔️ DECLARAR GUERRA",
-		"Tem certeza que quer declarar guerra contra %s?\n\nCusto: $%dB. Aliados de %s podem entrar em guerra contra você. DEFCON cai. Esta ação não pode ser desfeita." % [target_name, int(cost), target_name],
-		func():
-			if GameEngine.player_declare_war(preview_code):
-				_log_ticker("⚔️ MILITAR", "Você declarou guerra contra %s" % target_name, Color(1, 0.3, 0.3))
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 10)
+	content.custom_minimum_size = Vector2(520, 0)
+	var title := Label.new()
+	title.text = "⚔️ DECLARAR GUERRA — %s" % target_name
+	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_color_override("font_color", Color(1, 0.4, 0.35))
+	content.add_child(title)
+	var info := Label.new()
+	info.text = "Custo: $%dB. Aliados de %s podem entrar na guerra. DEFCON cai.\nQual é o seu OBJETIVO? Ele define o que a vitória vai extrair." % [int(cost), target_name]
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_theme_color_override("font_color", Color(0.85, 0.9, 1))
+	content.add_child(info)
+	content.add_child(HSeparator.new())
+	var objetivos := [
+		{"id": "reparacoes", "label": "💰 Reparações de guerra", "tip": "Vitória extrai muito mais tesouro do inimigo"},
+		{"id": "recurso",    "label": "⛏ Tomar recursos",       "tip": "Vitória confisca mais do melhor recurso do inimigo"},
+		{"id": "regime",     "label": "🏛 Mudança de regime",    "tip": "Vitória impõe seu regime ao inimigo (instabilidade extra nele)"},
+		{"id": "conter",     "label": "🛡 Conter/enfraquecer",   "tip": "Espólio equilibrado; enfraquece o rival sem exigências específicas"},
+	]
+	for obj in objetivos:
+		var btn := Button.new()
+		btn.text = "  " + obj["label"]
+		btn.tooltip_text = obj["tip"]
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.custom_minimum_size = Vector2(0, 44)
+		btn.add_theme_font_size_override("font_size", 13)
+		var oid: String = obj["id"]
+		btn.pressed.connect(func():
+			_close_top_modal()
+			if GameEngine.player_declare_war(target, oid):
+				_log_ticker("⚔️ MILITAR", "Guerra contra %s (objetivo: %s)" % [target_name, oid], Color(1, 0.3, 0.3))
 				_repaint_map()
-				_show_preview(preview_code))
+				_show_preview(target))
+		content.add_child(btn)
+	var cancel := Button.new()
+	cancel.text = "✕ Cancelar"
+	cancel.pressed.connect(func(): _close_top_modal())
+	content.add_child(cancel)
+	_open_modal(content, "", Vector2(560, 380))
 
 func _on_propose_peace_pressed() -> void:
 	if preview_code == "" or preview_code == player_code: return

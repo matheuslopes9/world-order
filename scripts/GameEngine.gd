@@ -2083,11 +2083,20 @@ func _end_war_with_spoils(winner, loser, motivo: String) -> void:
 	var key: String = _war_key(w_code, l_code)
 	_war_started.erase(key)
 	_war_score.erase(key)
-	# Reparações de guerra: até 50% do tesouro do perdedor (cap 10% do PIB dele)
-	var reparacao: float = clamp(loser.tesouro * 0.5, 0.0, loser.pib_bilhoes_usd * 0.10)
+	# OBJETIVO DE GUERRA (se o vencedor é o jogador e declarou por um motivo): amplifica
+	# o espólio correspondente. Guerra "por algo" — não só um war score abstrato.
+	var objetivo: String = String(_war_objectives.get(key, "conter"))
+	_war_objectives.erase(key)
+	var foco_reparacao: bool = objetivo == "reparacoes" and w_code == (player_nation.codigo_iso if player_nation else "")
+	var foco_recurso: bool = objetivo == "recurso" and w_code == (player_nation.codigo_iso if player_nation else "")
+	var foco_regime: bool = objetivo == "regime" and w_code == (player_nation.codigo_iso if player_nation else "")
+	# Reparações: até 50% do tesouro do perdedor (70% se o objetivo era reparações)
+	var frac_rep: float = 0.7 if foco_reparacao else 0.5
+	var reparacao: float = clamp(loser.tesouro * frac_rep, 0.0, loser.pib_bilhoes_usd * (0.15 if foco_reparacao else 0.10))
 	loser.tesouro = max(0.0, loser.tesouro - reparacao)
 	winner.tesouro += reparacao
-	# Concessão de recursos: o melhor recurso do perdedor muda de mãos (parcial)
+	# Concessão de recursos: o melhor recurso do perdedor muda de mãos (mais se o
+	# objetivo era o recurso)
 	var best_res: String = ""
 	var best_val: float = 0.0
 	for k in loser.recursos:
@@ -2096,9 +2105,15 @@ func _end_war_with_spoils(winner, loser, motivo: String) -> void:
 			best_res = k
 	var take: float = 0.0
 	if best_res != "":
-		take = min(15.0, best_val * 0.25)
+		take = min(30.0 if foco_recurso else 15.0, best_val * (0.45 if foco_recurso else 0.25))
 		loser.recursos[best_res] = max(0.0, best_val - take)
 		winner.recursos[best_res] = min(100.0, float(winner.recursos.get(best_res, 0)) + take)
+	# Mudança de regime imposta pelo vencedor (objetivo "regime"): o perdedor vira um
+	# regime alinhado ao vencedor e sofre instabilidade extra da imposição.
+	if foco_regime:
+		loser.regime_politico = winner.regime_politico
+		loser.estabilidade_politica = clamp(loser.estabilidade_politica - 15.0, 0.0, 100.0)
+		loser.set_meta("regime_imposto_por", w_code)
 	# Política: vencedor celebra, perdedor amarga
 	winner.apoio_popular = clamp(winner.apoio_popular + 10.0, 0.0, 100.0)
 	winner.felicidade = clamp(winner.felicidade + 5.0, 0.0, 100.0)
@@ -2151,6 +2166,26 @@ func _process_war_costs() -> void:
 		n.tesouro = max(0.0, n.tesouro - cost_per_war * wars)
 		n.apoio_popular = max(0.0, n.apoio_popular - 0.5 * wars)
 		n.felicidade = max(0.0, n.felicidade - 0.33 * wars)
+		# CRISE HUMANITÁRIA: guerra do JOGADOR que se arrasta (>3 anos) gera refugiados
+		# e desgaste crescente — o custo de uma guerra longa é assimétrico (vencer no
+		# war score não significa vencer no longo prazo).
+		if player_nation != null and code == player_nation.codigo_iso and current_turn % 12 == 0:
+			var guerra_longa: bool = false
+			for inimigo in n.em_guerra:
+				var wk: String = _war_key(code, inimigo)
+				if _war_started.has(wk) and current_turn - int(_war_started[wk]) >= 36:
+					guerra_longa = true
+					break
+			if guerra_longa:
+				n.felicidade = clamp(n.felicidade - 3.0, 0.0, 100.0)
+				n.corrupcao = clamp(n.corrupcao + 1.0, 0.0, 100.0)  # economia de guerra
+				_log_news({
+					"type": "guerra",
+					"headline": "🏚 Crise humanitária: guerra prolongada de %s gera refugiados" % n.nome,
+					"body": "Anos de conflito cobram seu preço: deslocamento, fadiga popular e economia de guerra. Uma vitória tardia pode ser pírrica.",
+					"involves_player": true,
+					"color": Color(0.9, 0.5, 0.4),
+				}, [code], n.continente)
 		# CAPITULAÇÃO AUTOMÁTICA: nação exausta (tesouro zerado + apoio em
 		# colapso) rende-se — guerras não se arrastam para sempre
 		if n.tesouro <= 0.0 and n.apoio_popular < 25.0 and randf() < 0.5:
@@ -2245,7 +2280,12 @@ func _apply_event_effects(efeitos: Dictionary, n) -> void:
 		n.corrupcao = clamp(n.corrupcao + float(efeitos["corrupcao"]), 0.0, 100.0)
 
 # Função pública para o jogador declarar guerra via UI
-func player_declare_war(target_code: String) -> bool:
+# Objetivos de guerra do jogador por conflito (key = _war_key). Define o que a vitória
+# extrai: "reparacoes" (mais $), "recurso" (mais recurso), "regime" (muda o regime do
+# perdedor + humilha), "conter" (padrão — espólio equilibrado).
+var _war_objectives: Dictionary = {}
+
+func player_declare_war(target_code: String, objetivo: String = "conter") -> bool:
 	if player_nation == null or not nations.has(target_code):
 		return false
 	if target_code in player_nation.em_guerra:
@@ -2254,6 +2294,8 @@ func player_declare_war(target_code: String) -> bool:
 	if player_nation.tesouro < cost:
 		return false
 	if not _consume_action(): return false
+	player_nation.tesouro -= cost
+	_war_objectives[_war_key(player_nation.codigo_iso, target_code)] = objetivo
 	_declare_war(player_nation.codigo_iso, target_code)
 	if achievements: achievements.on_war_declared(true)
 	return true

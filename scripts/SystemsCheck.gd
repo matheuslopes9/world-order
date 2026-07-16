@@ -852,6 +852,27 @@ func _run() -> void:
 		rel_depois += float(nb.relacoes.get(c, 0))
 	_check(E._containment_active and rel_depois < rel_antes, "hegemon dispara coalizão de contenção (relações %.0f→%.0f)" % [rel_antes, rel_depois])
 
+	# ── 27. Guerra com objetivos (#B) ──
+	print("[27] Guerra com objetivos")
+	# Declarar guerra com objetivo grava o objetivo; vitória "regime" muda o regime do perdedor
+	var alvo_g: String = ""
+	for c in E.nations.keys():
+		if c != nb.codigo_iso and not (c in nb.em_guerra):
+			alvo_g = c
+			break
+	nb.pib_bilhoes_usd = 1000.0   # reset (a seção 26 deixou PIB gigante de hegemon)
+	nb.tesouro = 5000.0
+	E.player_actions_remaining = 3
+	var dw: bool = E.player_declare_war(alvo_g, "regime")
+	var wk: String = E._war_key(nb.codigo_iso, alvo_g)
+	_check(dw and E._war_objectives.get(wk, "") == "regime", "declarar guerra grava o objetivo (regime)")
+	# Simula vitória com objetivo "regime" → perdedor adota o regime do vencedor
+	nb.regime_politico = "DEMOCRACIA_PLENA"
+	var perdedor = E.nations[alvo_g]
+	perdedor.regime_politico = "DITADURA"
+	E._end_war_with_spoils(nb, perdedor, "vitoria")
+	_check(perdedor.regime_politico == "DEMOCRACIA_PLENA", "vitória 'regime' impõe o regime do vencedor ao perdedor")
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:
