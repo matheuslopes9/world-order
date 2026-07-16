@@ -2566,6 +2566,26 @@ func _show_takeover_step_1(country_code: String) -> void:
 	name_edit.custom_minimum_size = Vector2(0, 36)
 	name_edit.text_changed.connect(func(t: String): _takeover_state["leader_name"] = t)
 	content.add_child(name_edit)
+	# Idade do líder (35-70) — afeta quanto tempo até a sucessão por idade
+	var age_label := Label.new()
+	age_label.add_theme_color_override("font_color", Color(0.55, 0.7, 0.9))
+	age_label.add_theme_font_size_override("font_size", 11)
+	content.add_child(age_label)
+	var age_row := HBoxContainer.new()
+	age_row.add_theme_constant_override("separation", 8)
+	content.add_child(age_row)
+	var age_slider := HSlider.new()
+	age_slider.min_value = 35
+	age_slider.max_value = 70
+	age_slider.step = 1
+	age_slider.value = int(_takeover_state.get("leader_age", 50))
+	age_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	age_slider.custom_minimum_size = Vector2(0, 28)
+	age_row.add_child(age_slider)
+	age_label.text = "Idade do líder: %d anos" % int(age_slider.value)
+	age_slider.value_changed.connect(func(v: float):
+		_takeover_state["leader_age"] = int(v)
+		age_label.text = "Idade do líder: %d anos" % int(v))
 	# Background
 	var bg_label := Label.new()
 	bg_label.text = "Background do líder:"
@@ -2910,6 +2930,10 @@ func _apply_takeover_choices(n) -> void:
 	n.set_meta("leader_age", _takeover_state.get("leader_age", 50))
 	n.set_meta("leader_background", _takeover_state.get("leader_background", "politico"))
 	n.set_meta("leader_motto", _takeover_state.get("leader_motto", ""))
+	# Líder do jogador (para o dossiê e coerência com o sistema de liderança)
+	n.lider_nome = String(_takeover_state.get("leader_name", "Líder"))
+	n.lider_idade = int(_takeover_state.get("leader_age", 50))
+	n.lider_desde_turno = GameEngine.current_turn
 	n.set_meta("economic_doctrine", _takeover_state.get("economic_doctrine", "mista"))
 	# Aplica trait do líder histórico se houver
 	var leader_trait: Dictionary = _takeover_state.get("historical_trait", {})
@@ -2946,12 +2970,23 @@ func _apply_takeover_choices(n) -> void:
 			n.velocidade_pesquisa = n.velocidade_pesquisa * 1.10
 		"politico":
 			n.estabilidade_politica = clamp(n.estabilidade_politica + 5.0, 0.0, 100.0)
-	# Mudança de regime (custa $50B + -10 estab se diferente)
+	# Mudança de regime (custa $50B + -10 estab de transição se diferente)
 	var new_gov: String = String(_takeover_state.get("government_type", "manter"))
 	if new_gov != "manter" and new_gov != n.regime_politico:
 		n.regime_politico = new_gov
 		n.tesouro = max(0.0, n.tesouro - 50.0)
 		n.estabilidade_politica = clamp(n.estabilidade_politica - 10.0, 0.0, 100.0)
+		# Efeitos imediatos do novo regime (cumpre a promessa dos tooltips da etapa 2)
+		match new_gov:
+			"DEMOCRACIA_PLENA":
+				n.corrupcao = clamp(n.corrupcao - 10.0, 0.0, 100.0)
+			"REGIME_HIBRIDO":
+				n.corrupcao = clamp(n.corrupcao + 5.0, 0.0, 100.0)
+			"DITADURA":
+				n.estabilidade_politica = clamp(n.estabilidade_politica + 10.0, 0.0, 100.0)
+				n.apoio_popular = clamp(n.apoio_popular - 10.0, 0.0, 100.0)
+			"TEOCRACIA":
+				n.estabilidade_politica = clamp(n.estabilidade_politica + 15.0, 0.0, 100.0)
 	# Doutrina econômica: o efeito ESTRUTURAL (1×) é aplicado agora; o efeito
 	# POR TURNO roda em GameEngine._process_economic_doctrine (lê a meta gravada acima).
 	GameEngine._apply_economic_doctrine_once(n)

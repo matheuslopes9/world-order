@@ -2175,7 +2175,7 @@ func get_cabinet_snapshot() -> Array:
 	return out
 
 # Sanções: jogador impõe sanção a uma nação alvo
-# Custa $30B + 1 ação. Aplica -1.5% PIB/turno no alvo por 5 turnos.
+# Custa $30B + 1 ação. Aplica -0.5% PIB/turno no alvo por 15 turnos (~1,25 ano).
 # Relação despenca -30 imediatamente. Se já houver sanção ativa, refresca duração.
 func player_impose_sanctions(target_code: String) -> Dictionary:
 	if player_nation == null:
@@ -2206,7 +2206,7 @@ func player_impose_sanctions(target_code: String) -> Dictionary:
 	_log_news({
 		"type": "sanctions",
 		"headline": "🚫 %s impõe sanções contra %s" % [player_nation.nome, t.nome],
-		"body": "Custo $%dB. -1.5%% PIB/turno por %d turnos. Relações em queda." % [SANCTION_COST, SANCTION_DURATION],
+		"body": "Custo $%dB. -0.5%% PIB/mês por %d meses. Relações em queda." % [SANCTION_COST, SANCTION_DURATION],
 		"involves_player": true,
 	}, [player_nation.codigo_iso, target_code], t.continente)
 	return {"ok": true}
@@ -2294,7 +2294,13 @@ func _process_active_sanctions() -> void:
 		var entry: Dictionary = s
 		var to_code: String = entry.get("to", "")
 		if nations.has(to_code):
-			nations[to_code].apply_pib_multiplier(SANCTION_PIB_PENALTY)
+			# Cripto como moeda legal DRIBLA parte da sanção (efeito real, não só texto):
+			# o alvo usa a WorldCoin para contornar o bloqueio → penalidade cai 60%.
+			var penalty: float = SANCTION_PIB_PENALTY
+			var alvo_com_cripto: bool = (player_nation != null and to_code == player_nation.codigo_iso and crypto_legal_tender)
+			if alvo_com_cripto:
+				penalty = 1.0 - (1.0 - SANCTION_PIB_PENALTY) * 0.4  # -60% da penalidade
+			nations[to_code].apply_pib_multiplier(penalty)
 		entry["turns_remaining"] = int(entry.get("turns_remaining", 0)) - 1
 		if entry["turns_remaining"] > 0:
 			still_active.append(entry)

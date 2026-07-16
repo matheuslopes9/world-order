@@ -39,7 +39,7 @@ func _restore_user_files() -> void:
 
 func _ready() -> void:
 	print("\n╔══════════════════════════════════════════════════════════════════")
-	print("║  WORLD ORDER — UI AUTOPLAY TEST")
+	print("║  NATIONS: NEW DAWN — UI AUTOPLAY TEST")
 	print("╚══════════════════════════════════════════════════════════════════")
 	_backup_user_files()
 	# Aguarda 1 frame antes de manipular tree (Godot bloqueia add_child no _ready do root)

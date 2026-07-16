@@ -24,7 +24,7 @@ const PROTECTED := ["user://world_order_save.json", "user://achievements.json", 
 
 func _ready() -> void:
 	print("\n╔══════════════════════════════════════════════════════════════════")
-	print("║  WORLD ORDER — GAMEPLAY TEST (matriz completa de interações)")
+	print("║  NATIONS: NEW DAWN — GAMEPLAY TEST (matriz completa de interações)")
 	print("╚══════════════════════════════════════════════════════════════════")
 	_backup_user_files()
 	await get_tree().process_frame

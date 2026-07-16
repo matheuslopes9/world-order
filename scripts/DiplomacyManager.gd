@@ -2,6 +2,10 @@ class_name DiplomacyManager
 extends RefCounted
 ## Sistema de tratados internacionais.
 ## Tipos de tratado, propostas, aceitação automática pela IA, efeitos por turno, violações.
+##
+## FONTE DE VERDADE dos tipos de tratado é o TIPOS_TRATADO abaixo (durações já
+## calibradas para o ritmo mensal). O antigo data/treaty-types.json foi removido —
+## estava desatualizado (durações trimestrais) e não era lido por ninguém.
 
 const TIPOS_TRATADO := {
 	"alianca_militar": {

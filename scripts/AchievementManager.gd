@@ -2,7 +2,7 @@ class_name AchievementManager
 extends RefCounted
 ## Sistema de Achievements local (preparado pra Steam Achievements depois).
 ##
-## 15 marcos que detectam estados específicos do jogo. Persiste em
+## 18 marcos que detectam estados específicos do jogo. Persiste em
 ## user://achievements.json (compartilhado entre saves — uma vez conquistado,
 ## fica desbloqueado pra sempre).
 ##
@@ -13,12 +13,12 @@ const SAVE_PATH := "user://achievements.json"
 
 signal achievement_unlocked(id: String, name: String, description: String)
 
-# Lista mestre de 15 conquistas. Cada uma com check function lógico
+# Lista mestre de 18 conquistas. Cada uma com check function lógico
 # rodado a cada turno em update(engine).
 const ACHIEVEMENTS := [
 	# ─── PROGRESSÃO ───
 	{"id": "first_turn",        "name": "Primeiro Passo",         "desc": "Avance seu primeiro turno",                "icon": "🎮"},
-	{"id": "first_decade",      "name": "Década Sobrevivida",     "desc": "Jogue 40 turnos (10 anos)",                "icon": "📅"},
+	{"id": "first_decade",      "name": "Década Sobrevivida",     "desc": "Jogue 10 anos (120 meses)",                "icon": "📅"},
 	{"id": "century",           "name": "Século Civilizatório",   "desc": "Atinja o ano 2100 (campanha completa)",     "icon": "🏆"},
 	# ─── ECONOMIA ───
 	{"id": "trillion_treasury", "name": "Cofres de Midas",        "desc": "Acumule $1 trilhão em tesouro",            "icon": "💰"},
@@ -27,7 +27,7 @@ const ACHIEVEMENTS := [
 	# ─── MILITAR/DIPLOMÁTICO ───
 	{"id": "first_war",         "name": "Trompete da Guerra",      "desc": "Declare sua primeira guerra",              "icon": "⚔"},
 	{"id": "war_winner",        "name": "Espólios de Guerra",      "desc": "Vença uma guerra e extraia reparações",    "icon": "🏆"},
-	{"id": "peacekeeper",       "name": "Pomba da Paz",            "desc": "Sobreviva 100 turnos sem declarar guerra", "icon": "🕊"},
+	{"id": "peacekeeper",       "name": "Pomba da Paz",            "desc": "Sobreviva 25 anos sem declarar guerra",    "icon": "🕊"},
 	{"id": "alliance_master",   "name": "Tecedor de Alianças",     "desc": "Tenha 3 tratados ativos simultaneamente",  "icon": "📜"},
 	{"id": "hegemon",           "name": "Hegemonia Global",        "desc": "Vença a campanha por hegemonia",            "icon": "👑"},
 	# ─── TECH/CIÊNCIA ───
@@ -36,7 +36,7 @@ const ACHIEVEMENTS := [
 	# ─── HISTÓRICO/EVENTOS ───
 	{"id": "history_maker",     "name": "Forjador da História",    "desc": "Tome 10 decisões em eventos históricos",   "icon": "🕰"},
 	{"id": "convergent",        "name": "Espelho da Realidade",    "desc": "Tome 5 decisões alinhadas com a história", "icon": "📖"},
-	{"id": "model_nation",      "name": "Nação Modelo",            "desc": "20 turnos consecutivos com indicadores excelentes", "icon": "🌟"},
+	{"id": "model_nation",      "name": "Nação Modelo",            "desc": "5 anos consecutivos com indicadores excelentes", "icon": "🌟"},
 	# ─── DESAFIO ───
 	{"id": "underdog",          "name": "Davi vs Golias",          "desc": "Vença com nação tier MUITO_DIFICIL ou QUASE_IMPOSSIVEL", "icon": "💪"},
 ]

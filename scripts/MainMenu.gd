@@ -1,5 +1,5 @@
 extends Control
-## Tela inicial do WORLD ORDER — Hello World do porte Godot.
+## Tela inicial do NATIONS: NEW DAWN — Hello World do porte Godot.
 ## Confirma que: cena carrega, script roda, tema visual aplica, input funciona.
 
 @onready var status_label: Label = %StatusLabel
@@ -33,24 +33,19 @@ func _fade_in(node: CanvasItem, duration: float = 0.20) -> void:
 
 func _ready() -> void:
 	# Roda diagnóstico inicial
-	var info := []
-	info.append("Godot %s" % Engine.get_version_info().string)
-	info.append("Renderer: %s" % RenderingServer.get_video_adapter_name())
-	info.append("Vendor: %s" % RenderingServer.get_video_adapter_vendor())
-	info.append("Driver: %s" % OS.get_video_adapter_driver_info())
-	info.append("FPS atual: %d" % Engine.get_frames_per_second())
-	info.append("OS: %s (%s)" % [OS.get_name(), OS.get_distribution_name()])
-	info_label.text = "\n".join(info)
-	info_label.add_theme_font_override("font", MONO_FONT)
+	# Diagnóstico técnico (GPU/FPS) era legado do "hello world" — oculto no jogo final.
+	info_label.visible = false
 
-	status_label.text = "▸ SISTEMA ONLINE"
+	status_label.text = "▸ 195 NAÇÕES · 2000–2100 · O SÉCULO É SEU"
 	# Atualiza texto botão se há save
 	if map_button and SaveSys.has_save():
 		var save_info: Dictionary = SaveSys.get_save_info()
 		var quarters := ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"]
 		var date_str: String = "%s %d" % [quarters[int(save_info.get("date_month", 1)) - 1], int(save_info.get("date_year", 2024))]
 		map_button.text = "▶ CONTINUAR: %s (Turno %d, %s)" % [save_info.get("player_code", "?"), int(save_info.get("current_turn", 0)), date_str]
-	test_button.pressed.connect(_on_test_pressed)
+	# Botão de teste legado ("hello world") — oculto no jogo final.
+	if test_button:
+		test_button.visible = false
 	if map_button:
 		map_button.pressed.connect(_on_map_pressed)
 
@@ -79,7 +74,7 @@ func _ready() -> void:
 	# Intro cinematográfica — só na primeira vez que o jogador abre o jogo
 	_maybe_show_intro_lore()
 
-	print("[WORLD ORDER] MainMenu pronto. Renderer: %s" % RenderingServer.get_video_adapter_name())
+	print("[NATIONS: NEW DAWN] MainMenu pronto. Renderer: %s" % RenderingServer.get_video_adapter_name())
 
 # Intro cinematográfica que aparece UMA vez (controlado por config).
 # Pode ser visto novamente via botão "📜 Histórico" futuramente.
@@ -839,7 +834,7 @@ func _on_test_pressed() -> void:
 	# Teste simples: muda cor e mostra que input funciona
 	status_label.text = "✓ INPUT FUNCIONA — pronto para Fase 2"
 	status_label.add_theme_color_override("font_color", Color(0, 1, 0.5))
-	print("[WORLD ORDER] Botão clicado — sistema responsivo OK")
+	print("[NATIONS: NEW DAWN] Botão clicado — sistema responsivo OK")
 
 func _process(_delta: float) -> void:
 	# Atualiza FPS em tempo real para confirmar fluidez
