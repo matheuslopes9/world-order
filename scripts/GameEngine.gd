@@ -279,6 +279,34 @@ func _apply_year_2000_overrides() -> void:
 		# atribui aqui (líder real de leaders_2024, ou arquétipo por regime).
 		_assign_personality(n)
 	print("[2000] Overrides aplicados: %d explícitos + %d via escala global" % [changed_explicit, changed_global])
+	# Semeia relações iniciais por afinidade ideológica (o mundo já começa com blocos).
+	_seed_ideological_relations()
+
+# Dá a "cara" inicial ao mundo: nações de ideologia afim começam com relação positiva,
+# opostas com relação fria. As relações partiam todas de 0 (neutras) — agora refletem
+# o alinhamento geopolítico de 2000. Só semeia pares do MESMO continente + as grandes
+# potências entre si (evita semear 195×195 e manter foco no que importa).
+func _seed_ideological_relations() -> void:
+	var codes: Array = nations.keys()
+	# Ordena as maiores potências (relações globais só entre elas + vizinhos regionais)
+	var grandes: Array = []
+	for c in codes:
+		if nations[c].pib_bilhoes_usd >= 800.0:
+			grandes.append(c)
+	for i in codes.size():
+		var a = nations[codes[i]]
+		for j in range(i + 1, codes.size()):
+			var b = nations[codes[j]]
+			var mesmo_cont: bool = a.continente == b.continente
+			var ambas_grandes: bool = (codes[i] in grandes) and (codes[j] in grandes)
+			if not mesmo_cont and not ambas_grandes:
+				continue
+			# afinidade [-1,+1] → relação inicial [-35,+35], atenuada p/ pares fracos
+			var aff: float = _ideological_affinity(a, b)
+			var peso: float = 1.0 if ambas_grandes else 0.7
+			var rel: float = aff * 35.0 * peso
+			a.relacoes[b.codigo_iso] = clampf(rel, -100.0, 100.0)
+			b.relacoes[a.codigo_iso] = clampf(rel, -100.0, 100.0)
 
 # Atribui uma personalidade válida à nação: usa o líder real (leaders_2024) quando
 # existe; senão, um arquétipo genérico coerente com o regime político. Determinístico.
@@ -1252,6 +1280,59 @@ func _is_autocracy(n) -> bool:
 	var r: String = n.regime_politico
 	return ("DITADURA" in r) or ("AUTORITARISMO" in r) or ("TEOCRACIA" in r) or ("COMUNISMO" in r) or ("MONARQUIA" in r)
 
+# ─────────────────────────────────────────────────────────────────
+# AFINIDADE IDEOLÓGICA (#7) — nações de ideologia afim se atraem, opostas repelem.
+# Faz emergir blocos geopolíticos informais (democracias de mercado vs autocracias
+# planejadas — o eixo Ocidente × Rússia/China). Combina 2 eixos estruturados:
+#   1) ideologia ECONÔMICA (livre_mercado…planejada), posicionada numa reta 0..1
+#   2) REGIME (democracia vs autocracia)
+# Retorna afinidade em [-1, +1]: +1 = muito afim, -1 = polos opostos.
+# ─────────────────────────────────────────────────────────────────
+
+# Posição de cada doutrina no eixo mercado(0) ↔ planejamento(1).
+const _ECON_AXIS := {
+	"livre_mercado": 0.0,
+	"mista": 0.4,
+	"nordica": 0.6,
+	"planejada": 1.0,
+}
+
+func _econ_axis_of(n) -> float:
+	return float(_ECON_AXIS.get(_doctrine_for(n), 0.4))
+
+func _ideological_affinity(a, b) -> float:
+	# Eixo econômico: distância na reta (0 = idênticos → +1; 1 = polos → -1)
+	var econ_dist: float = absf(_econ_axis_of(a) - _econ_axis_of(b))  # 0..1
+	var econ_aff: float = 1.0 - 2.0 * econ_dist                       # +1..-1
+	# Eixo de regime: mesmo tipo (ambos democracia ou ambos autocracia) atrai
+	var regime_aff: float = 1.0 if (_is_autocracy(a) == _is_autocracy(b)) else -1.0
+	# Combina (econômico pesa mais que o regime)
+	return clampf(econ_aff * 0.6 + regime_aff * 0.4, -1.0, 1.0)
+
+# Puxa devagar as relações de `n` na direção da afinidade ideológica. Roda quando a
+# nação age no cursor da IA (~a cada 2 anos). Só mexe em pares JÁ conhecidos (com
+# relação registrada — semeados no início ou por eventos/diplomacia) para custo baixo
+# e foco. Cada passo é pequeno; o efeito emerge por composição ao longo do século.
+func _drift_ideological_relations(n) -> void:
+	if n.relacoes.is_empty():
+		return
+	for other_code in n.relacoes.keys():
+		if not nations.has(other_code):
+			continue
+		var other = nations[other_code]
+		# Não mexe em relações "travadas" por guerra (guerra domina o sinal)
+		if other_code in n.em_guerra:
+			continue
+		var aff: float = _ideological_affinity(n, other)
+		# Alvo de longo prazo: afinidade máxima → +50, mínima → -50 (blocos, não guerra)
+		var alvo: float = aff * 50.0
+		var atual: float = float(n.relacoes[other_code])
+		# Passo rumo ao alvo (8% do gap por ativação ≈ a cada 2 anos). Forte o bastante
+		# para consolidar blocos coerentes com a ideologia ATUAL apesar da rotatividade
+		# de líderes, mas gradual (blocos levam décadas para se formar/desfazer).
+		var novo: float = atual + (alvo - atual) * 0.08
+		n.relacoes[other_code] = clampf(novo, -100.0, 100.0)
+
 # Roda 1×/turno por nação (exceto o jogador — o líder do jogador é ele mesmo).
 # Decide se o líder atual cai (por eleição perdida, impopularidade, morte ou golpe)
 # e, se cair, empossa um sucessor de ideologia possivelmente diferente.
@@ -1477,6 +1558,10 @@ func _run_ai_turn() -> void:
 		acted += 1
 
 func _ai_decide(n) -> void:
+	# Drift de relações por afinidade ideológica (#7): sempre que a nação age, suas
+	# relações caminham devagar na direção da afinidade — afins se aproximam, opostos
+	# se afastam. Compostas ao longo do século, fazem blocos geopolíticos EMERGIREM.
+	_drift_ideological_relations(n)
 	var aggro: float = _get_aggression(n)
 	var treasury: float = n.tesouro
 	var stab: float = n.estabilidade_politica

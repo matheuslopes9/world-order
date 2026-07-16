@@ -144,6 +144,11 @@ func _ai_evaluate_proposal(prop: Dictionary) -> bool:
 	# tratado aceita mais facilmente (peso > 1 baixa o threshold; peso < 1 sobe).
 	var peso: float = _treaty_weight(target, String(prop["type"]))
 	threshold -= (peso - 1.0) * 25.0
+	# Afinidade ideológica (#7): país afim ao proponente aceita mais fácil (threshold
+	# −20 no máximo); oposto resiste (+20). Faz aliados naturais se aproximarem.
+	var proposer = engine.nations.get(prop["proposer"])
+	if proposer != null and engine.has_method("_ideological_affinity"):
+		threshold -= engine._ideological_affinity(target, proposer) * 20.0
 	return rel >= threshold
 
 # Retorna o peso que a personalidade da nação dá a um tipo de tratado (1.0 = neutro).

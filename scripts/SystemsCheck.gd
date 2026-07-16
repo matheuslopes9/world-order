@@ -762,6 +762,40 @@ func _run() -> void:
 		var wt: float = E.diplomacy._treaty_weight(ai_nat, "livre_comercio")
 		_check(wt > 0.0, "peso de tratado lido da personalidade (livre_comercio=%.2f)" % wt)
 
+	# ── 24. Afinidade ideológica (#7) ──
+	print("[24] Afinidade ideológica")
+	# Duas nações-bot para montar cenários controlados
+	var n1 = null
+	var n2 = null
+	for c in E.nations.keys():
+		if c != E.player_nation.codigo_iso:
+			if n1 == null: n1 = E.nations[c]
+			elif n2 == null: n2 = E.nations[c]
+			else: break
+	# Afins: ambas democracia + livre_mercado → afinidade alta positiva
+	n1.regime_politico = "DEMOCRACIA"; n1.personalidade = "milei_libertario"       # livre_mercado
+	n2.regime_politico = "DEMOCRACIA"; n2.personalidade = "sunak_atlanticista"     # livre_mercado
+	var aff_afim: float = E._ideological_affinity(n1, n2)
+	_check(aff_afim > 0.5, "democracias de mercado são afins (aff=%.2f)" % aff_afim)
+	# Opostas: democracia+mercado vs autocracia+planejada → afinidade negativa
+	n2.regime_politico = "DITADURA_MILITAR"; n2.personalidade = "putin_russo"      # planejada
+	var aff_oposto: float = E._ideological_affinity(n1, n2)
+	_check(aff_oposto < -0.3, "democracia-mercado × autocracia-planejada são opostas (aff=%.2f)" % aff_oposto)
+	# Drift: relação caminha na direção da afinidade
+	n1.regime_politico = "DEMOCRACIA"; n1.personalidade = "milei_libertario"
+	n2.regime_politico = "DEMOCRACIA"; n2.personalidade = "sunak_atlanticista"
+	n1.relacoes[n2.codigo_iso] = 0.0
+	n1.em_guerra = []
+	for _i in 30:
+		E._drift_ideological_relations(n1)
+	_check(float(n1.relacoes[n2.codigo_iso]) > 5.0, "drift aproxima nações afins (rel=%.1f)" % float(n1.relacoes[n2.codigo_iso]))
+	# Drift afasta opostas
+	n2.regime_politico = "DITADURA_MILITAR"; n2.personalidade = "putin_russo"
+	n1.relacoes[n2.codigo_iso] = 0.0
+	for _i in 30:
+		E._drift_ideological_relations(n1)
+	_check(float(n1.relacoes[n2.codigo_iso]) < -5.0, "drift afasta nações opostas (rel=%.1f)" % float(n1.relacoes[n2.codigo_iso]))
+
 # ─────────────────────────────────────────────────────────────────
 
 func _backup_user_files() -> void:
