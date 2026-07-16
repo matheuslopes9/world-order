@@ -478,6 +478,18 @@ func update_pib(global_factor: float = 1.0) -> void:
 	# Fator 3.38 (não 3.0): o crescimento composto por 1200 turnos rende mais que a
 	# divisão linear sugere; 3.38 alinha o growth_x mediano ao do ritmo trimestral (~750×).
 	growth /= 3.38
+	# SOFT-CAP anti-runaway: quem já multiplicou o PIB inicial muitas vezes tem o
+	# crescimento POSITIVO amortecido de forma progressiva (nunca zerado — ainda dá
+	# pra virar uma potência gigante). Só morde a cauda extrema (>2000× o inicial),
+	# cortando os casos de 100.000× que 1200 turnos mensais geravam. Perdas passam
+	# íntegras (uma potência ainda pode encolher em crise).
+	if growth > 0.0 and pib_inicial > 0.0:
+		var mult_atual: float = pib_bilhoes_usd / pib_inicial
+		if mult_atual > 1500.0:
+			# fator cai de 1.0 (aos 1500×) a ~0.05 (aos ~15000×), logaritmicamente —
+			# corta a cauda rápido: nenhuma nação passa muito de ~10000× no século.
+			var excesso: float = clampf(log(mult_atual / 1500.0) / log(10.0), 0.0, 1.0)
+			growth *= 1.0 - 0.95 * excesso
 	pib_bilhoes_usd *= (1.0 + growth)
 
 	# Crescimento populacional (transição demográfica: pobres crescem mais) — /3 (mensal)
