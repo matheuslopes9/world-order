@@ -3,7 +3,7 @@ extends Node
 ## Cada partida: 50 turnos, com limite de 3 ações/turno (FASE 7).
 ## Roda: godot --headless res://scenes/MassivePlaytest.tscn
 
-const TURNS_PER_RUN: int = 50
+const TURNS_PER_RUN: int = 150
 const RUNS_PER_NATION: int = 5  # reduzido pra rebalanceamento rápido (era 20)
 const EXPORT_JSON_PATH: String = "user://playtest_results.json"
 
@@ -67,7 +67,7 @@ func _simulate_one(code: String, ns_dict: Dictionary, n_script, ov_dict: Diction
 	# Reset GameEngine
 	GameEngine.player_nation = null
 	GameEngine.current_turn = 0
-	GameEngine.date_quarter = 1
+	GameEngine.date_month = 1
 	GameEngine.date_year = 2000
 	GameEngine.defcon = 5
 	GameEngine.recent_events.clear()
@@ -146,12 +146,12 @@ func _simulate_one(code: String, ns_dict: Dictionary, n_script, ov_dict: Diction
 		if status == "?":
 			if nat.apoio_popular < 20:
 				nat.revolucao_turnos += 1
-				if not honeymoon and nat.revolucao_turnos >= 3:
+				if not honeymoon and nat.revolucao_turnos >= 9:
 					status = "REVOLUCAO"; t_died = t + 1
 			else: nat.revolucao_turnos = 0
 			if nat.tesouro <= 0:
 				nat.falencia_turnos += 1
-				if not honeymoon and nat.falencia_turnos >= 4:
+				if not honeymoon and nat.falencia_turnos >= 12:
 					if status == "?": status = "FALENCIA"; t_died = t + 1
 			else: nat.falencia_turnos = 0
 			if not honeymoon and nat.estabilidade_politica < 8 and status == "?":

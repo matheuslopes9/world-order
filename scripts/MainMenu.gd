@@ -47,8 +47,8 @@ func _ready() -> void:
 	# Atualiza texto botão se há save
 	if map_button and SaveSys.has_save():
 		var save_info: Dictionary = SaveSys.get_save_info()
-		var quarters := ["JAN", "ABR", "JUL", "OUT"]
-		var date_str: String = "%s %d" % [quarters[int(save_info.get("date_quarter", 1)) - 1], int(save_info.get("date_year", 2024))]
+		var quarters := ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"]
+		var date_str: String = "%s %d" % [quarters[int(save_info.get("date_month", 1)) - 1], int(save_info.get("date_year", 2024))]
 		map_button.text = "▶ CONTINUAR: %s (Turno %d, %s)" % [save_info.get("player_code", "?"), int(save_info.get("current_turn", 0)), date_str]
 	test_button.pressed.connect(_on_test_pressed)
 	if map_button:

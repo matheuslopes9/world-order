@@ -148,7 +148,7 @@ func _schedule_node(storyline_id: String, node_id: String) -> void:
 	var nodes: Dictionary = arc.get("nodes", {})
 	var node: Dictionary = nodes.get(node_id, {})
 	if node.is_empty(): return
-	var delay: int = int(node.get("delay_turns", 5))
+	var delay: int = int(node.get("delay_turns", 15))   # ~15 meses (ritmo mensal)
 	active_arcs.append({
 		"storyline_id": storyline_id,
 		"node_id": node_id,

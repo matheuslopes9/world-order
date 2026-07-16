@@ -24,7 +24,7 @@ var _decisions: int = 0
 
 const PERSONAS := ["balanced", "economic", "military", "diplomat"]
 const END_YEAR := 2100
-const MAX_TURNS := 440
+const MAX_TURNS := 1320   # 1200 (100 anos × 12 meses) + margem
 
 var _backups: Dictionary = {}
 const PROTECTED := ["user://achievements.json", "user://world_order_save.json", "user://meta_progression.json"]
@@ -81,7 +81,7 @@ func _reset_engine() -> void:
 	var E = GameEngine
 	E.player_nation = null
 	E.current_turn = 0
-	E.date_quarter = 1
+	E.date_month = 1
 	E.date_year = 2000
 	E.defcon = 5
 	E.game_state = "MENU"
@@ -244,7 +244,7 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 		"confianca_f": snappedf(n.confianca_investidor, 0.1),
 		"empresas_sairam": n.empresas_sairam,
 		"desviado": snappedf(n.tesouro_desviado_total, 0.1),
-		"balanca": snappedf(n.calc_balanca_comercial() * 4.0, 0.1),
+		"balanca": snappedf(n.calc_balanca_comercial() * 12.0, 0.1),
 		"rating": snappedf(n.rating_credito(), 0.1),
 		"divida_f": snappedf(n.divida_publica, 0.1),
 		"stocks_val": snappedf(E.player_stocks_value(), 0.1),

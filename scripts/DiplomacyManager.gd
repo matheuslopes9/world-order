@@ -55,7 +55,7 @@ var proposals: Array = []     # propostas pendentes (pra player ou IA)
 # Limites anti-spam (playtest de 1000 jogos: um jogo terminou com 91
 # tratados ativos; jogadores AFK acumulavam 153 propostas na fila)
 const MAX_TREATIES_PER_NATION: int = 10
-const PROPOSAL_TTL_TURNS: int = 8
+const PROPOSAL_TTL_TURNS: int = 24   # ~24 meses (ritmo mensal)
 
 func _init(eng) -> void:
 	engine = eng

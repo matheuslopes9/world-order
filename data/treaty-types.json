@@ -11,8 +11,8 @@
         "penalidade_relacao_quebra": -50,
         "compartilhamento_inteligencia": true
       },
-      "duracao_min": 20,
-      "duracao_max": 40,
+      "duracao_min": 60,
+      "duracao_max": 120,
       "custo_ruptura": "Grande penalidade de relação (–50), perda de credibilidade."
     },
     {
@@ -26,8 +26,8 @@
         "penalidade_relacao_quebra": -30,
         "compartilhamento_inteligencia": false
       },
-      "duracao_min": 10,
-      "duracao_max": 30,
+      "duracao_min": 30,
+      "duracao_max": 90,
       "custo_ruptura": "Penalidade moderada (–30)."
     },
     {
@@ -73,8 +73,8 @@
         "penalidade_relacao_quebra": -10,
         "bonus_tesouro": 0.02
       },
-      "duracao_min": 15,
-      "duracao_max": 25,
+      "duracao_min": 45,
+      "duracao_max": 75,
       "custo_ruptura": "Penalidade leve (–10)."
     },
     {
@@ -88,8 +88,8 @@
         "penalidade_relacao_quebra": -20,
         "reducao_unidades": 0.15
       },
-      "duracao_min": 10,
-      "duracao_max": 20,
+      "duracao_min": 30,
+      "duracao_max": 60,
       "custo_ruptura": "Penalidade moderada (–20)."
     }
   ]

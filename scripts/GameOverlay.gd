@@ -430,7 +430,7 @@ func _render_economia() -> void:
 	_add_separator()
 	# ── BALANÇA COMERCIAL ──
 	_add_section_title("BALANÇA COMERCIAL (ano)")
-	var saldo_com: float = n.calc_balanca_comercial() * 4.0  # anualiza
+	var saldo_com: float = n.calc_balanca_comercial() * 12.0  # anualiza
 	var exp_setores: Array = _top_setores(n.exportacoes)
 	var imp_setores: Array = _top_setores(n.importacoes)
 	var exp_total: float = 0.0

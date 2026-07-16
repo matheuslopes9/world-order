@@ -226,11 +226,11 @@ func _run() -> void:
 	print("[12b] Resgate do FMI")
 	var n_p = E.player_nation
 	n_p.tesouro = 0.0
-	n_p.falencia_turnos = 1
+	n_p.falencia_turnos = 5   # vira 6 no evaluate → gatilho do resgate (ritmo mensal)
 	E.bailout_pending = {}
 	E._last_bailout_turn = -999
 	E.evaluate_endgame()
-	_check(not E.bailout_pending.is_empty(), "FMI oferece resgate no 2º turno de falência")
+	_check(not E.bailout_pending.is_empty(), "FMI oferece resgate no 6º mês de falência")
 	var div0: float = n_p.divida_publica
 	_check(E.accept_bailout(), "accept_bailout executa")
 	_check(n_p.tesouro > 0.0, "tesouro reforçado pós-resgate")

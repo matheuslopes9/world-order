@@ -578,7 +578,7 @@ func _phase_intel_and_bailout() -> void:
 	# FMI: força crise → modal → aceitar
 	_topup()
 	GameEngine.player_nation.tesouro = 0.0
-	GameEngine.player_nation.falencia_turnos = 1
+	GameEngine.player_nation.falencia_turnos = 5   # vira 6 no evaluate → gatilho FMI (ritmo mensal)
 	GameEngine.bailout_pending = {}
 	GameEngine._last_bailout_turn = -999
 	var stack_b0: int = wm._modal_stack.size()

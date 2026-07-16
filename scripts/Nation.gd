@@ -43,7 +43,7 @@ var import_dependencia: Dictionary = {}  # setor -> 0..1 (vulnerabilidade)
 
 # Eleições
 var proxima_eleicao_turno = null  # Variant: int ou null
-var intervalo_eleicoes: int = 20
+var intervalo_eleicoes: int = 60   # ~5 anos × 12 meses (ritmo mensal)
 
 # ── LIDERANÇA (rotatividade de poder) ──
 # Cada nação tem um líder com nome, idade e ideologia. Líder impopular/velho pode
@@ -285,10 +285,10 @@ func update_balanca_comercial() -> void:
 	exportacoes.clear()
 	importacoes.clear()
 	import_dependencia.clear()
-	var pib_q: float = pib_bilhoes_usd / 4.0
+	var pib_q: float = pib_bilhoes_usd / 12.0
 	# Base com damping: comércio é fração grande de economia pequena, menor de
 	# economia madura. Coeficiente calibrado p/ saldo típico ~±10% do PIB.
-	var base: float = pow(maxf(1.0, pib_bilhoes_usd), 0.85) / 4.0 * 0.28
+	var base: float = pow(maxf(1.0, pib_bilhoes_usd), 0.85) / 12.0 * 0.28
 	var exp_sum: float = 0.0
 	var imp_sum: float = 0.0
 	for setor in TRADE_SECTORS:
@@ -365,7 +365,7 @@ func calc_receita_exportacao() -> float:
 
 func calc_receita() -> float:
 	var tax_rate := calc_tax_rate()
-	var impostos: float = (pib_bilhoes_usd * tax_rate / 4.0) + 5.0
+	var impostos: float = (pib_bilhoes_usd * tax_rate / 12.0) + 5.0
 	var bur_pct: float = (burocracia_eficiencia - 50.0) / 50.0
 	var cor_pct: float = (50.0 - corrupcao) / 50.0
 	var eficiencia: float = 1.0 + (bur_pct * 0.075) + (cor_pct * 0.075)
@@ -377,22 +377,22 @@ func calc_receita() -> float:
 	return (impostos * eficiencia * infl_factor) + saldo_comercial
 
 func calc_despesas() -> float:
-	var mil_budget: float = float(militar.get("orcamento_militar_bilhoes", 0)) / 4.0
+	var mil_budget: float = float(militar.get("orcamento_militar_bilhoes", 0)) / 12.0
 	# 8% do PIB (antes 10%): com 10%, potências com orçamento militar alto
 	# (EUA) tinham déficit ESTRUTURAL e faliam até sem fazer nada
-	var gov_spend: float = pib_bilhoes_usd * 0.08 / 4.0
+	var gov_spend: float = pib_bilhoes_usd * 0.08 / 12.0
 	# Juros da dívida agora dependem do RATING: nação confiável paga barato,
 	# nação de rating ruim paga caro (custo de rolar a dívida sobe na crise).
 	var juros_anual: float = juros_emprestimo()
-	var interest: float = divida_publica * juros_anual / 4.0
+	var interest: float = divida_publica * juros_anual / 12.0
 	var social_sum: float = 0.0
 	for v in gasto_social.values(): social_sum += float(v)
-	var social_spend: float = social_sum / 4.0
+	var social_spend: float = social_sum / 12.0
 	# Verba de P&D alocada aos ministérios (custo trimestral)
 	var rd_spend: float = 0.0
 	for m in ministerios.values():
 		rd_spend += float(m.get("verba", 0.0))
-	rd_spend /= 4.0
+	rd_spend /= 12.0
 	return mil_budget + gov_spend + interest + social_spend + rd_spend
 
 func calc_saldo() -> float:
@@ -462,17 +462,24 @@ func update_pib(global_factor: float = 1.0) -> void:
 		growth += ied_delta * 0.005  # êxodo pesa mais que influxo
 	# BALANÇA COMERCIAL no crescimento: superávit sustentado impulsiona
 	# (economia exportadora), déficit crônico freia. Normalizado pelo PIB.
-	var saldo_pct: float = calc_balanca_comercial() / max(1.0, pib_bilhoes_usd / 4.0)
+	var saldo_pct: float = calc_balanca_comercial() / max(1.0, pib_bilhoes_usd / 12.0)
 	growth += clampf(saldo_pct, -0.5, 0.5) * 0.004
-	growth = clamp(growth, -0.03, 0.035)
+	# Cap superior apertado (0.030 vs 0.035): em 1200 turnos mensais, um país no teto
+	# compunha até PIB runaway (>1e8) na cauda extrema. Não afeta a mediana (bem abaixo).
+	growth = clamp(growth, -0.03, 0.030)
+	# RITMO MENSAL: todas as taxas acima foram calibradas para 1 turno = 1 trimestre.
+	# Como agora 1 turno = 1 mês (3× mais turnos/ano), dividimos o crescimento composto.
+	# Fator 3.38 (não 3.0): o crescimento composto por 1200 turnos rende mais que a
+	# divisão linear sugere; 3.38 alinha o growth_x mediano ao do ritmo trimestral (~750×).
+	growth /= 3.38
 	pib_bilhoes_usd *= (1.0 + growth)
 
-	# Crescimento populacional (transição demográfica: pobres crescem mais)
+	# Crescimento populacional (transição demográfica: pobres crescem mais) — /3 (mensal)
 	if populacao > 0:
-		var pop_rate: float = 0.004  # ~1.6%/ano em países pobres
+		var pop_rate: float = 0.004 / 3.0  # ~1.6%/ano em países pobres
 		if frontier_pib_pc > 0.0:
 			var wealth: float = clamp(pib_per_capita() / frontier_pib_pc, 0.0, 1.0)
-			pop_rate = lerpf(0.004, 0.0003, wealth)  # ricos ~0.12%/ano
+			pop_rate = lerpf(0.004 / 3.0, 0.0003 / 3.0, wealth)  # ricos ~0.12%/ano
 		populacao = int(populacao * (1.0 + pop_rate))
 
 # Helper público: aplica multiplicador no PIB com retornos decrescentes
@@ -514,7 +521,8 @@ func process_turn_finances() -> void:
 	else:
 		tesouro = novo
 		if divida_publica > 0.0 and tesouro > 10.0:
-			var pagamento: float = min(tesouro * 0.10, divida_publica * 0.05)
+			# Amortização automática /3 (ritmo mensal — paga a mesma fração por ano)
+			var pagamento: float = min(tesouro * 0.033, divida_publica * 0.0167)
 			tesouro -= pagamento
 			divida_publica = max(0.0, divida_publica - pagamento)
 		default_turnos = 0
@@ -523,7 +531,7 @@ func process_turn_finances() -> void:
 	# Escala de ~0% (aos 50%) até ~4%/turno (aos 100%). Reversível: baixar a
 	# corrupção estanca a sangria. Dá ao jogador o "sinto o dinheiro sumindo".
 	if corrupcao > 50.0 and tesouro > 0.0:
-		var taxa_desvio: float = (corrupcao - 50.0) / 50.0 * 0.04  # 0 → 0.04
+		var taxa_desvio: float = (corrupcao - 50.0) / 50.0 * 0.0133  # /3 (ritmo mensal)
 		var desviado: float = tesouro * taxa_desvio
 		tesouro = max(0.0, tesouro - desviado)
 		tesouro_desviado_total += desviado
@@ -534,7 +542,7 @@ func process_turn_finances() -> void:
 	tesouro = min(tesouro, max(150.0, pib_bilhoes_usd * 0.25))
 
 	# Inflação dinâmica
-	var gdp_q: float = max(1.0, pib_bilhoes_usd / 4.0)
+	var gdp_q: float = max(1.0, pib_bilhoes_usd / 12.0)
 	var deficit_ratio: float = max(0.0, -saldo) / gdp_q
 	var mil_pct: float = float(militar.get("orcamento_militar_bilhoes", 0)) / max(1.0, pib_bilhoes_usd) * 100.0
 	var mil_pressure: float = max(0.0, mil_pct - 5.0)
@@ -554,8 +562,9 @@ func process_turn_finances() -> void:
 	var decay_pct: float = float(get_meta("perk_inflation_decay", 0)) / 100.0
 	if decay_pct > 0.0 and inflacao_target > inflacao:
 		inflacao_target = inflacao + (inflacao_target - inflacao) * (1.0 - decay_pct)
-	var shock: float = (randf() - 0.5) * 2.0
-	inflacao = clamp(inflacao * 0.80 + inflacao_target * 0.20 + shock, 0.0, 100.0)
+	# Ritmo mensal: shock/3 e peso do alvo /3 (EWMA preserva a meia-vida em tempo real).
+	var shock: float = (randf() - 0.5) * 2.0 / 3.0
+	inflacao = clamp(inflacao * 0.933 + inflacao_target * 0.067 + shock, 0.0, 100.0)
 
 	# Inflação alta corrói felicidade e apoio
 	if inflacao > 15.0:
@@ -581,8 +590,8 @@ func update_government(global_factor: float = 1.0) -> void:
 	elif "DITADURA" in regime_politico: corr_base = 65.0
 	elif "TEOCRA"  in regime_politico: corr_base = 50.0
 	elif "COMUNIS" in regime_politico: corr_base = 40.0
-	corrupcao += (corr_base - corrupcao) * 0.03
-	if randf() < 0.3: corrupcao += randf() * 2.0 - 1.0
+	corrupcao += (corr_base - corrupcao) * 0.01   # reversão /3 (ritmo mensal)
+	if randf() < 0.1: corrupcao += randf() * 2.0 - 1.0   # ruído /3 na frequência
 
 	# CONFIANÇA DO INVESTIDOR: alvo puxado por instituições. Corrupção é o maior
 	# repelente de capital; estabilidade e burocracia atraem. Guerra afugenta.
@@ -595,11 +604,11 @@ func update_government(global_factor: float = 1.0) -> void:
 		- wars_ci * 8.0
 		- max(0.0, inflacao - 15.0) * 0.4,
 		0.0, 100.0)
-	# Confiança se move devagar (capital tem inércia — decisões de anos)
-	confianca_investidor = clamp(confianca_investidor * 0.88 + conf_target * 0.12, 0.0, 100.0)
+	# Confiança se move devagar (capital tem inércia). EWMA /3 (ritmo mensal).
+	confianca_investidor = clamp(confianca_investidor * 0.96 + conf_target * 0.04, 0.0, 100.0)
 
-	# Burocracia converge para 70
-	burocracia_eficiencia += (70.0 - burocracia_eficiencia) * 0.05
+	# Burocracia converge para 70 — reversão /3 (ritmo mensal)
+	burocracia_eficiencia += (70.0 - burocracia_eficiencia) * 0.0167
 
 	# ESTABILIDADE deriva de apoio + felicidade - corrupção - guerras
 	var wars: int = em_guerra.size()
@@ -608,7 +617,7 @@ func update_government(global_factor: float = 1.0) -> void:
 		apoio_popular * 0.40 + felicidade * 0.35 + (50.0 - corrupcao) * 0.25
 		- wars * 5.0 + (-10.0 if in_default else 0.0),
 		0.0, 100.0)
-	estabilidade_politica = estabilidade_politica * 0.90 + stab_target * 0.10
+	estabilidade_politica = estabilidade_politica * 0.967 + stab_target * 0.033  # EWMA /3 (mensal)
 
 	corrupcao = clamp(corrupcao, 0.0, 100.0)
 	burocracia_eficiencia = clamp(burocracia_eficiencia, 0.0, 100.0)
@@ -617,7 +626,7 @@ func update_government(global_factor: float = 1.0) -> void:
 func update_approval() -> void:
 	var target: float = (estabilidade_politica * 0.5 + felicidade * 0.5) - corrupcao * 0.2
 	target = clamp(target, 0.0, 100.0)
-	apoio_popular = clamp(apoio_popular * 0.8 + target * 0.2, 0.0, 100.0)
+	apoio_popular = clamp(apoio_popular * 0.933 + target * 0.067, 0.0, 100.0)  # EWMA /3 (mensal)
 
 # ─────────────────────────────────────────────────────────────────
 # MILITAR

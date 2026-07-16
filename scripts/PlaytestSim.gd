@@ -3,7 +3,7 @@ extends Node
 ## Gera relatório consolidado de bugs, anomalias e padrões de gameplay.
 ## Roda: godot --headless res://scenes/PlaytestSim.tscn
 
-const TURNS_PER_RUN: int = 50
+const TURNS_PER_RUN: int = 150
 
 # Estatísticas globais
 var results: Array = []  # Dict por nação: code, nome, tier, outcome, métricas
@@ -47,7 +47,7 @@ func _simulate_one(code: String, ns_dict: Dictionary, n_script) -> void:
 	# Reset completo do GameEngine pra essa nação
 	GameEngine.player_nation = null
 	GameEngine.current_turn = 0
-	GameEngine.date_quarter = 1
+	GameEngine.date_month = 1
 	GameEngine.date_year = 2024
 	GameEngine.defcon = 5
 	GameEngine.recent_events.clear()
@@ -102,14 +102,14 @@ func _simulate_one(code: String, ns_dict: Dictionary, n_script) -> void:
 		if status == "?":
 			if n.apoio_popular < 20:
 				n.revolucao_turnos += 1
-				if not honeymoon and n.revolucao_turnos >= 3:
+				if not honeymoon and n.revolucao_turnos >= 9:
 					status = "REVOLUCAO"
 					t_died = t + 1
 			else:
 				n.revolucao_turnos = 0
 			if n.tesouro <= 0:
 				n.falencia_turnos += 1
-				if not honeymoon and n.falencia_turnos >= 4:
+				if not honeymoon and n.falencia_turnos >= 12:
 					if status == "?":
 						status = "FALENCIA"
 						t_died = t + 1

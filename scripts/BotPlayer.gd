@@ -558,7 +558,7 @@ func _manage_debt(n) -> void:
 			# Cripto: só a persona economic, e só uma FATIA PEQUENA (alto risco).
 			# Compra no bull OU quando está barata (fundo), evita comprar no topo.
 			if personality == "economic" and n.tesouro > n.pib_bilhoes_usd * 0.16:
-				var barata: bool = _engine.crypto_price < 800.0 + _engine.current_turn * 4.0
+				var barata: bool = _engine.crypto_price < 800.0 + _engine.current_turn * 1.333
 				if _engine.crypto_cycle > -0.2 or barata:
 					_engine.player_buy_crypto((n.tesouro - n.pib_bilhoes_usd * 0.15) * 0.2)
 

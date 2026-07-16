@@ -81,7 +81,7 @@ func update() -> void:
 	var n = engine.player_nation
 	# Cada conquista tem sua lógica de check
 	if engine.current_turn >= 1: _try_unlock("first_turn")
-	if engine.current_turn >= 40: _try_unlock("first_decade")
+	if engine.current_turn >= 120: _try_unlock("first_decade")   # 10 anos × 12 meses
 	if engine.date_year >= 2100: _try_unlock("century")
 	if n.tesouro >= 1000.0: _try_unlock("trillion_treasury")
 	if n.pib_inicial > 0 and n.pib_bilhoes_usd >= n.pib_inicial * 2.0:
@@ -94,7 +94,7 @@ func update() -> void:
 				my_trades += 1
 	if my_trades >= 5: _try_unlock("trade_network")
 	# Pacificadores
-	if engine.current_turn >= 100 and not n.has_meta("declared_war"):
+	if engine.current_turn >= 300 and not n.has_meta("declared_war"):   # ~25 anos
 		_try_unlock("peacekeeper")
 	# Tratados ativos
 	if engine.diplomacy != null:

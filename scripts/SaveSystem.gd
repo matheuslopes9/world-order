@@ -10,7 +10,7 @@ static func save_game(engine) -> bool:
 		"version": "0.3.0-godot",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"current_turn": engine.current_turn,
-		"date_quarter": engine.date_quarter,
+		"date_month": engine.date_month,
 		"date_year": engine.date_year,
 		"defcon": engine.defcon,
 		"settings": engine.settings,
@@ -79,7 +79,7 @@ static func load_game(engine) -> bool:
 		return false
 	# Restaura estado básico
 	engine.current_turn = int(data.get("current_turn", 0))
-	engine.date_quarter = int(data.get("date_quarter", 1))
+	engine.date_month = int(data.get("date_month", 1))
 	engine.date_year = int(data.get("date_year", 2024))
 	engine.market_index = float(data.get("market_index", 1000.0))
 	engine.player_stocks_invested = float(data.get("player_stocks_invested", 0.0))
@@ -155,7 +155,7 @@ static func get_save_info() -> Dictionary:
 		"player_code": data.get("player_code", "?"),
 		"defcon": data.get("defcon", 5),
 		"date_year": data.get("date_year", 2024),
-		"date_quarter": data.get("date_quarter", 1),
+		"date_month": data.get("date_month", 1),
 	}
 
 static func delete_save() -> bool:

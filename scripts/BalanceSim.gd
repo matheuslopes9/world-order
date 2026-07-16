@@ -16,7 +16,7 @@ extends Node
 # Cohort: cobre todos os tiers (tier real é lido em runtime)
 const COHORT := ["US", "CN", "DE", "JP", "BR", "IN", "KR", "MX", "VN", "NG", "ET", "BO", "AF", "KP", "HT"]
 const END_YEAR := 2100
-const MAX_TURNS := 440  # trava de segurança
+const MAX_TURNS := 1320  # trava de segurança (ritmo mensal)
 
 var ns_dict: Dictionary = {}
 var results: Array = []
@@ -59,7 +59,7 @@ func _reset_engine() -> void:
 	var E = GameEngine
 	E.player_nation = null
 	E.current_turn = 0
-	E.date_quarter = 1
+	E.date_month = 1
 	E.date_year = 2000
 	E.defcon = 5
 	E.game_state = "MENU"

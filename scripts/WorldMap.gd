@@ -704,10 +704,10 @@ func _open_historic_decision_modal(event: Dictionary) -> void:
 	# Contexto (data + categorias)
 	var ctx := Label.new()
 	var year: int = int(event.get("year", 0))
-	var quarter: int = int(event.get("quarter", 1))
-	var quarters := ["JAN", "ABR", "JUL", "OUT"]
+	var quarter: int = int(event.get("month", event.get("quarter", 1)))
+	var quarters := ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"]
 	var cats: Array = event.get("categories", [])
-	ctx.text = "📅 %s %d   •   %s" % [quarters[clamp(quarter - 1, 0, 3)], year, "  ·  ".join(cats)]
+	ctx.text = "📅 %s %d   •   %s" % [quarters[clamp(quarter - 1, 0, 11)], year, "  ·  ".join(cats)]
 	ctx.add_theme_color_override("font_color", Color(0.55, 0.65, 0.78))
 	ctx.add_theme_font_size_override("font_size", 11)
 	ctx.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1647,10 +1647,10 @@ func _show_options_modal() -> void:
 	# Info da sessão
 	if GameEngine.player_nation:
 		var info := Label.new()
-		var quarters := ["JAN", "ABR", "JUL", "OUT"]
+		var quarters := ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"]
 		info.text = "🌍 %s  ·  %s %d  ·  TURNO %d  ·  DEFCON %d" % [
 			GameEngine.player_nation.nome,
-			quarters[GameEngine.date_quarter - 1],
+			quarters[GameEngine.date_month - 1],
 			GameEngine.date_year,
 			GameEngine.current_turn,
 			GameEngine.defcon
@@ -3002,7 +3002,7 @@ func _show_tutorial() -> void:
 	var pages := [
 		{
 			"title": "🌍 Bem-vindo a NATIONS: NEW DAWN",
-			"body": "Você assumiu o comando geopolítico de uma nação real. Sua missão: levar seu país à hegemonia mundial — ou pelo menos sobreviver. Cada turno equivale a 3 meses (1 trimestre)."
+			"body": "Você assumiu o comando geopolítico de uma nação real. Sua missão: levar seu país à hegemonia mundial — ou pelo menos sobreviver. Cada turno equivale a 1 mês."
 		},
 		{
 			"title": "📊 Indicadores Vitais",
@@ -3904,9 +3904,9 @@ func _refresh_actions_label(remaining: int) -> void:
 
 func _refresh_top_bar() -> void:
 	if GameEngine == null: return
-	var quarters := ["JAN", "ABR", "JUL", "OUT"]
+	var quarters := ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"]
 	if date_label:
-		date_label.text = "%s %d" % [quarters[GameEngine.date_quarter - 1], GameEngine.date_year]
+		date_label.text = "%s %d" % [quarters[GameEngine.date_month - 1], GameEngine.date_year]
 	if turn_label:
 		turn_label.text = str(GameEngine.current_turn)
 	if defcon_label:

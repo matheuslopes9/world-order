@@ -25,7 +25,7 @@ var meta_progression = null  # MetaProgression (singleton entre saves)
 var nations: Dictionary = {}             # code → Nation
 var player_nation = null  # Nation
 var current_turn: int = 0
-var date_quarter: int = 1
+var date_month: int = 1   # 1-12 (ritmo mensal: 1 turno = 1 mês)
 var date_year: int = 2000  # Jogo começa no ano 2000 (campanha 100 anos até 2100)
 
 # Limite de ações por turno (jogador) — equilibra jogo entre nações grandes e pequenas
@@ -50,7 +50,7 @@ var _turns_since_war: int = 0             # p/ recuperação gradual de DEFCON
 # Registro de início de guerras (par "A|B" → turno) — alimenta o armistício
 # automático por fadiga. Auto-regenera após load (pares órfãos re-registram).
 var _war_started: Dictionary = {}
-const WAR_FATIGUE_TURNS: int = 20         # guerras > 5 anos entram em fadiga
+const WAR_FATIGUE_TURNS: int = 60         # guerras > 5 anos (60 meses) entram em fadiga
 # War score por par ("A|B" ordenado -> float; >0 favorece o 1o em ordem
 # alfabetica). Acumula com vantagem militar/economica - vitoria decisiva
 # gera ESPOLIOS (guerra deixa de ser dreno sem proposito).
@@ -108,14 +108,14 @@ const NEWS_HISTORY_MAX: int = 500
 # Sanções ativas — lista de { from, to, turns_remaining, intensity }
 # Aplicadas a cada turno em _process_active_sanctions()
 var active_sanctions: Array = []
-const SANCTION_DURATION: int = 5  # turnos de duração padrão
-const SANCTION_PIB_PENALTY: float = 0.985  # -1.5% PIB/turno no alvo
+const SANCTION_DURATION: int = 15  # ~15 meses de duração padrão (ritmo mensal)
+const SANCTION_PIB_PENALTY: float = 0.995  # -0.5% PIB/mês no alvo (dura 3× mais turnos)
 const SANCTION_COST: int = 30  # $30B custo pro impositor (logística, perdas comerciais)
 
 # Acordos comerciais ativos — lista de { exporter, importer, resource, value_per_turn, turns_remaining }
 # Cada turno: importer paga $value/turn ao exporter, exporter ganha receita
 var active_trades: Array = []
-const TRADE_DURATION: int = 8  # turnos por contrato
+const TRADE_DURATION: int = 24  # ~24 meses por contrato (ritmo mensal)
 const TRADE_BASE_VALUE: float = 8.0  # $8B/turno por nível 100 do recurso (escala linear)
 
 # Helper: adiciona evento ao recent_events E ao news_history persistente com metadados
@@ -287,7 +287,7 @@ func apply_scenario(scenario_id: String) -> void:
 	settings["scenario"] = scenario_id
 	# Define ano de início conforme cenário
 	date_year = int(found.get("start_year", 2000))
-	date_quarter = 1
+	date_month = 1
 	# Modo padrão sugerido pelo cenário (jogador pode trocar via mode toggle)
 	if found.has("default_mode"):
 		settings["mode"] = String(found.get("default_mode"))
@@ -382,9 +382,9 @@ func end_turn() -> void:
 	if game_state != "PLAYING":
 		return
 	current_turn += 1
-	date_quarter += 1
-	if date_quarter > 4:
-		date_quarter = 1
+	date_month += 1
+	if date_month > 12:
+		date_month = 1
 		date_year += 1
 	# Fronteira tecnológica mundial (maior PIB per capita entre economias
 	# relevantes) — alimenta o modelo de crescimento por convergência.
@@ -410,7 +410,7 @@ func end_turn() -> void:
 			for pasta in n.ministerios:
 				var vb: float = float(n.ministerios[pasta].get("verba", 0.0))
 				if vb > 0.0:
-					n.add_ministry_xp(pasta, vb * 0.15)
+					n.add_ministry_xp(pasta, vb * 0.05)   # XP/turno /3 (ritmo mensal)
 
 	# IA: nações estrategicamente decidem (declarar guerra, propor paz, espionar)
 	_run_ai_turn()
@@ -471,7 +471,7 @@ func end_turn() -> void:
 	# Recuperação de DEFCON: 4 turnos sem nova guerra → tensão mundial alivia
 	# (antes o DEFCON só descia — o mundo travava em alerta nuclear permanente)
 	_turns_since_war += 1
-	if _turns_since_war >= 4 and defcon < 5:
+	if _turns_since_war >= 12 and defcon < 5:   # ~1 ano sem guerra (ritmo mensal)
 		defcon += 1
 		_turns_since_war = 0
 		_log_news({
@@ -623,8 +623,8 @@ func evaluate_endgame() -> void:
 			return
 	if is_no_game_over():
 		return
-	# ── Derrotas ──
-	var honeymoon_turns: int = 5 + int(n.get_meta("perk_honeymoon_extra", 0))
+	# ── Derrotas ── (contadores/janelas ×3 — ritmo mensal: 1 turno = 1 mês)
+	var honeymoon_turns: int = 15 + int(n.get_meta("perk_honeymoon_extra", 0))  # ~1,25 ano
 	var honeymoon: bool = current_turn <= honeymoon_turns
 	if n.apoio_popular < 20:
 		n.revolucao_turnos += 1
@@ -632,25 +632,24 @@ func evaluate_endgame() -> void:
 		n.revolucao_turnos = 0
 	if n.tesouro <= 0:
 		n.falencia_turnos += 1
-		# FMI oferece resgate ANTES do colapso (2 turnos de falência de 4)
-		if n.falencia_turnos == 2 and bailout_pending.is_empty() and current_turn - _last_bailout_turn > 40:
+		# FMI oferece resgate ANTES do colapso (6 meses de falência de 12)
+		if n.falencia_turnos == 6 and bailout_pending.is_empty() and current_turn - _last_bailout_turn > 120:
 			_offer_bailout()
 	else:
 		n.falencia_turnos = 0
 	if not honeymoon:
-		if n.revolucao_turnos >= 3:
-			_fire_endgame(false, "💀 REVOLUÇÃO", "Apoio popular abaixo de 20%% por 3 turnos.")
+		if n.revolucao_turnos >= 9:
+			_fire_endgame(false, "💀 REVOLUÇÃO", "Apoio popular abaixo de 20%% por 9 meses.")
 			return
-		if n.falencia_turnos >= 4:
-			_fire_endgame(false, "💀 FALÊNCIA NACIONAL", "Tesouro zerado por 4 turnos. Colapso fiscal.")
+		if n.falencia_turnos >= 12:
+			_fire_endgame(false, "💀 FALÊNCIA NACIONAL", "Tesouro zerado por 12 meses. Colapso fiscal.")
 			return
 		if n.estabilidade_politica < 8:
 			_fire_endgame(false, "💀 GOLPE DE ESTADO", "Estabilidade colapsou abaixo de 8%%. Você foi deposto.")
 			return
-		# Graça estendida contra inflação HERDADA: alguns países começam o ano
-		# 2000 já em crise inflacionária (Angola 65%+) — 3 anos pra domar antes
-		# da derrota valer (a lua de mel padrão de 5 turnos não bastava).
-		if n.inflacao > 80 and current_turn > 12:
+		# Graça estendida contra inflação HERDADA: ~3 anos (36 meses) pra domar antes
+		# da derrota valer (alguns países começam 2000 já em crise inflacionária).
+		if n.inflacao > 80 and current_turn > 36:
 			_fire_endgame(false, "💀 HIPERINFLAÇÃO", "Inflação acima de 80%%. Economia em ruínas.")
 			return
 	# ── Marco "Nação Modelo": 20 turnos de indicadores excelentes ──
@@ -658,18 +657,18 @@ func evaluate_endgame() -> void:
 	# no ano ~2008, trivializando os outros 92 anos de jogo)
 	var win_cond: bool = n.apoio_popular >= 65 and n.estabilidade_politica >= 65 and n.inflacao <= 15 and n.tesouro > 0
 	n.set_meta("victory_streak", (int(n.get_meta("victory_streak", 0)) + 1) if win_cond else 0)
-	if int(n.get_meta("victory_streak", 0)) >= 20 and not bool(n.get_meta("model_nation_done", false)):
+	if int(n.get_meta("victory_streak", 0)) >= 60 and not bool(n.get_meta("model_nation_done", false)):
 		n.set_meta("model_nation_done", true)
 		_log_news({
 			"type": "marco",
 			"headline": "🌟 %s é reconhecida como NAÇÃO MODELO" % n.nome,
-			"body": "20 turnos de indicadores exemplares. O mundo observa seu governo como referência.",
+			"body": "5 anos de indicadores exemplares. O mundo observa seu governo como referência.",
 			"involves_player": true,
 			"color": Color(1, 0.9, 0.4),
 		}, [n.codigo_iso], n.continente)
 	# ── Vitória: HEGEMONIA GLOBAL — liderança real do ranking de poder ──
 	# Exige: #1 no poder composto + economia ≥ 50% da maior + país estável,
-	# sustentado por 16 turnos (4 anos), a partir do turno 60 (ano ~2015).
+	# sustentado por 48 meses (4 anos), a partir do turno 180 (ano ~2015).
 	if victory_achieved:
 		return
 	var power_rank: int = get_power_rank(n.codigo_iso)
@@ -680,7 +679,7 @@ func evaluate_endgame() -> void:
 		n.set_meta("hegemony_streak", int(n.get_meta("hegemony_streak", 0)) + 1)
 	else:
 		n.set_meta("hegemony_streak", 0)
-	if int(n.get_meta("hegemony_streak", 0)) >= 16 and current_turn >= 60:
+	if int(n.get_meta("hegemony_streak", 0)) >= 48 and current_turn >= 180:
 		victory_achieved = true
 		if achievements:
 			achievements.on_victory(n.tier_dificuldade)
@@ -833,13 +832,15 @@ func _process_global_shocks() -> void:
 			})
 			active_shock = {}
 		return
-	# Rola novo choque: pós-2035, ~1.2%/turno, cooldown de 15 anos
-	if date_year < 2035 or current_turn - _last_shock_turn < 60:
+	# Rola novo choque: pós-2035, cooldown de 15 anos. Ritmo MENSAL: cooldown ×3
+	# (180 meses) e probabilidade ÷3 (0.004/mês) — mesma frequência anual de choques.
+	if date_year < 2035 or current_turn - _last_shock_turn < 180:
 		return
-	if randf() > 0.012:
+	if randf() > 0.004:
 		return
 	var meta: Dictionary = SHOCK_TYPES[randi() % SHOCK_TYPES.size()]
-	var dur: int = randi_range(int(meta["dur_min"]), int(meta["dur_max"]))
+	# Duração do choque ×3 (em meses) para durar o mesmo tempo real
+	var dur: int = randi_range(int(meta["dur_min"]) * 3, int(meta["dur_max"]) * 3)
 	active_shock = {
 		"id": meta["id"], "nome": meta["nome"], "icon": meta["icon"],
 		"turns_remaining": dur, "dur_total": dur,
@@ -868,21 +869,24 @@ func _apply_shock_turn() -> void:
 	var sid: String = String(active_shock.get("id", ""))
 	for c in nations:
 		var n = nations[c]
+		# Efeitos por-turno enquanto o choque dura. Como o choque agora dura 3× mais
+		# turnos (dur×3), cada multiplicador é aproximado de 1.0 (dano/turno /3) para
+		# o mesmo impacto TOTAL ao longo do choque.
 		match sid:
 			"recessao_global":
 				# Economias grandes e integradas sofrem mais
-				var severity: float = 0.985 if n.pib_bilhoes_usd < _world_max_pib * 0.3 else 0.978
+				var severity: float = 0.995 if n.pib_bilhoes_usd < _world_max_pib * 0.3 else 0.9927
 				n.apply_pib_multiplier(severity)
 			"crise_energetica":
 				var oil: float = float(n.recursos.get("petroleo", 0))
 				var gas: float = float(n.recursos.get("gas_natural", 0))
 				if oil >= 70.0 or gas >= 70.0:
-					n.apply_pib_multiplier(1.003)
+					n.apply_pib_multiplier(1.001)
 				elif oil < 40.0 and gas < 40.0:
-					n.apply_pib_multiplier(0.988)
+					n.apply_pib_multiplier(0.996)
 			"colapso_financeiro":
-				n.apply_pib_multiplier(0.99)
-				n.inflacao = clamp(n.inflacao + 0.8, 0.0, 100.0)
+				n.apply_pib_multiplier(0.9967)
+				n.inflacao = clamp(n.inflacao + 0.27, 0.0, 100.0)
 
 # ─────────────────────────────────────────────────────────────────
 # CORRUPÇÃO — a espiral: escândalos, fuga de empresas, operações
@@ -894,7 +898,7 @@ var _last_corruption_event_turn: int = -99
 
 func _process_corruption() -> void:
 	var n = player_nation
-	if n == null or current_turn - _last_corruption_event_turn < 3:
+	if n == null or current_turn - _last_corruption_event_turn < 9:
 		return
 	var corr: float = n.corrupcao
 	var conf: float = n.confianca_investidor
@@ -953,18 +957,20 @@ func _process_corruption() -> void:
 # ─────────────────────────────────────────────────────────────────
 
 func _process_market() -> void:
-	# Deriva trimestral do índice. Tendência de alta secular (bolsa real ~7%/ano
-	# nominal = ~1.7%/tri), pontuada por CRASHES em crises/guerras. O drift-base
-	# alto garante que o buy-and-hold de longo prazo seja lucrativo (senão a
-	# bolsa vira só armadilha e ninguém usa), mas a volatilidade cria timing.
-	var drift: float = 0.017  # ~7%/ano de alta secular
+	# Deriva MENSAL do índice. Tendência de alta secular (bolsa real ~7%/ano nominal
+	# = ~0,57%/mês), pontuada por CRASHES em crises/guerras. Taxas /3 vs. trimestral;
+	# ruído /√3 p/ manter a volatilidade anualizada. O drift-base garante que o
+	# buy-and-hold de longo prazo seja lucrativo, mas a volatilidade cria timing.
+	var drift: float = 0.0060  # ~7,4%/ano bruto — absorve as penalidades frequentes
+	# Penalidades por-turno enquanto a condição dura; os choques duram 3× mais turnos
+	# (dur×3), então cada penalidade é modesta para não colapsar a bolsa no século.
 	if not active_shock.is_empty():
-		drift -= 0.055        # CRASH: crise global despenca a bolsa
+		drift -= 0.012        # CRASH: crise global derruba a bolsa
 	if defcon <= 2:
-		drift -= 0.020        # só tensão MILITAR aguda (DEFCON 1-2) assusta o mercado
+		drift -= 0.004        # tensão MILITAR aguda (DEFCON 1-2) assusta o mercado
 	if player_nation != null and player_nation.inflacao > 25.0:
-		drift -= 0.012        # inflação descontrolada
-	var noise: float = (randf() - 0.5) * 0.06   # ±3% de ruído/turno (volatilidade)
+		drift -= 0.003        # inflação descontrolada
+	var noise: float = (randf() - 0.5) * 0.0346   # ±1,73% de ruído/mês (vol anual mantida)
 	market_index = maxf(100.0, market_index * (1.0 + drift + noise))
 	market_history.append(snappedf(market_index, 0.1))
 	if market_history.size() > MARKET_HISTORY_MAX:
@@ -1023,14 +1029,16 @@ func _process_crypto() -> void:
 	# recuperam, bolhas se desinflam) + ciclo bull/bear + volatilidade extrema
 	# + risco de colapso. Sem a reversão, os crashes levavam a cripto ao piso
 	# e ela morria; com ela, oscila de verdade (fundo → recuperação → topo).
-	var ancora: float = 800.0 + current_turn * 4.0   # cresce ~$16/ano
-	crypto_cycle = clampf(crypto_cycle + (randf() - 0.5) * 0.18, -1.0, 1.0)
-	var trend: float = crypto_cycle * 0.05           # ±5%/turno conforme o ciclo
-	var reversao: float = clampf((ancora - crypto_price) / ancora, -0.5, 0.5) * 0.12  # puxa p/ âncora
-	var vol: float = (randf() - 0.5) * 0.20          # ±10% de ruído (volatilidade extrema)
-	# Colapso súbito: ~2%/turno de chance de crash de 35-55% (mais provável no topo)
+	# Ritmo MENSAL: âncora cresce ~$16/ano (×1,333/mês em vez de ×4/tri); trend e
+	# reversão /3; vol /√3 (volatilidade anual mantida); chance de colapso /3.
+	var ancora: float = 800.0 + current_turn * 1.333   # cresce ~$16/ano
+	crypto_cycle = clampf(crypto_cycle + (randf() - 0.5) * 0.104, -1.0, 1.0)
+	var trend: float = crypto_cycle * 0.0167         # ±1,67%/mês conforme o ciclo
+	var reversao: float = clampf((ancora - crypto_price) / ancora, -0.5, 0.5) * 0.04  # puxa p/ âncora
+	var vol: float = (randf() - 0.5) * 0.1155         # ±5,8% de ruído/mês (vol anual mantida)
+	# Colapso súbito: ~0,67%/mês de chance de crash de 35-55% (mais provável no topo)
 	var body := ""
-	if randf() < 0.02 + maxf(0.0, crypto_cycle) * 0.03:
+	if randf() < 0.0067 + maxf(0.0, crypto_cycle) * 0.01:
 		var crash: float = randf_range(0.35, 0.55)
 		crypto_price = maxf(150.0, crypto_price * (1.0 - crash))
 		crypto_cycle = -0.7  # vira bear após o crash (mas a reversão recupera depois)
@@ -1168,20 +1176,20 @@ func _doctrine_for(n) -> String:
 	return String(pers.get("ideologia_economica", "mista"))
 
 # Aplica o efeito POR TURNO da doutrina a uma nação.
-# CALIBRAÇÃO: taxas pequenas de propósito — compostas por 400 turnos (1 século) dão
-# um VIÉS sensível mas não dominante (Livre ~1,5× PIB, Planej ~0,9×, Nórdico ~0,85×).
-# Taxas grandes (1%/turno) explodiriam/aniquilariam o PIB. O "+5 corrupção" do Livre
-# Mercado é estrutural (1× no takeover, ver _apply_economic_doctrine_once).
+# CALIBRAÇÃO: taxas pequenas — compostas por 1200 turnos (1 século no ritmo MENSAL)
+# dão um VIÉS sensível mas não dominante (Livre ~1,5× PIB, Planej ~0,9×, Nórdico
+# ~0,85×). Taxas ÷3 vs. o ritmo trimestral. O "+5 corrupção" do Livre Mercado é
+# estrutural (1× no takeover, ver _apply_economic_doctrine_once).
 func _apply_doctrine_turn(n, doctrine: String) -> void:
 	match doctrine:
 		"livre_mercado":
-			n.pib_bilhoes_usd *= 1.001         # PIB ~1,5× no século
+			n.pib_bilhoes_usd *= 1.00033       # PIB ~1,5× no século
 		"planejada":
-			n.tesouro *= 1.005                 # tesouro ~1,2× ao longo do século
-			n.pib_bilhoes_usd *= 0.9997        # PIB ~0,89× (menos dinamismo)
+			n.tesouro *= 1.00167               # tesouro ~1,2× ao longo do século
+			n.pib_bilhoes_usd *= 0.9999        # PIB ~0,89× (menos dinamismo)
 		"nordica":
-			n.felicidade = clampf(n.felicidade + 0.3, 0.0, 100.0)  # bem-estar sustentado
-			n.pib_bilhoes_usd *= 0.9996        # PIB ~0,85× (carga tributária alta)
+			n.felicidade = clampf(n.felicidade + 0.1, 0.0, 100.0)  # bem-estar sustentado
+			n.pib_bilhoes_usd *= 0.99987       # PIB ~0,85× (carga tributária alta)
 		_:
 			pass  # "mista" e desconhecidas: baseline, sem efeito
 
@@ -1194,17 +1202,16 @@ func _apply_economic_doctrine_once(n) -> void:
 # ROTATIVIDADE DE LIDERANÇA (Fase 2) — líder ruim cai, novo líder muda o rumo
 # ─────────────────────────────────────────────────────────────────
 
+# Turnos por ano de jogo — 1 turno = 1 MÊS (ritmo mensal), então 12 turnos/ano.
+# Muitas janelas de liderança derivam desta constante.
+const TURNS_PER_YEAR: int = 12
 # Idade máxima antes de forçar sucessão (vida ~ até idade avançada).
 const LEADER_MAX_AGE: int = 90
 # Turnos de impopularidade extrema antes de uma democracia trocar de líder.
-# ~4 anos (16 trimestres) de impopularidade sustentada — um mandato ruim inteiro,
-# não uma má fase passageira. Mantém as trocas raras e significativas.
-const LEADER_UNPOP_LIMIT: int = 16
-# Mandato mínimo: um líder recém-empossado tem carência antes de poder cair por
-# impopularidade (evita porta-giratória). ~3 anos.
-const LEADER_MIN_TENURE: int = 12
-# Turnos entre "envelhecimentos" — 1 turno = 1 trimestre, então idade +1 a cada 4 turnos.
-const TURNS_PER_YEAR: int = 4
+# ~4 anos de impopularidade sustentada — um mandato ruim inteiro, não uma má fase.
+const LEADER_UNPOP_LIMIT: int = 48   # 4 anos × 12 meses
+# Mandato mínimo: carência antes de o líder poder cair por impopularidade (~3 anos).
+const LEADER_MIN_TENURE: int = 36    # 3 anos × 12 meses
 
 func _is_autocracy(n) -> bool:
 	var r: String = n.regime_politico
@@ -1236,13 +1243,14 @@ func _process_leadership(n) -> void:
 	# ── Gatilhos de queda (raros e significativos — mandatos, não porta-giratória) ──
 	var motivo: String = ""
 	var tenure: int = current_turn - n.lider_desde_turno
-	# 1. Morte natural (vale para TODOS, inclusive ditadores — Rússia-like)
-	if n.lider_idade >= LEADER_MAX_AGE and randf() < 0.06:
+	# 1. Morte natural (vale para TODOS, inclusive ditadores — Rússia-like).
+	#    Probabilidades ÷3 vs. trimestral (rodam 3× mais por ano no ritmo mensal).
+	if n.lider_idade >= LEADER_MAX_AGE and randf() < 0.02:
 		motivo = "morte"
-	elif n.lider_idade >= 78 and randf() < 0.004:
+	elif n.lider_idade >= 78 and randf() < 0.0013:
 		motivo = "morte"  # chance pequena de morte após 78
 	# 2. Golpe/revolução: estabilidade MUITO baixa e sustentada (vale para todos, raro)
-	elif n.estabilidade_politica < 12.0 and randf() < 0.03:
+	elif n.estabilidade_politica < 12.0 and randf() < 0.01:
 		motivo = "golpe"
 	# 3. Democracia: perde por impopularidade prolongada após cumprir mandato mínimo
 	#    (autocracia NÃO cai por impopularidade — só morte/golpe).
@@ -1385,8 +1393,8 @@ func _update_player_nemesis() -> void:
 			"body": "Relação caiu para %d — esperar provocações nos próximos turnos." % int(worst_rel),
 			"color": Color(1, 0.4, 0.3),
 		}, [worst_code, player_nation.codigo_iso], nations[worst_code].continente if nations.has(worst_code) else "")
-	elif current_turn % 5 == 0:
-		# Provocação periódica do rival declarado (a cada 5 turnos)
+	elif current_turn % 15 == 0:
+		# Provocação periódica do rival declarado (a cada ~15 meses)
 		var rival = nations.get(player_nemesis)
 		if rival != null:
 			var provocations: Array = [
@@ -1697,7 +1705,7 @@ func _process_war_fatigue() -> void:
 			if not _war_started.has(key):
 				_war_started[key] = current_turn  # auto-registro (pós-load/eventos)
 				continue
-			if current_turn - int(_war_started[key]) >= WAR_FATIGUE_TURNS and randf() < 0.30:
+			if current_turn - int(_war_started[key]) >= WAR_FATIGUE_TURNS and randf() < 0.10:
 				# Armistício por exaustão
 				var other: String = enemy
 				n.em_guerra.erase(other)
@@ -1709,7 +1717,7 @@ func _process_war_fatigue() -> void:
 				_war_score.erase(key)
 				_log_news({
 					"type": "armisticio",
-					"headline": "🕊️ Armistício: %s e %s encerram guerra de %d anos" % [n.nome, nations[other].nome if nations.has(other) else other, (current_turn - 0) / 4],
+					"headline": "🕊️ Armistício: %s e %s encerram guerra de %d anos" % [n.nome, nations[other].nome if nations.has(other) else other, (current_turn - 0) / 12],
 					"body": "Exaustão mútua força o fim das hostilidades.",
 					"involves_player": player_nation != null and (code == player_nation.codigo_iso or other == player_nation.codigo_iso),
 					"color": Color(0.7, 0.9, 0.7),
@@ -1825,14 +1833,15 @@ func _process_war_costs() -> void:
 		var wars: int = n.em_guerra.size()
 		if wars == 0:
 			continue
-		# Custo proporcional ao PIB (com piso baixo pra países pequenos)
-		var cost_per_war: float = max(3.0, n.pib_bilhoes_usd * 0.004)
-		# Países pequenos (PIB < $200B) têm custo limitado a 1.5% do tesouro por guerra
+		# Custo proporcional ao PIB (com piso baixo pra países pequenos). Taxas /3
+		# (ritmo mensal — mesmo custo anual de guerra).
+		var cost_per_war: float = max(1.0, n.pib_bilhoes_usd * 0.00133)
+		# Países pequenos (PIB < $200B) têm custo limitado a 0.5% do tesouro por guerra
 		if n.pib_bilhoes_usd < 200.0:
-			cost_per_war = min(cost_per_war, n.tesouro * 0.015)
+			cost_per_war = min(cost_per_war, n.tesouro * 0.005)
 		n.tesouro = max(0.0, n.tesouro - cost_per_war * wars)
-		n.apoio_popular = max(0.0, n.apoio_popular - 1.5 * wars)
-		n.felicidade = max(0.0, n.felicidade - 1.0 * wars)
+		n.apoio_popular = max(0.0, n.apoio_popular - 0.5 * wars)
+		n.felicidade = max(0.0, n.felicidade - 0.33 * wars)
 		# CAPITULAÇÃO AUTOMÁTICA: nação exausta (tesouro zerado + apoio em
 		# colapso) rende-se — guerras não se arrastam para sempre
 		if n.tesouro <= 0.0 and n.apoio_popular < 25.0 and randf() < 0.5:
@@ -1864,7 +1873,7 @@ func _roll_events() -> void:
 	if events_data.is_empty() or player_nation == null:
 		return
 	# 30% de chance de tentar evento por turno
-	if randf() > 0.30:
+	if randf() > 0.10:   # 30%/tri → 10%/mês (mesma frequência anual de eventos)
 		return
 	var ev: Dictionary = events_data[randi() % events_data.size()]
 	var year_min: int = int(ev.get("condicao", {}).get("ano_min", 0))

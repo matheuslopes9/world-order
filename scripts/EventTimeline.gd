@@ -106,7 +106,7 @@ func _generate_secondary_events() -> void:
 			var ev: Dictionary = {
 				"id": "%s_%s_%d" % [code.to_lower(), tpl.get("id_suffix", "evt"), year],
 				"year": year,
-				"quarter": rng.randi_range(1, 4),
+				"month": rng.randi_range(1, 12),
 				"year_window": [year, year],
 				"scope": "national",
 				"categories": [cat],
@@ -203,7 +203,7 @@ func _process_megatrends() -> void:
 func _should_fire(ev: Dictionary) -> bool:
 	if engine == null: return false
 	var year: int = engine.date_year
-	var quarter: int = engine.date_quarter
+	var month: int = engine.date_month   # 1-12 (ritmo mensal)
 	var mode: String = engine.settings.get("mode", "inspirado")
 	# Janela de tempo
 	var window: Array = ev.get("year_window", [])
@@ -221,16 +221,19 @@ func _should_fire(ev: Dictionary) -> bool:
 		hi += 2
 	if year < lo or year > hi:
 		return false
-	# Quarter (só importa no modo inspirado)
+	# Mês-alvo (só importa no modo inspirado). O evento traz "month" (1-12) ou,
+	# em saves/dados antigos, "quarter" (1-4) → converte p/ o mês central do tri.
 	if mode == "inspirado":
-		var ev_q: int = int(ev.get("quarter", 0))
-		if ev_q > 0 and quarter != ev_q:
-			# Ainda permite no último ano da janela se ainda não disparou (catch-up)
-			if year >= hi and quarter > ev_q:
-				pass  # permite (já passou do quarter, mas ainda no ano final)
-			else:
+		var ev_month: int = int(ev.get("month", 0))
+		if ev_month <= 0:
+			var ev_q: int = int(ev.get("quarter", 0))
+			if ev_q > 0:
+				ev_month = (ev_q - 1) * 3 + 2  # Q1→2, Q2→5, Q3→8, Q4→11
+		if ev_month > 0 and month < ev_month:
+			# Ainda não chegou o mês-alvo; só permite catch-up no último ano da janela
+			if year < hi:
 				return false
-	# else "livre": qualquer quarter dentro da janela vale
+	# else "livre": qualquer mês dentro da janela vale
 	return true
 
 # Aplica efeitos + modal/choice + log
@@ -490,7 +493,7 @@ func _apply_categorical_side_effects(ev: Dictionary) -> void:
 func get_upcoming_decisions(turns_ahead: int = 2) -> Array:
 	if engine == null or engine.player_nation == null: return []
 	var current_year: int = engine.date_year
-	var current_quarter: int = engine.date_quarter
+	var current_quarter: int = engine.date_month
 	var p_code: String = engine.player_nation.codigo_iso
 	var out: Array = []
 	for ev in pending_events:
@@ -503,9 +506,12 @@ func get_upcoming_decisions(turns_ahead: int = 2) -> Array:
 		if ev_dict.get("trigger", {}).get("primary_country", "") != p_code:
 			continue
 		var ev_year: int = int(ev_dict.get("year", 0))
-		var ev_q: int = int(ev_dict.get("quarter", 1))
-		# Calcula distância em turnos
-		var diff: int = (ev_year - current_year) * 4 + (ev_q - current_quarter)
+		var ev_month: int = int(ev_dict.get("month", 0))
+		if ev_month <= 0:
+			var eq: int = int(ev_dict.get("quarter", 1))
+			ev_month = (eq - 1) * 3 + 2   # Q→mês central
+		# Calcula distância em turnos (meses no ritmo mensal)
+		var diff: int = (ev_year - current_year) * 12 + (ev_month - current_quarter)
 		if diff > 0 and diff <= turns_ahead:
 			out.append({"event": ev_dict, "turns_until": diff})
 	return out
