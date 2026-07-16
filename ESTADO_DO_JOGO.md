@@ -152,9 +152,24 @@ risco para tesouro ocioso.
 
 ---
 
+## 🌐 6b. Geopolítica viva (implementado 2026-07-16)
+
+Uma frente completa que dá "alma" ao mundo:
+- **Afinidade ideológica** (#7): nações de ideologia afim se atraem, opostas repelem
+  (eixo democracia-mercado × autocracia-planejada). Afeta relação inicial, tratados
+  e drift por turno → blocos informais emergem.
+- **Blocos formais vivos** (#11): OTAN/BRICS/ASEAN… (12 blocos) com relações
+  intra-bloco altas, bônus de membro (segurança coletiva, comércio), e o jogador
+  adere/sai (painel Diplomacia).
+- **Coalizão de contenção** (#9): virar hegemon faz as grandes potências se unirem
+  contra você (balancing realista).
+- **Guerra com objetivos**: declarar guerra POR ALGO (reparações / recursos / mudar
+  regime / conter), com espólio amplificado no objetivo e crise humanitária em
+  guerras longas (vitória pírrica).
+
 ## ✅ 7. Qualidade / validação
 
-- **SystemsCheck: 132/132** · **GameplayTest: 84/84** (clica cada botão via UI real).
+- **SystemsCheck: 147/147** · **GameplayTest: 84/84** (clica cada botão via UI real).
 - **MegaSim**: cobertura de todas as 195 nações × 4 personas (780 campanhas de 1.200
   turnos) — **0 anomalias, 0 runaway, 0 encolhimentos** (validado 2026-07-16).
 - Performance ~20-27ms/turno.
@@ -167,6 +182,12 @@ risco para tesouro ocioso.
 
 Ordenadas por **valor/esforço**. Divididas entre *bugs/dívidas* (corrigir), *jogatina*
 (profundidade) e *release* (polimento para Steam).
+
+> **✅ CONCLUÍDO em 2026-07-16 (Fases 1-3 do plano):** #1-6 (bugs/consistência),
+> #7 (afinidade ideológica), #8 (cenários diferenciados), #9 (coalizão de contenção),
+> #11 (blocos formais), #13 (líderes na UI), #14 (onboarding late-game), #15 (tutorial).
+> **Restam** (Fase 4 / lançamento): #10 (guerra tática avançada), #12 (mais storylines),
+> #16 (tradução EN), #17 (áudio), #18 (desafios diários), #19-20 (build/Steam SDK).
 
 ## 🐞 Bugs e dívidas técnicas (corrigir — baixo esforço)
 
