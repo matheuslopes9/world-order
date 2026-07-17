@@ -10,6 +10,10 @@ extends Control
 const SaveSys = preload("res://scripts/SaveSystem.gd")
 const MONO_FONT := preload("res://fonts/CascadiaMono.ttf")
 
+# Largura ÚNICA de todas as fileiras interativas do menu — o desalinhamento
+# anterior vinha de cada fileira ter uma largura diferente (368/402/420/432).
+const ROW_W := 440
+
 # Paleta consolidada — referenciada pelos modais e UI dinâmica
 const PALETTE := {
 	"cyan": Color(0, 0.823, 1, 0.9),
@@ -239,7 +243,7 @@ func _add_scenario_selector() -> void:
 
 	# OptionButton (dropdown) com lista de cenários carregados
 	var dropdown := OptionButton.new()
-	dropdown.custom_minimum_size = Vector2(420, 36)
+	dropdown.custom_minimum_size = Vector2(ROW_W, 36)
 	dropdown.add_theme_font_size_override("font_size", 12)
 	scen_box.add_child(dropdown)
 
@@ -249,7 +253,7 @@ func _add_scenario_selector() -> void:
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.custom_minimum_size = Vector2(420, 0)
+	hint.custom_minimum_size = Vector2(ROW_W, 0)
 	scen_box.add_child(hint)
 
 	# Popula dropdown com cenários disponíveis
@@ -292,7 +296,7 @@ func _add_delete_save_button() -> void:
 	if button_row == null: return
 	var btn := Button.new()
 	btn.text = tr("ui.menu.delete_save")
-	btn.custom_minimum_size = Vector2(420, 28)
+	btn.custom_minimum_size = Vector2(ROW_W, 28)
 	btn.add_theme_font_size_override("font_size", 10)
 	btn.modulate = Color(1, 0.7, 0.7)
 	btn.pressed.connect(func():
@@ -359,7 +363,7 @@ func _show_main_menu_confirm(title: String, msg: String, on_confirm: Callable) -
 		modal.queue_free()
 		on_confirm.call())
 	btns.add_child(btn_yes)
-	_fade_in(modal)
+	UIStyles.animate_modal_in(modal, card)
 
 func _add_language_selector() -> void:
 	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
@@ -367,7 +371,7 @@ func _add_language_selector() -> void:
 	var box := HBoxContainer.new()
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_theme_constant_override("separation", 6)
-	box.custom_minimum_size = Vector2(420, 0)
+	box.custom_minimum_size = Vector2(ROW_W, 0)
 	button_row.add_child(box)
 	var lbl := Label.new()
 	lbl.text = "🌐"
@@ -395,7 +399,7 @@ func _add_progression_button() -> void:
 	if GameEngine and GameEngine.meta_progression:
 		xp = GameEngine.meta_progression.total_xp
 	btn.text = "⭐ PROGRESSO  (%d XP)" % xp
-	btn.custom_minimum_size = Vector2(420, 32)
+	btn.custom_minimum_size = Vector2(ROW_W, 32)
 	btn.add_theme_font_size_override("font_size", 11)
 	btn.pressed.connect(_show_progression_modal)
 	button_row.add_child(btn)
@@ -527,14 +531,14 @@ func _show_progression_modal() -> void:
 	close_btn.custom_minimum_size = Vector2(0, 36)
 	close_btn.pressed.connect(func(): modal.queue_free())
 	v.add_child(close_btn)
-	_fade_in(modal)
+	UIStyles.animate_modal_in(modal, card)
 
 func _add_credits_button() -> void:
 	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
 	if button_row == null: return
 	var btn := Button.new()
 	btn.text = tr("ui.menu.credits")
-	btn.custom_minimum_size = Vector2(420, 32)
+	btn.custom_minimum_size = Vector2(ROW_W, 32)
 	btn.add_theme_font_size_override("font_size", 11)
 	btn.pressed.connect(_show_credits_modal)
 	button_row.add_child(btn)
@@ -638,7 +642,7 @@ func _show_credits_modal() -> void:
 	close_btn.custom_minimum_size = Vector2(0, 36)
 	close_btn.pressed.connect(func(): modal.queue_free())
 	v.add_child(close_btn)
-	_fade_in(modal)
+	UIStyles.animate_modal_in(modal, card)
 
 func _add_mode_selector() -> void:
 	# Insere um VBox de "MODO DE CAMPANHA" antes do ButtonRow
@@ -660,7 +664,8 @@ func _add_mode_selector() -> void:
 	mode_box.add_child(lbl)
 
 	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.custom_minimum_size = Vector2(ROW_W, 0)
+	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	row.add_theme_constant_override("separation", 8)
 	mode_box.add_child(row)
 
@@ -677,7 +682,8 @@ func _add_mode_selector() -> void:
 		b.toggle_mode = true
 		b.button_pressed = (m["id"] == current_mode)
 		b.set_meta("mode_id", m["id"])
-		b.custom_minimum_size = Vector2(180, 36)
+		b.custom_minimum_size = Vector2(0, 36)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.add_theme_font_size_override("font_size", 12)
 		b.focus_mode = Control.FOCUS_NONE
 		var mode_id: String = m["id"]
@@ -715,7 +721,8 @@ func _add_difficulty_selector() -> void:
 	diff_box.add_child(lbl)
 
 	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.custom_minimum_size = Vector2(ROW_W, 0)
+	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	row.add_theme_constant_override("separation", 6)
 	diff_box.add_child(row)
 
@@ -734,7 +741,8 @@ func _add_difficulty_selector() -> void:
 		b.toggle_mode = true
 		b.button_pressed = (d["id"] == current_diff)
 		b.set_meta("diff_id", d["id"])
-		b.custom_minimum_size = Vector2(96, 34)
+		b.custom_minimum_size = Vector2(0, 34)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.add_theme_font_size_override("font_size", 12)
 		b.focus_mode = Control.FOCUS_NONE
 		var diff_id: String = d["id"]

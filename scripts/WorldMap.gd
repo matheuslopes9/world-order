@@ -537,10 +537,9 @@ func _open_modal(content: Control, title: String = "", min_size: Vector2 = Vecto
 	# Conteúdo
 	v.add_child(content)
 
-	# Animação de entrada — APENAS fade (sem scale, evita pivot bug em CenterContainer)
-	card.modulate = Color(1, 1, 1, 0)
-	var tw := create_tween()
-	tw.tween_property(card, "modulate", Color(1, 1, 1, 1), 0.20).set_trans(Tween.TRANS_CUBIC)
+	# Animação de entrada padrão (fade do backdrop + scale-in do card).
+	# O pivot bug antigo foi resolvido no helper (pivô re-calculado no resized).
+	UIStyles.animate_modal_in(modal, card)
 
 	_modal_stack.append(modal)
 	return modal
@@ -1436,6 +1435,14 @@ func _apply_central_offset() -> void:
 	camera.offset = Vector2(dx_screen / camera.zoom.x, dy_screen / camera.zoom.y)
 
 func _process(delta: float) -> void:
+	# Pulso de guerra: inimigos ativos respiram em vermelho (sutil, 0.45Hz).
+	# Custo: 1 set de modulate por país em guerra — normalmente 0-3 nodes.
+	if not _war_pulse_nodes.is_empty():
+		var k: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.0028)
+		var pulse := Color(1.0 + 0.30 * k, 1.0 - 0.10 * k, 1.0 - 0.10 * k)
+		for nd in _war_pulse_nodes:
+			if is_instance_valid(nd):
+				nd.modulate = pulse
 	# Lerp suave (exponencial) com easing — quanto mais perto, mais lento
 	if camera_animating:
 		var t: float = 1.0 - exp(-CAM_LERP_SPEED * delta)
@@ -1638,10 +1645,8 @@ func _make_modal_shell(min_size: Vector2, title_text: String) -> Dictionary:
 		deco.custom_minimum_size = Vector2(60, 2)
 		deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(deco)
-	# Animação de entrada (só fade)
-	card.modulate = Color(1, 1, 1, 0)
-	var tw := create_tween()
-	tw.tween_property(card, "modulate", Color(1, 1, 1, 1), 0.22).set_trans(Tween.TRANS_CUBIC)
+	# Animação de entrada padrão (fade + scale-in)
+	UIStyles.animate_modal_in(modal, card)
 	return {"modal": modal, "content": v}
 
 func _show_options_modal() -> void:
@@ -3109,6 +3114,7 @@ func _show_tutorial_page(pages: Array, idx: int) -> void:
 	card_style.content_margin_bottom = 24
 	card.add_theme_stylebox_override("panel", card_style)
 	center.add_child(card)
+	UIStyles.animate_modal_in(modal, card)
 
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 16)
@@ -3611,6 +3617,7 @@ func _show_spy_picker_modal(target_code: String) -> void:
 	var box := PanelContainer.new()
 	box.custom_minimum_size = Vector2(640, 600)
 	center.add_child(box)
+	UIStyles.animate_modal_in(modal, box)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(scroll)
@@ -3681,6 +3688,7 @@ func _show_treaty_picker_modal(target_code: String) -> void:
 	var box := PanelContainer.new()
 	box.custom_minimum_size = Vector2(560, 480)
 	center.add_child(box)
+	UIStyles.animate_modal_in(modal, box)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	box.add_child(v)
@@ -3883,9 +3891,25 @@ func _refresh_resource_icons() -> void:
 # COR POR ESTADO + FILTROS DE MAPA
 # ─────────────────────────────────────────────────────────────────
 
+# Países que pulsam em vermelho (inimigos em guerra ativa com o jogador).
+# Pulso via modulate do node-pai: 1 propriedade/país, sem re-triangulação.
+var _war_pulse_nodes: Array = []
+
 func _repaint_map() -> void:
+	# Reset do pulso anterior (nodes que saíram da guerra voltam ao neutro)
+	for nd in _war_pulse_nodes:
+		if is_instance_valid(nd):
+			nd.modulate = Color(1, 1, 1)
+	_war_pulse_nodes.clear()
 	for code in countries:
 		_repaint_country_state(code)
+	# Coleta os inimigos ativos do jogador para o pulso de guerra
+	if player_code != "" and GameEngine.player_nation != null:
+		for enemy_code in GameEngine.player_nation.em_guerra:
+			var entry: Dictionary = countries.get(enemy_code, {})
+			var nd = entry.get("node")
+			if nd != null and is_instance_valid(nd):
+				_war_pulse_nodes.append(nd)
 
 func _repaint_country_state(code: String) -> void:
 	if not GameEngine.nations.has(code):

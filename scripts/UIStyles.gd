@@ -150,3 +150,28 @@ static func indicator_color(value: float, inverted: bool = false) -> Color:
 	if v < 25: return DANGER_BRIGHT
 	if v < 50: return WARNING_BRIGHT
 	return SUCCESS
+
+# ═════════════════════════════════════════════════════════════════
+# ANIMAÇÃO PADRÃO DE MODAIS
+# ═════════════════════════════════════════════════════════════════
+
+# Entrada elegante de modal: fade do backdrop + scale-in do card (0.93→1.0
+# com overshoot leve). Chamar DEPOIS de montar o modal na árvore.
+# `card` precisa ter custom_minimum_size definido (usado como pivô).
+static func animate_modal_in(modal: CanvasItem, card: Control = null) -> void:
+	if modal == null or not is_instance_valid(modal) or not modal.is_inside_tree():
+		return
+	modal.modulate = Color(modal.modulate.r, modal.modulate.g, modal.modulate.b, 0.0)
+	var tw := modal.create_tween()
+	tw.tween_property(modal, "modulate:a", 1.0, 0.16).set_trans(Tween.TRANS_CUBIC)
+	if card != null and is_instance_valid(card):
+		# Pivô no centro REAL do card: o size só existe após o layout do
+		# container, então recalculamos a cada resized (corrige o antigo
+		# "pivot bug" que fazia o scale crescer a partir do canto).
+		card.pivot_offset = card.custom_minimum_size / 2.0
+		card.resized.connect(func():
+			if is_instance_valid(card):
+				card.pivot_offset = card.size / 2.0)
+		card.scale = Vector2(0.93, 0.93)
+		var tw2 := card.create_tween()
+		tw2.tween_property(card, "scale", Vector2.ONE, 0.24).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

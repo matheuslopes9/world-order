@@ -1,13 +1,18 @@
-[gd_scene load_steps=3 format=3 uid="uid://b3w0r1d0rdmap"]
+[gd_scene load_steps=5 format=3 uid="uid://b3w0r1d0rdmap"]
 
 [ext_resource type="Script" path="res://scripts/WorldMap.gd" id="1_map"]
 [ext_resource type="Script" path="res://scripts/GameOverlay.gd" id="2_overlay"]
+[ext_resource type="Shader" path="res://shaders/ocean.gdshader" id="3_ocean"]
+
+[sub_resource type="ShaderMaterial" id="ocean_mat"]
+shader = ExtResource("3_ocean")
 
 [node name="WorldMap" type="Node2D"]
 script = ExtResource("1_map")
 
 ; ════════════════════ MAPA (background, tela cheia) ════════════════════
 [node name="Ocean" type="ColorRect" parent="."]
+material = SubResource("ocean_mat")
 offset_left = -3000.0
 offset_top = -2000.0
 offset_right = 5000.0

@@ -297,11 +297,36 @@ func _run_panel_action(action_id: String, panel_id: String, color: Color) -> voi
 	var res: Dictionary = GameEngine.player_panel_action(action_id)
 	if not res.get("ok", false):
 		_log_global_news("⚠ AÇÃO INDISPONÍVEL", String(res.get("reason", "")), Color(1, 0.6, 0.4))
+		_spawn_action_floater("✕ " + String(res.get("reason", "indisponível")), Color(1, 0.55, 0.45))
 		return
 	_log_global_news(action_id.replace("_", " ").to_upper(),
 		String(res.get("msg", "")) + "  •  -$%dB" % int(res.get("cost", 0)), color)
+	var fb: String = String(res.get("msg", ""))
+	if fb.length() > 42:
+		fb = "Executado"
+	_spawn_action_floater("✓ %s  −$%dB" % [fb, int(res.get("cost", 0))], color)
 	_render_panel(panel_id)
 	_refresh_top_bar_external()
+
+# Feedback visual leve: label flutuante que sobe do ponto do clique e some.
+# 1 Label + 1 tween one-shot — sem partículas pesadas, sem poluição.
+func _spawn_action_floater(text: String, color: Color) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_color_override("font_color", color)
+	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.add_theme_constant_override("outline_size", 5)
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	lbl.z_index = 300
+	lbl.top_level = true  # posição global, ignora o layout do painel
+	add_child(lbl)
+	lbl.global_position = get_global_mouse_position() + Vector2(14, -8)
+	var tw := lbl.create_tween().set_parallel()
+	tw.tween_property(lbl, "global_position:y", lbl.global_position.y - 44.0, 0.9) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.9) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(lbl.queue_free)
 
 # ─────────────────────────────────────────────────────────────────
 # PAINEL: MILITAR
@@ -1970,6 +1995,7 @@ func _show_event_modal(event: Dictionary) -> void:
 	var box := PanelContainer.new()
 	box.custom_minimum_size = Vector2(560, 360)
 	center.add_child(box)
+	UIStyles.animate_modal_in(modal, box)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	box.add_child(v)
