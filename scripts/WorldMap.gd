@@ -1577,21 +1577,31 @@ func _clamp_camera() -> void:
 	var central_h: float = max(100.0, vp_size.y - TOP_BAR_H - BOTTOM_BAR_H)
 	var min_zoom_x: float = central_w / MAP_WIDTH
 	var min_zoom_y: float = central_h / MAP_HEIGHT
-	# Trava zoom mínimo no nível "fit" — mapa não pode ficar menor que a área visível.
-	# (Antes usava 0.45 que deixava ver muito espaço vazio em volta.)
-	var min_zoom_local: float = max(min_zoom_x, min_zoom_y) * 0.95
+	# Trava zoom mínimo no nível "fit" EXATO — o mapa preenche a área visível
+	# no eixo crítico (a folga de 5% deixava o clamp lutando com o pan).
+	var min_zoom_local: float = max(min_zoom_x, min_zoom_y)
 	var z: float = clamp(camera.zoom.x, min_zoom_local, ZOOM_MAX)
 	camera.zoom = Vector2(z, z)
 	var half_w: float = (central_w * 0.5) / z
 	var half_h: float = (central_h * 0.5) / z
+	# Eixo em que o mapa cabe inteiro: trava no centro E mata a inércia
+	# daquele eixo (senão a inércia empurra contra o snap → tremida)
 	if half_w * 2.0 >= MAP_WIDTH:
 		camera.position.x = MAP_WIDTH / 2.0
+		pan_velocity.x = 0.0
 	else:
-		camera.position.x = clamp(camera.position.x, half_w, MAP_WIDTH - half_w)
+		var cx: float = clamp(camera.position.x, half_w, MAP_WIDTH - half_w)
+		if cx != camera.position.x:
+			pan_velocity.x = 0.0  # bateu na parede → sem empurrar
+		camera.position.x = cx
 	if half_h * 2.0 >= MAP_HEIGHT:
 		camera.position.y = MAP_HEIGHT / 2.0
+		pan_velocity.y = 0.0
 	else:
-		camera.position.y = clamp(camera.position.y, half_h, MAP_HEIGHT - half_h)
+		var cy: float = clamp(camera.position.y, half_h, MAP_HEIGHT - half_h)
+		if cy != camera.position.y:
+			pan_velocity.y = 0.0
+		camera.position.y = cy
 
 # ─────────────────────────────────────────────────────────────────
 # UI: LISTA + FILTROS + ZOOM + MENU
@@ -4684,8 +4694,10 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 		var now_ms := Time.get_ticks_msec()
 		var dt: float = max(0.001, (now_ms - last_drag_time_ms) / 1000.0)
 		var inst_v: Vector2 = (event.position - last_drag_pos) / dt
-		# Suaviza com EMA pra não pegar pico de jitter
-		pan_velocity = pan_velocity.lerp(-inst_v, 0.5)
+		# Suaviza com EMA pra não pegar pico de jitter.
+		# SINAL POSITIVO: a inércia continua o movimento do drag
+		# (com -inst_v ela REBATIA contra o clamp → "handshake" no zoom-out)
+		pan_velocity = pan_velocity.lerp(inst_v, 0.5)
 		last_drag_pos = event.position
 		last_drag_time_ms = now_ms
 		return
