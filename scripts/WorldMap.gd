@@ -146,8 +146,8 @@ const RIGHT_PANEL_W: float = 0.0
 # Heights — modo compact (1366×768 e menores) reduz padding pra dar mais espaço pro mapa
 const TOP_BAR_H_NORMAL: float = 54.0
 const TOP_BAR_H_COMPACT: float = 46.0
-const BOTTOM_BAR_H_NORMAL: float = 148.0
-const BOTTOM_BAR_H_COMPACT: float = 116.0
+const BOTTOM_BAR_H_NORMAL: float = 170.0
+const BOTTOM_BAR_H_COMPACT: float = 138.0
 # Threshold: viewports com altura ≤ 800 entram em modo compact
 const COMPACT_VIEWPORT_HEIGHT: float = 800.0
 # Resolved values (preenchido em _ready conforme viewport)
@@ -284,7 +284,7 @@ func _show_loading_screen() -> void:
 	logo.texture = load("res://assets/logo.png")
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	logo.custom_minimum_size = Vector2(0, 210)
+	logo.custom_minimum_size = Vector2(0, 340)
 	v.add_child(logo)
 	var lbl := Label.new()
 	lbl.name = "LoadingLabel"
@@ -293,6 +293,18 @@ func _show_loading_screen() -> void:
 	lbl.add_theme_font_size_override("font_size", 15)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(lbl)
+	# Barra de progresso dourada (preenchimento suave enquanto o mundo monta)
+	var bar := ProgressBar.new()
+	bar.name = "LoadingBar"
+	bar.custom_minimum_size = Vector2(420, 10)
+	bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	bar.min_value = 0.0
+	bar.max_value = 100.0
+	bar.value = 0.0
+	bar.show_percentage = false
+	v.add_child(bar)
+	var bar_tw := bar.create_tween()
+	bar_tw.tween_property(bar, "value", 92.0, 2.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	var hint := Label.new()
 	hint.text = "195 nações  ·  2000 → 2100  ·  o século é seu"
 	hint.add_theme_color_override("font_color", Color(0.52, 0.52, 0.55))
@@ -309,6 +321,16 @@ func _hide_loading_screen() -> void:
 		return
 	var layer := _loading_layer
 	_loading_layer = null
+	# Completa a barra (100%) num último respiro antes do fade
+	var bar := layer.get_node_or_null("CenterContainer/VBoxContainer/LoadingBar")
+	if bar == null:
+		for c0 in layer.get_children():
+			if c0 is CenterContainer:
+				bar = c0.find_child("LoadingBar", true, false)
+				break
+	if bar is ProgressBar:
+		var btw := (bar as ProgressBar).create_tween()
+		btw.tween_property(bar, "value", 100.0, 0.15)
 	# Fade cinematográfico: o mundo "acende" por trás do loading
 	var faders: Array = []
 	for c in layer.get_children():
@@ -4339,9 +4361,10 @@ func _detect_compact_mode() -> void:
 	if compact_mode:
 		TOP_BAR_H = TOP_BAR_H_COMPACT
 		BOTTOM_BAR_H = BOTTOM_BAR_H_COMPACT
-		# Ajusta altura visual da bottom bar
+		# Ajusta altura visual da bottom bar (ancorada embaixo → offset_top)
 		var bb := get_node_or_null("HUD/BottomBar")
 		if bb is Control:
+			(bb as Control).offset_top = -BOTTOM_BAR_H
 			(bb as Control).custom_minimum_size = Vector2(0, BOTTOM_BAR_H)
 		var tb := get_node_or_null("HUD/TopBar")
 		if tb is Control:
@@ -4354,6 +4377,9 @@ func _detect_compact_mode() -> void:
 	else:
 		TOP_BAR_H = TOP_BAR_H_NORMAL
 		BOTTOM_BAR_H = BOTTOM_BAR_H_NORMAL
+		var bb_n := get_node_or_null("HUD/BottomBar")
+		if bb_n is Control:
+			(bb_n as Control).offset_top = -BOTTOM_BAR_H
 
 func _show_tutorial_toast(text: String) -> void:
 	var toast := PanelContainer.new()
