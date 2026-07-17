@@ -284,7 +284,7 @@ func _show_loading_screen() -> void:
 	logo.texture = load("res://assets/logo.png")
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	logo.custom_minimum_size = Vector2(0, 470)
+	logo.custom_minimum_size = Vector2(0, 560)
 	v.add_child(logo)
 	var lbl := Label.new()
 	lbl.name = "LoadingLabel"
@@ -1226,7 +1226,12 @@ func _build_action_bar() -> void:
 	for entry in ACTION_BUTTONS:
 		var b := Button.new()
 		b.text = "%s  %s" % [entry["icon"], entry["label"]]
-		b.custom_minimum_size = Vector2(106, 44)
+		# ELÁSTICO: divide a largura disponível (a soma fixa antiga passava de
+		# 2300px e cortava a barra em QUALQUER monitor). clip_text garante que
+		# o mínimo é pequeno; em telas estreitas o tooltip conta o resto.
+		b.custom_minimum_size = Vector2(60, 44)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.clip_text = true
 		b.add_theme_font_size_override("font_size", 12)
 		b.tooltip_text = entry["label"]
 		var pid: String = entry["id"]
@@ -1841,11 +1846,87 @@ func _make_modal_shell(min_size: Vector2, title_text: String) -> Dictionary:
 	UIStyles.animate_modal_in(modal, card)
 	return {"modal": modal, "content": v}
 
+# Aplica e persiste o modo de janela (janela / tela cheia / sem bordas).
+# Suporte a qualquer monitor: sem resolução forçada — a UI é ancorada e a
+# barra de ações é elástica, então qualquer tamanho de janela funciona.
+static func apply_window_mode(mode: String, w: int = 0, h: int = 0) -> void:
+	match mode:
+		"fullscreen":
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+		"borderless":
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		_:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			if w > 0 and h > 0:
+				DisplayServer.window_set_size(Vector2i(w, h))
+				var scr := DisplayServer.screen_get_size()
+				var pos := DisplayServer.screen_get_position() + (scr - Vector2i(w, h)) / 2
+				DisplayServer.window_set_position(pos)
+	var cfg := ConfigFile.new()
+	cfg.load("user://settings.cfg")
+	cfg.set_value("video", "mode", mode)
+	if w > 0: cfg.set_value("video", "w", w)
+	if h > 0: cfg.set_value("video", "h", h)
+	cfg.save("user://settings.cfg")
+
 func _show_options_modal() -> void:
 	# Conteúdo do modal de opções (montado num VBox novo, depois passado pro _open_modal)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	v.mouse_filter = Control.MOUSE_FILTER_PASS
+	# ── VÍDEO: modo de janela + resolução (suporte a todos os monitores) ──
+	var vid_title := Label.new()
+	vid_title.text = "■ VÍDEO"
+	vid_title.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
+	vid_title.add_theme_font_size_override("font_size", 11)
+	v.add_child(vid_title)
+	var vid_row := HBoxContainer.new()
+	vid_row.add_theme_constant_override("separation", 8)
+	v.add_child(vid_row)
+	var cfg_v := ConfigFile.new()
+	cfg_v.load("user://settings.cfg")
+	var cur_mode: String = String(cfg_v.get_value("video", "mode", "windowed"))
+	var mode_btns: Array = []
+	for m in [["windowed", "🪟 Janela"], ["fullscreen", "🖥 Tela Cheia"], ["borderless", "⬜ Sem Bordas"]]:
+		var mb := Button.new()
+		mb.text = m[1]
+		mb.toggle_mode = true
+		mb.button_pressed = (m[0] == cur_mode)
+		mb.set_meta("mode_id", m[0])
+		mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mb.custom_minimum_size = Vector2(0, 36)
+		mb.add_theme_font_size_override("font_size", 12)
+		var mid: String = m[0]
+		mb.pressed.connect(func():
+			apply_window_mode(mid)
+			for other in mode_btns:
+				other.button_pressed = (other.get_meta("mode_id") == mid))
+		vid_row.add_child(mb)
+		mode_btns.append(mb)
+	var res_row := HBoxContainer.new()
+	res_row.add_theme_constant_override("separation", 8)
+	v.add_child(res_row)
+	var res_lbl := Label.new()
+	res_lbl.text = "Resolução (modo janela):"
+	res_lbl.add_theme_font_size_override("font_size", 11)
+	res_lbl.add_theme_color_override("font_color", Color(0.62, 0.62, 0.65))
+	res_row.add_child(res_lbl)
+	var res_dd := OptionButton.new()
+	res_dd.custom_minimum_size = Vector2(180, 34)
+	var resolutions := [[1280, 720], [1366, 768], [1600, 900], [1920, 1080], [2560, 1440], [3440, 1440], [3840, 2160]]
+	var cur_w: int = int(cfg_v.get_value("video", "w", 1600))
+	var sel_idx: int = 2
+	for ri in resolutions.size():
+		res_dd.add_item("%d × %d" % [resolutions[ri][0], resolutions[ri][1]])
+		if resolutions[ri][0] == cur_w:
+			sel_idx = ri
+	res_dd.select(sel_idx)
+	res_dd.item_selected.connect(func(idx: int):
+		apply_window_mode("windowed", resolutions[idx][0], resolutions[idx][1])
+		for other in mode_btns:
+			other.button_pressed = (other.get_meta("mode_id") == "windowed"))
+	res_row.add_child(res_dd)
+	v.add_child(HSeparator.new())
 	# Info da sessão
 	if GameEngine.player_nation:
 		var info := Label.new()
@@ -4010,7 +4091,10 @@ func _build_map_filters() -> void:
 		btn.button_pressed = (f["id"] == "SATELITE")
 		btn.set_meta("filter_id", f["id"])
 		btn.text = f["label"]
-		btn.custom_minimum_size = Vector2(96, 30)
+		btn.custom_minimum_size = Vector2(56, 30)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.clip_text = true
+		btn.tooltip_text = f["label"]
 		btn.add_theme_font_size_override("font_size", 11)
 		btn.focus_mode = Control.FOCUS_NONE
 		btn.pressed.connect(_on_map_filter_pressed.bind(f["id"]))

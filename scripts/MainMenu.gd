@@ -91,6 +91,14 @@ func _fade_in(node: CanvasItem, duration: float = 0.20) -> void:
 	tw.tween_property(node, "modulate:a", 1.0, duration).set_trans(Tween.TRANS_CUBIC)
 
 func _ready() -> void:
+	# Aplica modo de janela/resolução salvos (suporte a todos os monitores)
+	var vcfg := ConfigFile.new()
+	if vcfg.load("user://settings.cfg") == OK and vcfg.has_section("video"):
+		var WorldMapScript := load("res://scripts/WorldMap.gd")
+		WorldMapScript.apply_window_mode(
+			String(vcfg.get_value("video", "mode", "windowed")),
+			int(vcfg.get_value("video", "w", 0)),
+			int(vcfg.get_value("video", "h", 0)))
 	# Roda diagnóstico inicial
 	# Diagnóstico técnico (GPU/FPS) era legado do "hello world" — oculto no jogo final.
 	info_label.visible = false
