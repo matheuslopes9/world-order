@@ -167,6 +167,7 @@ const MONO_FONT := preload("res://fonts/CascadiaMono.ttf")
 
 func _ready() -> void:
 	var t0 := Time.get_ticks_msec()
+	_apply_saved_video_prefs()
 	# TELA DE CARREGAMENTO OPACA: cobre a montagem do mapa (que é feia de
 	# ver) do 1º frame até tudo pronto — sai com fade cinematográfico.
 	_show_loading_screen()
@@ -2070,85 +2071,247 @@ static func apply_window_mode(mode: String, w: int = 0, h: int = 0) -> void:
 	cfg.save("user://settings.cfg")
 
 func _show_options_modal() -> void:
-	# Conteúdo do modal de opções (montado num VBox novo, depois passado pro _open_modal)
+	# Modal de OPÇÕES em 4 abas (Jogo · Vídeo · Áudio · Sistema).
+	# Cada aba é um ScrollContainer com um VBox — organização limpa.
+	var modal_ref: Array = [null]
+	var tabs := TabContainer.new()
+	tabs.custom_minimum_size = Vector2(540, 560)
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.add_child(_build_tab_jogo(modal_ref))
+	tabs.add_child(_build_tab_video())
+	tabs.add_child(_build_tab_audio())
+	tabs.add_child(_build_tab_sistema(modal_ref))
+	tabs.set_tab_title(0, "🎮 Jogo")
+	tabs.set_tab_title(1, "🖥 Vídeo")
+	tabs.set_tab_title(2, "🔊 Áudio")
+	tabs.set_tab_title(3, "⚙ Sistema")
+	modal_ref[0] = _open_modal(tabs, "⚙ OPÇÕES", Vector2(560, 620))
+
+# Container-padrão de uma aba: ScrollContainer > VBox (retorna o VBox p/ encher)
+func _new_options_tab(tab_name: String) -> ScrollContainer:
+	var sc := ScrollContainer.new()
+	sc.name = tab_name
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 12)
-	v.mouse_filter = Control.MOUSE_FILTER_PASS
-	# ── VÍDEO: modo de janela + resolução (suporte a todos os monitores) ──
-	var vid_title := Label.new()
-	vid_title.text = "■ VÍDEO"
-	vid_title.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
-	vid_title.add_theme_font_size_override("font_size", 11)
-	v.add_child(vid_title)
-	var vid_row := HBoxContainer.new()
-	vid_row.add_theme_constant_override("separation", 8)
-	v.add_child(vid_row)
-	var cfg_v := ConfigFile.new()
-	cfg_v.load("user://settings.cfg")
-	var cur_mode: String = String(cfg_v.get_value("video", "mode", "windowed"))
-	var mode_btns: Array = []
-	for m in [["windowed", "🪟 Janela"], ["fullscreen", "🖥 Tela Cheia"], ["borderless", "⬜ Sem Bordas"]]:
-		var mb := Button.new()
-		mb.text = m[1]
-		mb.toggle_mode = true
-		mb.button_pressed = (m[0] == cur_mode)
-		mb.set_meta("mode_id", m[0])
-		mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		mb.custom_minimum_size = Vector2(0, 36)
-		mb.add_theme_font_size_override("font_size", 12)
-		var mid: String = m[0]
-		mb.pressed.connect(func():
-			apply_window_mode(mid)
-			for other in mode_btns:
-				other.button_pressed = (other.get_meta("mode_id") == mid))
-		vid_row.add_child(mb)
-		mode_btns.append(mb)
-	var res_row := HBoxContainer.new()
-	res_row.add_theme_constant_override("separation", 8)
-	v.add_child(res_row)
-	var res_lbl := Label.new()
-	res_lbl.text = "Resolução (modo janela):"
-	res_lbl.add_theme_font_size_override("font_size", 11)
-	res_lbl.add_theme_color_override("font_color", Color(0.62, 0.62, 0.65))
-	res_row.add_child(res_lbl)
-	var res_dd := OptionButton.new()
-	res_dd.custom_minimum_size = Vector2(180, 34)
-	var resolutions := [[1280, 720], [1366, 768], [1600, 900], [1920, 1080], [2560, 1440], [3440, 1440], [3840, 2160]]
-	var cur_w: int = int(cfg_v.get_value("video", "w", 1600))
-	var sel_idx: int = 2
-	for ri in resolutions.size():
-		res_dd.add_item("%d × %d" % [resolutions[ri][0], resolutions[ri][1]])
-		if resolutions[ri][0] == cur_w:
-			sel_idx = ri
-	res_dd.select(sel_idx)
-	res_dd.item_selected.connect(func(idx: int):
-		apply_window_mode("windowed", resolutions[idx][0], resolutions[idx][1])
-		for other in mode_btns:
-			other.button_pressed = (other.get_meta("mode_id") == "windowed"))
-	res_row.add_child(res_dd)
-	v.add_child(HSeparator.new())
-	# Info da sessão
+	v.name = "V"
+	v.add_theme_constant_override("separation", 10)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.custom_minimum_size = Vector2(500, 0)
+	sc.add_child(v)
+	return sc
+
+# Título de seção dentro de uma aba (dourado)
+func _opt_section(v: VBoxContainer, texto: String) -> void:
+	var l := Label.new()
+	l.text = "■ " + texto
+	l.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
+	l.add_theme_font_size_override("font_size", 11)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(l)
+
+# Slider rotulado 0-100% (para volumes / brilho). on_change recebe 0..1.
+func _opt_slider(v: VBoxContainer, label: String, valor: float, on_change: Callable) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var lbl := Label.new()
+	lbl.text = label
+	lbl.add_theme_color_override("font_color", Color(0.75, 0.80, 0.88))
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.custom_minimum_size = Vector2(90, 0)
+	row.add_child(lbl)
+	var sl := HSlider.new()
+	sl.min_value = 0.0
+	sl.max_value = 1.0
+	sl.step = 0.05
+	sl.value = valor
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(sl)
+	var pct := Label.new()
+	pct.text = "%d%%" % int(valor * 100.0)
+	pct.add_theme_color_override("font_color", Color(0.88, 0.72, 0.34))
+	pct.add_theme_font_size_override("font_size", 11)
+	pct.custom_minimum_size = Vector2(42, 0)
+	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(pct)
+	sl.value_changed.connect(func(nv: float):
+		pct.text = "%d%%" % int(nv * 100.0)
+		on_change.call(nv))
+	v.add_child(row)
+
+# Linha de botões-toggle mutuamente exclusivos. options = Array[[label, id]].
+func _opt_toggle_row(v: VBoxContainer, options: Array, atual: String, on_pick: Callable) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	for opt in options:
+		var btn := _make_modal_toggle(String(opt[0]), String(opt[1]) == atual)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.add_theme_font_size_override("font_size", 11)
+		btn.set_meta("opt_id", String(opt[1]))
+		var oid: String = String(opt[1])
+		btn.pressed.connect(func():
+			for c in row.get_children():
+				if c is Button:
+					c.button_pressed = (c.get_meta("opt_id", "") == oid)
+			on_pick.call(oid))
+		row.add_child(btn)
+	v.add_child(row)
+
+# ── ABA: JOGO ──
+func _build_tab_jogo(modal_ref: Array) -> ScrollContainer:
+	var sc := _new_options_tab("Jogo")
+	var v: VBoxContainer = sc.get_node("V")
 	if GameEngine.player_nation:
 		var info := Label.new()
 		var quarters := ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"]
 		info.text = "🌍 %s  ·  %s %d  ·  TURNO %d  ·  DEFCON %d" % [
-			GameEngine.player_nation.nome,
-			quarters[GameEngine.date_month - 1],
-			GameEngine.date_year,
-			GameEngine.current_turn,
-			GameEngine.defcon
-		]
+			GameEngine.player_nation.nome, quarters[GameEngine.date_month - 1],
+			GameEngine.date_year, GameEngine.current_turn, GameEngine.defcon]
 		info.add_theme_color_override("font_color", Color(0.55, 0.75, 0.92))
 		info.add_theme_font_size_override("font_size", 12)
 		info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(info)
-	var spacer1 := Control.new()
-	spacer1.custom_minimum_size = Vector2(0, 4)
-	v.add_child(spacer1)
-	# Capturamos o handle do modal pra poder fechá-lo de dentro dos callbacks
-	var modal_ref: Array = [null]
-	# Save / Load
+		v.add_child(HSeparator.new())
+	_opt_section(v, "DIFICULDADE")
+	_opt_toggle_row(v, [["Fácil", "easy"], ["Normal", "normal"], ["Difícil", "hard"], ["Brutal", "brutal"]],
+		String(GameEngine.settings.get("difficulty", "normal")),
+		func(id): GameEngine.settings["difficulty"] = id)
+	_opt_section(v, "VELOCIDADE DA IA")
+	_opt_toggle_row(v, [["4 ações", "4"], ["8 ações", "8"], ["15 ações", "15"]],
+		str(int(GameEngine.settings.get("ai_speed", 8))),
+		func(id): GameEngine.settings["ai_speed"] = int(id))
+	v.add_child(HSeparator.new())
+	_opt_section(v, "MODO ESPECTADOR (BOT IA)")
+	var bot_hint := Label.new()
+	bot_hint.text = "O bot assume o controle e joga em tempo real enquanto você assiste."
+	bot_hint.add_theme_color_override("font_color", Color(0.55, 0.7, 0.85))
+	bot_hint.add_theme_font_size_override("font_size", 10)
+	bot_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	bot_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(bot_hint)
+	var persona_val: Array = ["balanced"]
+	_opt_toggle_row(v, [["⚖ Balanceado", "balanced"], ["💰 Econômico", "economic"], ["⚔ Militar", "military"], ["🤝 Diplomata", "diplomat"]],
+		"balanced", func(id): persona_val[0] = id)
+	var speed_val: Array = [2.0]
+	var speed_row := HBoxContainer.new()
+	speed_row.add_theme_constant_override("separation", 5)
+	for pair in [["🐢 Lento", 4.0], ["▶ Normal", 2.0], ["⚡ Rápido", 0.8]]:
+		var spd: float = float(pair[1])
+		var sbtn := _make_modal_toggle(String(pair[0]), spd == 2.0)
+		sbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sbtn.add_theme_font_size_override("font_size", 10)
+		sbtn.set_meta("spd", spd)
+		sbtn.pressed.connect(func():
+			speed_val[0] = spd
+			for c in speed_row.get_children():
+				if c is Button: c.button_pressed = (absf(float(c.get_meta("spd", 0.0)) - spd) < 0.01))
+		speed_row.add_child(sbtn)
+	v.add_child(speed_row)
+	var is_bot_running: bool = bot_player != null
+	var bot_toggle := _make_modal_button("⏹ PARAR BOT" if is_bot_running else "🤖 INICIAR BOT IA", not is_bot_running)
+	bot_toggle.custom_minimum_size = Vector2(0, 42)
+	if is_bot_running: bot_toggle.modulate = Color(1, 0.6, 0.6)
+	bot_toggle.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		if bot_player != null:
+			stop_bot_mode()
+		else:
+			start_bot_mode(persona_val[0], speed_val[0]))
+	v.add_child(bot_toggle)
+	var btn_history := _make_modal_button("📜 HISTÓRICO DE DECISÕES", false)
+	btn_history.custom_minimum_size = Vector2(0, 38)
+	btn_history.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_open_decisions_history_modal())
+	v.add_child(btn_history)
+	return sc
+
+# ── ABA: VÍDEO ──
+func _build_tab_video() -> ScrollContainer:
+	var sc := _new_options_tab("Vídeo")
+	var v: VBoxContainer = sc.get_node("V")
+	var cfg := ConfigFile.new()
+	cfg.load("user://settings.cfg")
+	_opt_section(v, "MODO DE JANELA")
+	var cur_mode: String = String(cfg.get_value("video", "mode", "windowed"))
+	_opt_toggle_row(v, [["🪟 Janela", "windowed"], ["🖥 Tela Cheia", "fullscreen"], ["⬜ Sem Bordas", "borderless"]],
+		cur_mode, func(id): apply_window_mode(id))
+	_opt_section(v, "RESOLUÇÃO (modo janela)")
+	var res_dd := OptionButton.new()
+	res_dd.custom_minimum_size = Vector2(200, 34)
+	var resolutions := [[1280, 720], [1366, 768], [1600, 900], [1920, 1080], [2560, 1440], [3440, 1440], [3840, 2160]]
+	var cur_w: int = int(cfg.get_value("video", "w", 1600))
+	var sel_idx: int = 2
+	for ri in resolutions.size():
+		res_dd.add_item("%d × %d" % [resolutions[ri][0], resolutions[ri][1]])
+		if resolutions[ri][0] == cur_w: sel_idx = ri
+	res_dd.select(sel_idx)
+	res_dd.item_selected.connect(func(idx: int):
+		apply_window_mode("windowed", resolutions[idx][0], resolutions[idx][1]))
+	v.add_child(res_dd)
+	_opt_section(v, "VSYNC")
+	var vsync_on: bool = bool(cfg.get_value("video", "vsync", true))
+	_opt_toggle_row(v, [["Ligado", "on"], ["Desligado", "off"]], "on" if vsync_on else "off",
+		func(id): _apply_vsync(id == "on"))
+	_opt_section(v, "LIMITE DE FPS")
+	var cur_fps: int = int(cfg.get_value("video", "fps", 0))
+	_opt_toggle_row(v, [["30", "30"], ["60", "60"], ["120", "120"], ["∞", "0"]], str(cur_fps),
+		func(id): _apply_fps_limit(int(id)))
+	_opt_section(v, "BRILHO DO MAPA")
+	var cur_bri: float = float(cfg.get_value("video", "map_brightness", 1.38))
+	_opt_slider(v, "Brilho", clampf((cur_bri - 0.6) / 1.4, 0.0, 1.0), func(nv):
+		_apply_map_brightness(0.6 + nv * 1.4))
+	v.add_child(HSeparator.new())
+	_opt_section(v, "ACESSIBILIDADE")
+	var cb_btn := _make_modal_toggle("👁 Modo Daltonismo (verm/verde → azul/laranja)", Accessibility.colorblind_mode)
+	cb_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cb_btn.add_theme_font_size_override("font_size", 11)
+	cb_btn.pressed.connect(func():
+		Accessibility.set_colorblind(not Accessibility.colorblind_mode)
+		cb_btn.button_pressed = Accessibility.colorblind_mode)
+	v.add_child(cb_btn)
+	var font_lbl := Label.new()
+	font_lbl.text = "Tamanho da fonte:"
+	font_lbl.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
+	font_lbl.add_theme_font_size_override("font_size", 10)
+	font_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(font_lbl)
+	_opt_toggle_row(v, [["Pequena", "-2"], ["Normal", "0"], ["Grande", "2"], ["Muito Grande", "4"]],
+		str(Accessibility.font_size_delta), func(id): Accessibility.set_font_delta(int(id)))
+	return sc
+
+# ── ABA: ÁUDIO ──
+func _build_tab_audio() -> ScrollContainer:
+	var sc := _new_options_tab("Áudio")
+	var v: VBoxContainer = sc.get_node("V")
+	_opt_section(v, "VOLUME")
+	_opt_slider(v, "Música", AudioManager.music_volume, func(nv): AudioManager.set_music_volume(nv))
+	_opt_slider(v, "Efeitos", AudioManager.sfx_volume, func(nv): AudioManager.set_sfx_volume(nv))
+	v.add_child(HSeparator.new())
+	var mute_btn := _make_modal_toggle("🔇 Mudo geral", AudioManager.muted)
+	mute_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mute_btn.add_theme_font_size_override("font_size", 12)
+	mute_btn.pressed.connect(func():
+		AudioManager.set_muted(not AudioManager.muted)
+		mute_btn.button_pressed = AudioManager.muted)
+	v.add_child(mute_btn)
+	var hint := Label.new()
+	hint.text = "As configurações de áudio são salvas automaticamente."
+	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.62))
+	hint.add_theme_font_size_override("font_size", 10)
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(hint)
+	return sc
+
+# ── ABA: SISTEMA (salvar / carregar / sair) ──
+func _build_tab_sistema(modal_ref: Array) -> ScrollContainer:
+	var sc := _new_options_tab("Sistema")
+	var v: VBoxContainer = sc.get_node("V")
 	var SaveSys = preload("res://scripts/SaveSystem.gd")
+	_opt_section(v, "PROGRESSO")
 	var btn_save := _make_modal_button("💾 SALVAR PROGRESSO", true)
 	btn_save.custom_minimum_size = Vector2(0, 46)
 	btn_save.disabled = (GameEngine.player_nation == null)
@@ -2168,182 +2331,87 @@ func _show_options_modal() -> void:
 			_log_ticker("⚠ LOAD", "Falha ao carregar save", Color(1, 0.4, 0.4))
 			_close_modal(modal_ref[0]))
 	v.add_child(btn_load)
-	# Settings: dificuldade
 	v.add_child(HSeparator.new())
-	var settings_lbl := Label.new()
-	settings_lbl.text = "◆ DIFICULDADE"
-	settings_lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.9))
-	settings_lbl.add_theme_font_size_override("font_size", 11)
-	settings_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(settings_lbl)
-	var diff_row := HBoxContainer.new()
-	diff_row.add_theme_constant_override("separation", 6)
-	for d in ["easy", "normal", "hard", "brutal"]:
-		var btn := _make_modal_toggle(d.capitalize(), d == GameEngine.settings.get("difficulty", "normal"))
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.pressed.connect(func():
-			GameEngine.settings["difficulty"] = d
-			for c in diff_row.get_children():
-				if c is Button:
-					c.button_pressed = (c.text.to_lower() == d))
-		diff_row.add_child(btn)
-	v.add_child(diff_row)
-	# Settings: velocidade IA
-	var ai_lbl := Label.new()
-	ai_lbl.text = "◆ VELOCIDADE IA"
-	ai_lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.9))
-	ai_lbl.add_theme_font_size_override("font_size", 11)
-	ai_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(ai_lbl)
-	var ai_row := HBoxContainer.new()
-	ai_row.add_theme_constant_override("separation", 6)
-	for ai_speed in [4, 8, 15]:
-		var btn := _make_modal_toggle("%d ações" % ai_speed, ai_speed == int(GameEngine.settings.get("ai_speed", 8)))
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.pressed.connect(func():
-			GameEngine.settings["ai_speed"] = ai_speed
-			for c in ai_row.get_children():
-				if c is Button:
-					c.button_pressed = (c.text.begins_with("%d" % ai_speed)))
-		ai_row.add_child(btn)
-	v.add_child(ai_row)
-	# Acessibilidade
+	_opt_section(v, "PREFERÊNCIAS")
+	var cfg := ConfigFile.new()
+	cfg.load("user://settings.cfg")
+	var confirm_exit: bool = bool(cfg.get_value("game", "confirm_exit", true))
+	var ce_btn := _make_modal_toggle("⚠ Confirmar antes de sair", confirm_exit)
+	ce_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ce_btn.add_theme_font_size_override("font_size", 11)
+	ce_btn.pressed.connect(func():
+		var c2 := ConfigFile.new()
+		c2.load("user://settings.cfg")
+		c2.set_value("game", "confirm_exit", ce_btn.button_pressed)
+		c2.save("user://settings.cfg"))
+	v.add_child(ce_btn)
 	v.add_child(HSeparator.new())
-	var a11y_lbl := Label.new()
-	a11y_lbl.text = "◆ ACESSIBILIDADE"
-	a11y_lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.9))
-	a11y_lbl.add_theme_font_size_override("font_size", 11)
-	a11y_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(a11y_lbl)
-	# Daltonismo toggle
-	var cb_btn := _make_modal_toggle("👁 Modo Daltonismo (vermelho/verde → azul/laranja)", Accessibility.colorblind_mode)
-	cb_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cb_btn.pressed.connect(func():
-		Accessibility.set_colorblind(not Accessibility.colorblind_mode)
-		cb_btn.button_pressed = Accessibility.colorblind_mode)
-	v.add_child(cb_btn)
-	# Tamanho de fonte
-	var font_lbl := Label.new()
-	font_lbl.text = "◆ TAMANHO DA FONTE"
-	font_lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.9))
-	font_lbl.add_theme_font_size_override("font_size", 11)
-	font_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(font_lbl)
-	var font_row := HBoxContainer.new()
-	font_row.add_theme_constant_override("separation", 6)
-	var font_options := [{"label": "Pequena", "delta": -2}, {"label": "Normal", "delta": 0}, {"label": "Grande", "delta": 2}, {"label": "Muito Grande", "delta": 4}]
-	for opt in font_options:
-		var d_val: int = int(opt["delta"])
-		var fbtn := _make_modal_toggle(String(opt["label"]), d_val == Accessibility.font_size_delta)
-		fbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		fbtn.pressed.connect(func():
-			Accessibility.set_font_delta(d_val)
-			for c in font_row.get_children():
-				if c is Button:
-					c.button_pressed = (c.text == String(opt["label"]))
-			_log_ticker("✓ ACESSIBILIDADE", "Tamanho de fonte alterado — reabra menus para aplicar", Color(0.4, 1, 0.6)))
-		font_row.add_child(fbtn)
-	v.add_child(font_row)
-	# Histórico de decisões
-	v.add_child(HSeparator.new())
-	# ── BOT IA ──
-	v.add_child(HSeparator.new())
-	var bot_lbl := Label.new()
-	bot_lbl.text = "◆ MODO ESPECTADOR (BOT IA)"
-	bot_lbl.add_theme_color_override("font_color", Color(0.4, 0.85, 1, 0.9))
-	bot_lbl.add_theme_font_size_override("font_size", 11)
-	bot_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(bot_lbl)
-	var bot_hint := Label.new()
-	bot_hint.text = "O bot assume o controle e joga em tempo real enquanto você assiste."
-	bot_hint.add_theme_color_override("font_color", Color(0.55, 0.7, 0.85))
-	bot_hint.add_theme_font_size_override("font_size", 10)
-	bot_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	bot_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(bot_hint)
-	# Seletor de personalidade
-	var persona_row := HBoxContainer.new()
-	persona_row.add_theme_constant_override("separation", 5)
-	var personas := [["⚖ Balanceado", "balanced"], ["💰 Econômico", "economic"], ["⚔ Militar", "military"], ["🤝 Diplomata", "diplomat"]]
-	for pair in personas:
-		var pbtn := _make_modal_toggle(String(pair[0]), false)
-		pbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pbtn.add_theme_font_size_override("font_size", 10)
-		pbtn.set_meta("persona", String(pair[1]))
-		pbtn.pressed.connect(func():
-			for c in persona_row.get_children():
-				if c is Button: c.button_pressed = (c.get_meta("persona", "") == pbtn.get_meta("persona", "x")))
-		persona_row.add_child(pbtn)
-	# Seleciona primeiro por padrão
-	if persona_row.get_child_count() > 0:
-		(persona_row.get_child(0) as Button).button_pressed = true
-	v.add_child(persona_row)
-	# Seletor de velocidade do bot
-	var speed_lbl := Label.new()
-	speed_lbl.text = "Velocidade:"
-	speed_lbl.add_theme_color_override("font_color", Color(0.55, 0.7, 0.85))
-	speed_lbl.add_theme_font_size_override("font_size", 10)
-	speed_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(speed_lbl)
-	var speed_row := HBoxContainer.new()
-	speed_row.add_theme_constant_override("separation", 5)
-	var speeds := [["🐢 Lento (4s)", 4.0], ["▶ Normal (2s)", 2.0], ["⚡ Rápido (0.8s)", 0.8]]
-	var speed_val: Array = [2.0]
-	for pair2 in speeds:
-		var spd: float = float(pair2[1])
-		var sbtn := _make_modal_toggle(String(pair2[0]), spd == 2.0)
-		sbtn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		sbtn.add_theme_font_size_override("font_size", 10)
-		sbtn.pressed.connect(func():
-			speed_val[0] = spd
-			for c in speed_row.get_children():
-				if c is Button: c.button_pressed = (absf(float(c.get_meta("spd", 0.0)) - spd) < 0.01))
-		sbtn.set_meta("spd", spd)
-		speed_row.add_child(sbtn)
-	v.add_child(speed_row)
-	# Botão iniciar/parar bot
-	var is_bot_running: bool = bot_player != null
-	var bot_toggle := _make_modal_button(
-		"⏹ PARAR BOT" if is_bot_running else "🤖 INICIAR BOT IA",
-		not is_bot_running)
-	bot_toggle.custom_minimum_size = Vector2(0, 44)
-	if is_bot_running:
-		bot_toggle.modulate = Color(1, 0.6, 0.6)
-	bot_toggle.pressed.connect(func():
-		_close_modal(modal_ref[0])
-		if bot_player != null:
-			stop_bot_mode()
-		else:
-			# Descobre personalidade selecionada
-			var chosen_persona: String = "balanced"
-			for c in persona_row.get_children():
-				if c is Button and (c as Button).button_pressed:
-					chosen_persona = String(c.get_meta("persona", "balanced"))
-					break
-			start_bot_mode(chosen_persona, speed_val[0]))
-	v.add_child(bot_toggle)
-	# Histórico de decisões
-	var btn_history := _make_modal_button("📜 HISTÓRICO DE DECISÕES", false)
-	btn_history.custom_minimum_size = Vector2(0, 40)
-	btn_history.pressed.connect(func():
-		_close_modal(modal_ref[0])
-		_open_decisions_history_modal())
-	v.add_child(btn_history)
-	# Sair (com confirmação — perde progresso não salvo)
+	_opt_section(v, "SAIR")
 	var btn_quit := _make_modal_button("🏠 SAIR PARA MENU PRINCIPAL", false)
-	btn_quit.custom_minimum_size = Vector2(0, 40)
+	btn_quit.custom_minimum_size = Vector2(0, 42)
 	btn_quit.pressed.connect(func():
 		_close_modal(modal_ref[0])
-		_show_confirmation_modal(
-			"🏠 SAIR PARA O MENU",
-			"Tem certeza que quer sair? Progresso desde o último save será perdido.\n\nUse 'Salvar Jogo' antes se quer manter sua partida.",
-			func():
-				_show_spinner("Voltando ao menu…")
-				await get_tree().process_frame
-				get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")))
+		var cfg2 := ConfigFile.new()
+		cfg2.load("user://settings.cfg")
+		if bool(cfg2.get_value("game", "confirm_exit", true)):
+			_show_confirmation_modal("🏠 SAIR PARA O MENU",
+				"Tem certeza que quer sair? Progresso desde o último save será perdido.",
+				func():
+					_show_spinner("Voltando ao menu…")
+					await get_tree().process_frame
+					get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
+		else:
+			get_tree().change_scene_to_file("res://scenes/MainMenu.tscn"))
 	v.add_child(btn_quit)
-	# Abre como modal central
-	modal_ref[0] = _open_modal(v, "⚙ OPÇÕES DE JOGO", Vector2(520, 640))
+	var btn_exit := _make_modal_button("✕ FECHAR O JOGO", false)
+	btn_exit.custom_minimum_size = Vector2(0, 42)
+	btn_exit.modulate = Color(1, 0.7, 0.7)
+	btn_exit.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_show_confirmation_modal("✕ FECHAR O JOGO",
+			"Tem certeza que quer fechar? Progresso não salvo será perdido.",
+			func(): get_tree().quit()))
+	v.add_child(btn_exit)
+	return sc
+
+# Aplica no boot as preferências de vídeo salvas (VSync/FPS/brilho)
+func _apply_saved_video_prefs() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load("user://settings.cfg") != OK: return
+	DisplayServer.window_set_vsync_mode(
+		DisplayServer.VSYNC_ENABLED if bool(cfg.get_value("video", "vsync", true)) else DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = int(cfg.get_value("video", "fps", 0))
+	var bri: float = float(cfg.get_value("video", "map_brightness", 1.38))
+	var mat := _get_country_terrain_mat()
+	if mat != null:
+		mat.set_shader_parameter("brightness", bri)
+
+# Aplica e persiste VSync
+func _apply_vsync(on: bool) -> void:
+	DisplayServer.window_set_vsync_mode(
+		DisplayServer.VSYNC_ENABLED if on else DisplayServer.VSYNC_DISABLED)
+	var cfg := ConfigFile.new()
+	cfg.load("user://settings.cfg")
+	cfg.set_value("video", "vsync", on)
+	cfg.save("user://settings.cfg")
+
+# Aplica e persiste limite de FPS (0 = ilimitado)
+func _apply_fps_limit(fps: int) -> void:
+	Engine.max_fps = fps
+	var cfg := ConfigFile.new()
+	cfg.load("user://settings.cfg")
+	cfg.set_value("video", "fps", fps)
+	cfg.save("user://settings.cfg")
+
+# Aplica e persiste brilho do mapa (nos uniforms do shader de terreno)
+func _apply_map_brightness(bri: float) -> void:
+	var mat := _get_country_terrain_mat()
+	if mat != null:
+		mat.set_shader_parameter("brightness", bri)
+	var cfg := ConfigFile.new()
+	cfg.load("user://settings.cfg")
+	cfg.set_value("video", "map_brightness", bri)
+	cfg.save("user://settings.cfg")
 
 # Modal: histórico de decisões + estatísticas de divergência
 func _open_decisions_history_modal() -> void:
