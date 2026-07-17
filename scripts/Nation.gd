@@ -90,10 +90,70 @@ var ministerios: Dictionary = {}
 # Filas de pesquisa PARALELAS: pasta -> { id, progresso, tempo_total } (ou ausente)
 var pesquisa_por_ministerio: Dictionary = {}
 
+# Nomes de ministro por região (primeiro nome). Sobrenome reusa a lista do jogo.
+const MIN_FIRST_NAMES := [
+	"Ana", "Carlos", "Maria", "João", "Sofia", "Luís", "Elena", "Rafael",
+	"Yuki", "Omar", "Fatima", "Viktor", "Ingrid", "Kwame", "Priya", "Diego",
+	"Nadia", "Hassan", "Clara", "Tomás", "Amara", "Lars", "Mei", "Pavel",
+]
+const MIN_SURNAMES := [
+	"Silva", "Kane", "Moretti", "Adler", "Novak", "Reyes", "Haddad", "Okoro",
+	"Tanaka", "Ilić", "Andersson", "Costa", "Volkov", "Mensah", "Larsen",
+	"Farah", "Petrov", "Duarte", "Nasser", "Weber", "Rossi", "Nakamura",
+]
+
 func _init_ministerios() -> void:
 	ministerios.clear()
 	for m in MINISTERIOS:
-		ministerios[m] = {"nivel": 1, "xp": 0.0, "verba": 0.0}
+		ministerios[m] = _new_minister()
+
+## Cria um ministro novo: nome, idade, competência (0-100) e feitos zerados.
+## Competência alta = ações da pasta rendem mais e crises resolvem melhor.
+func _new_minister() -> Dictionary:
+	var nome: String = "%s %s" % [
+		MIN_FIRST_NAMES[randi() % MIN_FIRST_NAMES.size()],
+		MIN_SURNAMES[randi() % MIN_SURNAMES.size()]]
+	return {
+		"nivel": 1, "xp": 0.0, "verba": 0.0,
+		"nome": nome,
+		"idade": 42 + randi() % 26,          # 42-67 anos
+		"competencia": 45 + randi() % 45,     # 45-89
+		"feitos_bons": [],                    # Array<String>
+		"feitos_ruins": [],                   # Array<String>
+		"desde_turno": 0,
+	}
+
+## Nome do ministro de uma pasta (fallback "—")
+func minister_name(pasta: String) -> String:
+	return String(ministerios.get(pasta, {}).get("nome", "—"))
+
+## Competência do ministro (0-100). Afeta força de ação e chance de feitos.
+func minister_competence(pasta: String) -> int:
+	return int(ministerios.get(pasta, {}).get("competencia", 50))
+
+## Demite o ministro e nomeia um substituto novo. Custa estabilidade
+## (rotatividade abala o governo) e reseta o XP acumulado da pasta.
+func fire_minister(pasta: String) -> Dictionary:
+	if not ministerios.has(pasta):
+		return {"ok": false, "reason": "Pasta inexistente"}
+	var antigo: String = minister_name(pasta)
+	var novo := _new_minister()
+	# Mantém o nível/verba da pasta (a instituição), troca a PESSOA e o XP
+	novo["nivel"] = ministerios[pasta].get("nivel", 1)
+	novo["verba"] = ministerios[pasta].get("verba", 0.0)
+	ministerios[pasta] = novo
+	estabilidade_politica = maxf(0.0, estabilidade_politica - 3.0)
+	return {"ok": true, "antigo": antigo, "novo": novo["nome"], "competencia": novo["competencia"]}
+
+## Registra um feito (bom/ruim) do ministro — chamado pelo engine em eventos.
+func minister_deed(pasta: String, texto: String, bom: bool) -> void:
+	if not ministerios.has(pasta): return
+	var chave: String = "feitos_bons" if bom else "feitos_ruins"
+	var lista: Array = ministerios[pasta].get(chave, [])
+	lista.append(texto)
+	if lista.size() > 3:  # guarda só os 3 mais recentes
+		lista = lista.slice(lista.size() - 3)
+	ministerios[pasta][chave] = lista
 
 ## Nível atual (1-5) de uma pasta.
 func ministry_level(pasta: String) -> int:
@@ -117,6 +177,11 @@ func add_ministry_xp(pasta: String, x: float) -> bool:
 		nv += 1
 		subiu = true
 	d["nivel"] = nv
+	if subiu:
+		# Feito bom: promoção do ministério é mérito do ministro
+		minister_deed(pasta, "Elevou o ministério ao nível %d" % nv, true)
+		# E o ministro ganha experiência/competência com o tempo no cargo
+		d["competencia"] = mini(100, int(d.get("competencia", 50)) + 4)
 	return subiu
 
 ## Quantas trilhas de pesquisa simultâneas — desbloqueadas pelo nível da Casa Civil.

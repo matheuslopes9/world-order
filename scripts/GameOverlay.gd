@@ -205,20 +205,17 @@ func _render_gabinete() -> void:
 	_add_advisor_header("presidente", "GABINETE PRESIDENCIAL",
 		"Seu governo, Presidente. Cada ministério cresce com investimento — e mais ministérios pesquisam em paralelo.",
 		"neutro", Color(0.4, 0.8, 1))
-	_add_section_title("MINISTÉRIOS  ·  %d trilhas em paralelo" % n.research_slots())
-	# Grid 2 colunas — a "mesa de gabinete"
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel_content.add_child(grid)
+	_add_section_title("GABINETE  ·  %d trilhas de pesquisa em paralelo" % n.research_slots())
+	# 1 coluna: cada ministro num dossiê largo (pessoa + pasta + feitos + ação)
 	for m in snap:
-		grid.add_child(_make_minister_card(m))
-	_add_separator()
-	_add_hint_label("💡 Clique num ministério na barra inferior para agir nele. Suba o nível da Casa Civil para liberar mais trilhas de pesquisa paralelas.")
+		panel_content.add_child(_make_minister_card(m))
+		var sp := Control.new()
+		sp.custom_minimum_size = Vector2(0, 6)
+		panel_content.add_child(sp)
+	_add_hint_label("💡 Clique num ministério na barra inferior para agir nele. Demitir custa 1 ação e abala a estabilidade — mas um ministro melhor rende mais.")
 
-## Cartão temático de um ministro: cor própria, retrato + nível + XP + pesquisa.
+## Dossiê de um ministro: pessoa (nome/idade/competência) + pasta (nível/XP/
+## pesquisa) + feitos recentes + botão de demitir/nomear.
 func _make_minister_card(m: Dictionary) -> Control:
 	var pasta: String = String(m.get("pasta", ""))
 	var panel_id: String = PASTA_TO_PANEL.get(pasta, "gabinete")
@@ -226,64 +223,89 @@ func _make_minister_card(m: Dictionary) -> Control:
 	var box := PanelContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var sb := _make_card_style(accent, 0.55)
-	sb.border_width_top = 2  # faixa de cor no topo do cartão
+	sb.border_width_left = 3
 	box.add_theme_stylebox_override("panel", sb)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 5)
 	box.add_child(col)
-	# Cabeçalho: retrato + nome + ícone do ministério
+
+	# ── LINHA 1: retrato + [pasta / nome+idade / competência] + estrelas ──
 	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 8)
+	head.add_theme_constant_override("separation", 10)
 	col.add_child(head)
-	var pv := PortraitView.make(GameEngine.player_nation.codigo_iso, String(m["role"]), "neutro", 46.0)
-	pv.custom_minimum_size = Vector2(46, 55)
+	var pv := PortraitView.make(GameEngine.player_nation.codigo_iso, String(m["role"]), "neutro", 54.0)
+	pv.custom_minimum_size = Vector2(54, 65)
 	pv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(pv)
-	var titcol := VBoxContainer.new()
-	titcol.add_theme_constant_override("separation", 1)
-	titcol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	titcol.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	head.add_child(titcol)
-	var ico_row := HBoxContainer.new()
-	ico_row.add_theme_constant_override("separation", 4)
+	var idcol := VBoxContainer.new()
+	idcol.add_theme_constant_override("separation", 1)
+	idcol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	idcol.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(idcol)
+	# Cargo (com ícone) + estrelas de nível na mesma linha
+	var cargo_row := HBoxContainer.new()
+	cargo_row.add_theme_constant_override("separation", 5)
 	var ico := make_ministry_icon(panel_id, 15.0)
 	ico.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	ico_row.add_child(ico)
-	var title := Label.new()
-	title.text = String(m["nome"])
-	title.add_theme_color_override("font_color", Color(0.95, 0.97, 1))
-	title.add_theme_font_size_override("font_size", 12)
-	title.clip_text = true
-	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ico_row.add_child(title)
-	titcol.add_child(ico_row)
+	cargo_row.add_child(ico)
+	var cargo := Label.new()
+	cargo.text = String(m["nome"])  # nome da PASTA (ex: Fazenda)
+	cargo.add_theme_color_override("font_color", accent)
+	cargo.add_theme_font_size_override("font_size", 11)
+	cargo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cargo_row.add_child(cargo)
 	var nv: int = int(m["nivel"])
 	var stars := Label.new()
 	stars.text = "★".repeat(nv) + "☆".repeat(5 - nv)
 	stars.add_theme_color_override("font_color", accent)
 	stars.add_theme_font_size_override("font_size", 11)
-	titcol.add_child(stars)
-	# Barra de XP estilizada (nível → próximo)
-	var bar := ProgressBar.new()
-	bar.custom_minimum_size = Vector2(0, 8)
-	bar.max_value = 100.0
-	bar.value = float(m["xp_pct"])
-	bar.show_percentage = false
-	var bar_bg := StyleBoxFlat.new()
-	bar_bg.bg_color = Color(0.02, 0.03, 0.045, 1)
-	bar_bg.set_corner_radius_all(4)
-	bar.add_theme_stylebox_override("background", bar_bg)
-	var bar_fill := StyleBoxFlat.new()
-	bar_fill.bg_color = accent
-	bar_fill.set_corner_radius_all(4)
-	bar.add_theme_stylebox_override("fill", bar_fill)
-	col.add_child(bar)
-	# Pesquisa ativa (ou verba/ocioso)
+	cargo_row.add_child(stars)
+	idcol.add_child(cargo_row)
+	# Nome da PESSOA + idade
+	var pessoa := Label.new()
+	pessoa.text = "%s · %d anos" % [String(m.get("ministro", "—")), int(m.get("idade", 50))]
+	pessoa.add_theme_color_override("font_color", Color(0.95, 0.97, 1))
+	pessoa.add_theme_font_size_override("font_size", 13)
+	pessoa.clip_text = true
+	pessoa.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	idcol.add_child(pessoa)
+	# Competência (barra fina)
+	var comp: int = int(m.get("competencia", 50))
+	var comp_row := HBoxContainer.new()
+	comp_row.add_theme_constant_override("separation", 6)
+	var comp_lbl := Label.new()
+	comp_lbl.text = "Competência"
+	comp_lbl.add_theme_color_override("font_color", Color(0.55, 0.62, 0.72))
+	comp_lbl.add_theme_font_size_override("font_size", 9)
+	comp_row.add_child(comp_lbl)
+	var comp_bar := ProgressBar.new()
+	comp_bar.custom_minimum_size = Vector2(0, 8)
+	comp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	comp_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	comp_bar.max_value = 100.0
+	comp_bar.value = comp
+	comp_bar.show_percentage = false
+	var cb_fill := StyleBoxFlat.new()
+	cb_fill.bg_color = UIStyles.indicator_color(comp)
+	cb_fill.set_corner_radius_all(4)
+	comp_bar.add_theme_stylebox_override("fill", cb_fill)
+	var cb_bg := StyleBoxFlat.new()
+	cb_bg.bg_color = Color(0.02, 0.03, 0.045, 1)
+	cb_bg.set_corner_radius_all(4)
+	comp_bar.add_theme_stylebox_override("background", cb_bg)
+	comp_row.add_child(comp_bar)
+	var comp_val := Label.new()
+	comp_val.text = "%d" % comp
+	comp_val.add_theme_color_override("font_color", UIStyles.indicator_color(comp))
+	comp_val.add_theme_font_size_override("font_size", 10)
+	comp_row.add_child(comp_val)
+	idcol.add_child(comp_row)
+
+	# ── LINHA 2: pesquisa/verba + feitos recentes ──
 	var pesq: Dictionary = m.get("pesquisa", {})
 	var info := Label.new()
 	if not pesq.is_empty():
-		info.text = "🔬 %s · %d%%" % [pesq.get("name", "?"), int(pesq.get("pct", 0))]
+		info.text = "🔬 Pesquisando: %s · %d%%" % [pesq.get("name", "?"), int(pesq.get("pct", 0))]
 		info.add_theme_color_override("font_color", Color(0.6, 0.88, 1))
 	else:
 		var vb: float = float(m.get("verba", 0.0))
@@ -293,7 +315,56 @@ func _make_minister_card(m: Dictionary) -> Control:
 	info.clip_text = true
 	info.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	col.add_child(info)
+	# Feitos recentes (bom em verde, ruim em vermelho)
+	var bons: Array = m.get("feitos_bons", [])
+	var ruins: Array = m.get("feitos_ruins", [])
+	if bons.is_empty() and ruins.is_empty():
+		var nada := Label.new()
+		nada.text = "Sem feitos notáveis ainda."
+		nada.add_theme_color_override("font_color", Color(0.45, 0.50, 0.58))
+		nada.add_theme_font_size_override("font_size", 9)
+		col.add_child(nada)
+	else:
+		for f in bons:
+			col.add_child(_feito_label("✓ " + String(f), Color(0.40, 0.90, 0.55)))
+		for f in ruins:
+			col.add_child(_feito_label("✗ " + String(f), Color(1.0, 0.50, 0.45)))
+
+	# ── LINHA 3: botão demitir/nomear ──
+	var fire := Button.new()
+	fire.text = "🔁 Demitir e nomear substituto  ·  1 ação"
+	fire.add_theme_font_size_override("font_size", 10)
+	fire.custom_minimum_size = Vector2(0, 28)
+	fire.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var fsb := _make_card_style(Color(1.0, 0.55, 0.45), 0.40)
+	fire.add_theme_stylebox_override("normal", fsb)
+	var fsb_h := _make_card_style(Color(1.0, 0.55, 0.45), 0.9)
+	fsb_h.bg_color = Color(0.20, 0.08, 0.07, 0.95)
+	fire.add_theme_stylebox_override("hover", fsb_h)
+	fire.add_theme_stylebox_override("pressed", fsb_h)
+	fire.add_theme_color_override("font_color", Color(1.0, 0.72, 0.66))
+	fire.pressed.connect(_on_fire_minister.bind(pasta))
+	col.add_child(fire)
 	return box
+
+func _feito_label(txt: String, col: Color) -> Label:
+	var l := Label.new()
+	l.text = txt
+	l.add_theme_color_override("font_color", col)
+	l.add_theme_font_size_override("font_size", 9)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
+func _on_fire_minister(pasta: String) -> void:
+	var res: Dictionary = GameEngine.player_fire_minister(pasta)
+	if res.get("ok", false):
+		_log_global_news("🔁 REFORMA MINISTERIAL",
+			"%s substitui %s (competência %d)" % [res["novo"], res["antigo"], int(res.get("competencia", 50))],
+			Color(1, 0.82, 0.3))
+	else:
+		_log_global_news("⚠ NÃO FOI POSSÍVEL", String(res.get("reason", "")), Color(1, 0.6, 0.4))
+	_render_panel("gabinete")
+	_refresh_top_bar_external()
 
 ## PAINEL SAÚDE — Ministro reage à felicidade/população.
 func _render_saude() -> void:

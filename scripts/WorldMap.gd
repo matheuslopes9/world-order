@@ -672,12 +672,14 @@ func _build_legacy_nodes() -> void:
 	nt.text = "—"
 	go_v.add_child(nt)
 	go_v.add_child(HSeparator.new())
+	# PanelTabs mantido no owner (compat com _resolve_widgets/_build_tabs) mas
+	# OCULTO: cada painel já tem seu botão na barra inferior — a fila de tabs
+	# aqui dentro era redundante e desalinhava o topo do modal.
 	var pt := HBoxContainer.new()
 	pt.name = "PanelTabs"
 	pt.unique_name_in_owner = true
-	pt.add_theme_constant_override("separation", 4)
+	pt.visible = false
 	go_v.add_child(pt)
-	go_v.add_child(HSeparator.new())
 	var ps := ScrollContainer.new()
 	ps.name = "PanelScroll"
 	ps.size_flags_vertical = Control.SIZE_EXPAND_FILL

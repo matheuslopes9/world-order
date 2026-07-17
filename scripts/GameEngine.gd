@@ -2455,8 +2455,31 @@ func get_cabinet_snapshot() -> Array:
 			"xp_pct": xp_pct,
 			"verba": float(d.get("verba", 0.0)),
 			"pesquisa": trilhas.get(pasta, {}),
+			# Pessoa por trás da pasta (nome, idade, competência, feitos)
+			"ministro": String(d.get("nome", "—")),
+			"idade": int(d.get("idade", 50)),
+			"competencia": int(d.get("competencia", 50)),
+			"feitos_bons": d.get("feitos_bons", []),
+			"feitos_ruins": d.get("feitos_ruins", []),
 		})
 	return out
+
+# Demite o ministro de uma pasta e nomeia substituto. Consome 1 ação.
+# A rotatividade abala a estabilidade; o novo ministro pode ser melhor ou pior.
+func player_fire_minister(pasta: String) -> Dictionary:
+	if player_nation == null:
+		return {"ok": false, "reason": "Sem nação"}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno"}
+	var res: Dictionary = player_nation.fire_minister(pasta)
+	if res.get("ok", false):
+		_log_news({
+			"type": "cabinet",
+			"headline": "🔁 Reforma ministerial em %s" % player_nation.nome,
+			"body": "%s substitui %s (competência %d/100)." % [res["novo"], res["antigo"], int(res.get("competencia", 50))],
+			"color": Color(1, 0.82, 0.3),
+		}, [player_nation.codigo_iso], player_nation.continente)
+	return res
 
 # Sanções: jogador impõe sanção a uma nação alvo
 # Custa $30B + 1 ação. Aplica -0.5% PIB/turno no alvo por 15 turnos (~1,25 ano).

@@ -240,6 +240,17 @@ static func _deserialize_nations(target: Dictionary, src: Dictionary) -> void:
 		# Migração retrocompatível: saves antigos não têm gabinete
 		if n.ministerios == null or n.ministerios.is_empty():
 			n._init_ministerios()
+		else:
+			# Save com gabinete antigo (só nivel/xp/verba): dá nome/idade/etc
+			# aos ministros sem esses campos, preservando nível e verba.
+			for pasta in n.ministerios:
+				var md = n.ministerios[pasta]
+				if md is Dictionary and not md.has("nome"):
+					var novo = n._new_minister()
+					novo["nivel"] = md.get("nivel", 1)
+					novo["xp"] = md.get("xp", 0.0)
+					novo["verba"] = md.get("verba", 0.0)
+					n.ministerios[pasta] = novo
 		# Save antigo com fila única de pesquisa → migra p/ trilha da Educação
 		if (n.pesquisa_por_ministerio == null or n.pesquisa_por_ministerio.is_empty()) \
 				and n.pesquisa_atual != null and typeof(n.pesquisa_atual) == TYPE_DICTIONARY:
