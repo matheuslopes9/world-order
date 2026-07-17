@@ -1467,51 +1467,82 @@ func _start_spinner_animation() -> void:
 # CARREGAMENTO DE GEOMETRIA
 # ─────────────────────────────────────────────────────────────────
 
-func _load_world_data() -> void:
+# ── CARREGAMENTO EM DUAS FASES (spinner FLUIDO de verdade) ──
+# Fase 1 (Thread em background): ler arquivo + JSON.parse + converter toda a
+#   geometria em PackedVector2Array — a MAIN THREAD FICA LIVRE (60 FPS reais).
+# Fase 2 (main, obrigatória p/ nós): instanciar Polygon2D/Line2D com
+#   orçamento de VÉRTICES por frame — nem a Rússia estoura um frame.
+var _world_parse_thread: Thread = null
+var _world_parsed: Array = []
+var _world_parse_done: bool = false
+
+func _parse_world_threaded() -> void:
 	var file := FileAccess.open("res://data/world.json", FileAccess.READ)
 	if file == null:
 		push_error("Não foi possível abrir res://data/world.json")
+		_world_parse_done = true
 		return
 	var raw := file.get_as_text()
 	file.close()
 	var json := JSON.new()
 	if json.parse(raw) != OK:
 		push_error("Erro ao parsear world.json")
+		_world_parse_done = true
 		return
-	# ORÇAMENTO DE TEMPO POR FRAME (~6ms de montagem + overhead ≈ 60 FPS):
-	# fatiar por contagem era irregular — um lote com Rússia/Canadá (dezenas
-	# de ilhas) estourava 100ms e o spinner engasgava. Agora montamos países
-	# até gastar o orçamento do frame e cedemos — giro liso do início ao fim.
-	var features: Array = json.data.get("features", [])
-	var frame_start: int = Time.get_ticks_usec()
-	for feature in features:
-		_create_country(feature)
-		if Time.get_ticks_usec() - frame_start > 6000:
-			await get_tree().process_frame
-			frame_start = Time.get_ticks_usec()
+	var out: Array = []
+	for feature in json.data.get("features", []):
+		var props: Dictionary = feature.get("properties", {})
+		var geometry: Dictionary = feature.get("geometry", {})
+		var coords = geometry.get("coordinates", [])
+		var rings: Array = []
+		if geometry.get("type") == "Polygon":
+			rings.append(_ring_to_packed(coords[0]))
+		elif geometry.get("type") == "MultiPolygon":
+			for poly in coords:
+				if poly.size() > 0:
+					rings.append(_ring_to_packed(poly[0]))
+		out.append({
+			"code": String(props.get("ISO3166-1-Alpha-2", "")),
+			"name": String(props.get("name", "")),
+			"rings": rings,
+		})
+	_world_parsed = out
+	_world_parse_done = true
 
-func _create_country(feature: Dictionary) -> void:
-	var props: Dictionary = feature.get("properties", {})
-	var code: String = props.get("ISO3166-1-Alpha-2", "")
-	var country_name: String = props.get("name", "")
-	var geometry: Dictionary = feature.get("geometry", {})
-	var coords = geometry.get("coordinates", [])
+func _load_world_data() -> void:
+	# FASE 1: parse pesado em background — spinner gira a 60 FPS puros
+	_world_parse_done = false
+	_world_parse_thread = Thread.new()
+	_world_parse_thread.start(_parse_world_threaded)
+	while not _world_parse_done:
+		await get_tree().process_frame
+	_world_parse_thread.wait_to_finish()
+	_world_parse_thread = null
+	# FASE 2: instanciação fatiada por VÉRTICES (~2200/frame ≈ 60 FPS)
+	var verts_left: int = 2200
+	for data in _world_parsed:
+		verts_left = await _instantiate_country(data, verts_left)
+	_world_parsed = []
+
+# Instancia um país a partir da geometria pré-convertida (Fase 2).
+# Devolve o orçamento de vértices restante; cede o frame quando estoura.
+func _instantiate_country(data: Dictionary, verts_left: int) -> int:
+	var code: String = data["code"]
+	var country_name: String = data["name"]
+	var rings: Array = data["rings"]
 
 	var country_node := Node2D.new()
 	country_node.name = code if code != "" else country_name
-
-	var rings: Array[PackedVector2Array] = []
-	if geometry.get("type") == "Polygon":
-		rings.append(_ring_to_packed(coords[0]))
-	elif geometry.get("type") == "MultiPolygon":
-		for poly in coords:
-			if poly.size() > 0:
-				rings.append(_ring_to_packed(poly[0]))
 
 	var bounds := Rect2(0, 0, 0, 0)
 	var first := true
 	for ring in rings:
 		if ring.size() < 3: continue
+		# Orçamento de vértices POR ANEL: cede o frame antes de anéis grandes
+		verts_left -= ring.size()
+		if verts_left <= 0:
+			await get_tree().process_frame
+			verts_left = 2200
 		var ring_closed := PackedVector2Array(ring)
 		ring_closed.append(ring[0])
 		# (Shelf costeiro artificial REMOVIDO: a batimetria real da NASA já
@@ -1540,6 +1571,7 @@ func _create_country(feature: Dictionary) -> void:
 
 	countries_root.add_child(country_node)
 	countries[code] = {"node": country_node, "name": country_name, "bounds": bounds}
+	return verts_left
 
 func _ring_to_packed(ring: Array) -> PackedVector2Array:
 	var arr := PackedVector2Array()
