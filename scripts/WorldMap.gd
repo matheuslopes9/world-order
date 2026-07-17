@@ -118,7 +118,7 @@ var countries: Dictionary = {}
 var country_codes_filtered: Array = []
 var preview_code: String = ""
 var player_code: String = ""
-var current_filter: String = "POLITICO"
+var current_filter: String = "SATELITE"
 # Hover tracking — atualiza tooltip flutuante e pequeno highlight no país sob mouse
 var hover_code: String = ""
 var hover_label: Label = null
@@ -3882,6 +3882,7 @@ func _build_map_filters() -> void:
 	if map_filters == null: return
 	for c in map_filters.get_children(): c.queue_free()
 	var filters := [
+		{"id": "SATELITE",     "label": "Satélite"},
 		{"id": "POLITICO",     "label": "Político"},
 		{"id": "ECONOMIA",     "label": "Economia"},
 		{"id": "MILITAR",      "label": "Militar"},
@@ -3891,7 +3892,7 @@ func _build_map_filters() -> void:
 	for f in filters:
 		var btn := Button.new()
 		btn.toggle_mode = true
-		btn.button_pressed = (f["id"] == "POLITICO")
+		btn.button_pressed = (f["id"] == "SATELITE")
 		btn.set_meta("filter_id", f["id"])
 		btn.text = f["label"]
 		btn.custom_minimum_size = Vector2(96, 30)
@@ -3909,7 +3910,7 @@ func _on_map_filter_pressed(filter_id: String) -> void:
 	var ocean := get_node_or_null("Ocean") as ColorRect
 	if ocean != null and ocean.material is ShaderMaterial:
 		(ocean.material as ShaderMaterial).set_shader_parameter(
-			"data_mode", 0.0 if filter_id == "POLITICO" else 1.0)
+			"data_mode", 0.0 if filter_id == "SATELITE" else 1.0)
 	_repaint_map()
 	_refresh_resource_icons()  # mostra/esconde camada de ícones
 
@@ -3998,20 +3999,28 @@ func _repaint_map() -> void:
 				_war_pulse_nodes.append(nd)
 
 func _repaint_country_state(code: String) -> void:
+	var is_sat: bool = current_filter == "SATELITE"
 	if not GameEngine.nations.has(code):
-		_paint_country(code, COUNTRY_FILL)
+		_paint_country_full(code,
+			COUNTRY_FILL if is_sat else Color(0.18, 0.20, 0.25, 0.0), COUNTRY_STROKE)
 		return
 	var n = GameEngine.nations[code]
 	var color := _filter_color(n)
+	var border := COUNTRY_STROKE
 	if player_code != "":
 		var p = GameEngine.player_nation
 		if code == player_code:
-			color = COUNTRY_PLAYER
+			border = Color(0.40, 1.02, 1.26, 0.95)
+			if is_sat: color = COUNTRY_PLAYER
 		elif code in p.em_guerra:
-			color = COUNTRY_ENEMY
+			border = Color(1.28, 0.38, 0.34, 0.95)
+			if is_sat: color = COUNTRY_ENEMY
 		elif _is_ally(code):
-			color = color.lerp(COUNTRY_ALLY, 0.6)
-	_paint_country(code, color)
+			border = Color(0.50, 1.18, 0.66, 0.85)
+			if is_sat: color = color.lerp(COUNTRY_ALLY, 0.6)
+	# Nos filtros de dados NINGUÉM vaza satélite: área = cor do filtro para
+	# todos (coroplético uniforme); jogador/inimigo/aliado aparecem na BORDA.
+	_paint_country_full(code, color, border)
 
 func _is_ally(code: String) -> bool:
 	if player_code == "" or GameEngine.alliances_data.is_empty():
@@ -4022,10 +4031,32 @@ func _is_ally(code: String) -> bool:
 			return true
 	return false
 
+# Mapa POLÍTICO clássico: cor chapada por REGIME, com variação leve por
+# país (vizinhos do mesmo regime não colam). Democracias azuis, híbridos
+# âmbar, autocracias vermelhas, teocracias roxas.
+func _regime_color(n) -> Color:
+	var r: String = n.regime_politico
+	var base: Color
+	if "COMUNIS" in r or "DITADURA" in r:
+		base = Color(0.60, 0.16, 0.14)
+	elif "TEOCRA" in r:
+		base = Color(0.44, 0.22, 0.58)
+	elif "MONARQUIA_ABS" in r:
+		base = Color(0.52, 0.28, 0.58)
+	elif "AUTORITA" in r or "HIBRIDO" in r:
+		base = Color(0.76, 0.47, 0.14)
+	else:
+		base = Color(0.16, 0.40, 0.72)
+	var h: float = float(abs(n.codigo_iso.hash()) % 100) / 100.0
+	var shade: float = 0.86 + 0.26 * h
+	return Color(base.r * shade, base.g * shade, base.b * shade, 0.0)
+
 func _filter_color(n) -> Color:
 	match current_filter:
-		"POLITICO":
+		"SATELITE":
 			return COUNTRY_FILL
+		"POLITICO":
+			return _regime_color(n)
 		"ECONOMIA":
 			# COROPLÉTICO (a=0 → cor lisa no shader): rampa verde-escuro → verde
 			var pib: float = n.pib_bilhoes_usd
@@ -4096,15 +4127,21 @@ func _paint_country(code: String, color: Color) -> void:
 	# ~3000 Polygon2D como sujos → re-triangulação de 548k vértices no
 	# frame seguinte = ~9 SEGUNDOS DE CONGELAMENTO POR TURNO (medido em
 	# Vulkan e headless). Cache da última cor: só repinta quem MUDOU.
-	if entry.get("last_color", Color(-1, -1, -1)) == color:
+	_paint_country_full(code, color, _border_for(color))
+
+# Pintura completa (área + fronteira) com cache — só repinta quem mudou.
+func _paint_country_full(code: String, color: Color, border: Color) -> void:
+	var entry = countries.get(code)
+	if entry == null: return
+	if entry.get("last_color", Color(-1, -1, -1)) == color 			and entry.get("last_border", Color(-1, -1, -1)) == border:
 		return
 	entry["last_color"] = color
-	var border_col: Color = _border_for(color)
+	entry["last_border"] = border
 	for child in entry["node"].get_children():
 		if child is Polygon2D:
 			child.self_modulate = color
 		elif child is Line2D:
-			child.default_color = border_col
+			child.default_color = border
 
 # Fronteira colorida por estado: o highlight elegante em mapa de satélite
 # é o CONTORNO brilhante, não lavar a área inteira. (>1.0 = glow no HDR)
@@ -4726,9 +4763,18 @@ func _apply_hover_highlight(code: String) -> void:
 	if code == "" or code == player_code: return
 	var entry = countries.get(code)
 	if entry == null: return
+	# Invalida o cache de pintura: o restore (_repaint_country_state) precisa
+	# repintar mesmo que o estado lógico não tenha mudado.
+	entry["last_color"] = Color(-1, -1, -1)
+	entry["last_border"] = Color(-1, -1, -1)
+	# Brilho multiplicativo (visível TAMBÉM sobre satélite — o lerp p/ branco
+	# era imperceptível) + fronteira dourada acesa. Alpha preservado (modo).
 	for child in entry["node"].get_children():
 		if child is Polygon2D:
-			child.self_modulate = child.self_modulate.lerp(Color(1, 1, 1, 1), 0.30)
+			var c: Color = child.self_modulate
+			child.self_modulate = Color(c.r * 1.30, c.g * 1.28, c.b * 1.22, c.a)
+		elif child is Line2D:
+			child.default_color = Color(1.30, 1.08, 0.46, 1.0)
 
 func _update_hover_label(screen_pos: Vector2) -> void:
 	if not GameEngine.nations.has(hover_code):
