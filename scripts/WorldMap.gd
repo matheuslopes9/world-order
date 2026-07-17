@@ -163,8 +163,9 @@ const MONO_FONT := preload("res://fonts/CascadiaMono.ttf")
 
 func _ready() -> void:
 	var t0 := Time.get_ticks_msec()
-	# Spinner aparece já — esconde só quando tudo carregar
-	_show_spinner("Carregando mundo…")
+	# TELA DE CARREGAMENTO OPACA: cobre a montagem do mapa (que é feia de
+	# ver) do 1º frame até tudo pronto — sai com fade cinematográfico.
+	_show_loading_screen()
 	await get_tree().process_frame
 	_detect_compact_mode()
 	_build_legacy_nodes()
@@ -233,7 +234,7 @@ func _ready() -> void:
 	if elapsed < 350:
 		await get_tree().create_timer((350 - elapsed) / 1000.0).timeout
 	_hide_spinner()
-	_play_scene_fade_in()
+	_hide_loading_screen()
 	print("[MAP] %d países | carregado em %d ms" % [countries.size(), Time.get_ticks_msec() - t0])
 
 # Moldura fechando o mundo: linha dourada na borda exata do mapa + uma
@@ -259,6 +260,67 @@ func _build_world_frame() -> void:
 	outer.z_index = 3
 	outer.antialiased = true
 	add_child(outer)
+
+# ── TELA DE CARREGAMENTO ──
+var _loading_layer: CanvasLayer = null
+
+func _show_loading_screen() -> void:
+	_loading_layer = CanvasLayer.new()
+	_loading_layer.layer = 100
+	add_child(_loading_layer)
+	var bg := ColorRect.new()
+	bg.color = Color(0.016, 0.020, 0.030, 1.0)  # OPACO — nada vaza
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	_loading_layer.add_child(bg)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_loading_layer.add_child(center)
+	var v := VBoxContainer.new()
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 18)
+	center.add_child(v)
+	var logo := TextureRect.new()
+	logo.texture = load("res://assets/logo.png")
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.custom_minimum_size = Vector2(0, 210)
+	v.add_child(logo)
+	var lbl := Label.new()
+	lbl.name = "LoadingLabel"
+	lbl.text = "Carregando o mundo…"
+	lbl.add_theme_color_override("font_color", Color(0.88, 0.83, 0.70))
+	lbl.add_theme_font_size_override("font_size", 15)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(lbl)
+	var hint := Label.new()
+	hint.text = "195 nações  ·  2000 → 2100  ·  o século é seu"
+	hint.add_theme_color_override("font_color", Color(0.52, 0.52, 0.55))
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(hint)
+	# Respiração do texto (vida enquanto carrega)
+	var tw := lbl.create_tween().set_loops()
+	tw.tween_property(lbl, "modulate:a", 0.45, 0.8).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(lbl, "modulate:a", 1.0, 0.8).set_trans(Tween.TRANS_SINE)
+
+func _hide_loading_screen() -> void:
+	if _loading_layer == null or not is_instance_valid(_loading_layer):
+		return
+	var layer := _loading_layer
+	_loading_layer = null
+	# Fade cinematográfico: o mundo "acende" por trás do loading
+	var faders: Array = []
+	for c in layer.get_children():
+		if c is CanvasItem:
+			faders.append(c)
+	if faders.is_empty():
+		layer.queue_free()
+		return
+	var tw := (faders[0] as CanvasItem).create_tween()
+	for f in faders:
+		tw.parallel().tween_property(f, "modulate:a", 0.0, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_callback(layer.queue_free)
 
 # Fade-in cinematográfico ao entrar no mapa: overlay preto desvanece e o
 # mundo "acende". Roda por cima de tudo (CanvasLayer 99) e se remove sozinho.
@@ -1551,11 +1613,13 @@ func _zoom_camera_to_country(code: String) -> void:
 	if bounds.size.length_squared() <= 0: return
 	var vp_size := get_viewport_rect().size
 	var right_used: float = RIGHT_PANEL_W if (right_panel and right_panel.visible) else 0.0
-	var avail_w: float = (vp_size.x - LEFT_PANEL_W - right_used) * 0.85
-	var avail_h: float = (vp_size.y - TOP_BAR_H - BOTTOM_BAR_H) * 0.75
+	# Enquadramento SUAVE: o país ocupa ~55%% da área útil — sobra contexto
+	# regional e nada encosta nas barras (85%%/75%% cortava em fullscreen)
+	var avail_w: float = (vp_size.x - LEFT_PANEL_W - right_used) * 0.55
+	var avail_h: float = (vp_size.y - TOP_BAR_H - BOTTOM_BAR_H) * 0.55
 	var zx: float = avail_w / max(1.0, bounds.size.x)
 	var zy: float = avail_h / max(1.0, bounds.size.y)
-	var z: float = clamp(min(zx, zy), 0.5, ZOOM_MAX)
+	var z: float = clamp(min(zx, zy), 0.5, 2.6)
 	camera_target_zoom = Vector2(z, z)
 	camera_target_pos = bounds.position + bounds.size / 2.0
 	camera_animating = true
