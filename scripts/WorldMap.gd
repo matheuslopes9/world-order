@@ -649,13 +649,24 @@ func _build_legacy_nodes() -> void:
 	game_overlay.name = "GameOverlay"
 	game_overlay.set_script(preload("res://scripts/GameOverlay.gd"))
 	game_overlay.visible = false
+	# O overlay preenche o card do modal (sem largura fixa que encostava à esq.)
+	game_overlay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	game_overlay.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	# Estrutura interna esperada pelo GameOverlay.gd
 	var go_panel := PanelContainer.new()
 	go_panel.name = "PlayerPanel"
 	go_panel.custom_minimum_size = Vector2(560, 620)
+	go_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	go_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	go_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# TRANSPARENTE: o modal já é o card — nada de card-dentro-de-card
+	var flat := StyleBoxEmpty.new()
+	go_panel.add_theme_stylebox_override("panel", flat)
 	game_overlay.add_child(go_panel)
 	var go_v := VBoxContainer.new()
 	go_v.add_theme_constant_override("separation", 8)
+	go_v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	go_v.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	go_panel.add_child(go_v)
 	var nh := Label.new()
 	nh.name = "NationHeader"
@@ -682,6 +693,7 @@ func _build_legacy_nodes() -> void:
 	go_v.add_child(pt)
 	var ps := ScrollContainer.new()
 	ps.name = "PanelScroll"
+	ps.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ps.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ps.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	go_v.add_child(ps)
@@ -689,7 +701,6 @@ func _build_legacy_nodes() -> void:
 	pc.name = "PanelContent"
 	pc.unique_name_in_owner = true
 	pc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pc.custom_minimum_size = Vector2(520, 0)
 	pc.add_theme_constant_override("separation", 8)
 	ps.add_child(pc)
 
@@ -798,7 +809,9 @@ func _open_modal(content: Control, title: String = "", min_size: Vector2 = Vecto
 	deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(deco)
 
-	# Conteúdo
+	# Conteúdo — preenche a largura/altura do card do modal
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(content)
 
 	# Animação de entrada padrão (fade do backdrop + scale-in do card).
