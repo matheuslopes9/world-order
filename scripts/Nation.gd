@@ -645,6 +645,13 @@ func update_government(global_factor: float = 1.0) -> void:
 		- wars * 5.0 + (-10.0 if in_default else 0.0),
 		0.0, 100.0)
 	estabilidade_politica = estabilidade_politica * 0.967 + stab_target * 0.033  # EWMA /3 (mensal)
+	# ESPIRAL DE CRISE: quando estabilidade E apoio já estão baixos, o desgaste se
+	# realimenta (protestos, êxodo, paralisia) — crises viram PERIGOSAS de verdade em
+	# vez de se auto-corrigirem. Dá tensão: sobreviver a uma crise é uma conquista.
+	if estabilidade_politica < 30.0 and apoio_popular < 35.0:
+		var severidade: float = (30.0 - estabilidade_politica) / 30.0  # 0..1
+		estabilidade_politica = maxf(0.0, estabilidade_politica - severidade * 1.5)
+		apoio_popular = maxf(0.0, apoio_popular - severidade * 1.0)
 
 	corrupcao = clamp(corrupcao, 0.0, 100.0)
 	burocracia_eficiencia = clamp(burocracia_eficiencia, 0.0, 100.0)
