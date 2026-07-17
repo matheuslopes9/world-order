@@ -138,6 +138,43 @@ func _phase_mainmenu() -> void:
 # FASE 2 — BOOT + SELEÇÃO + WIZARD (caminho real)
 # ─────────────────────────────────────────────────────────────────
 
+# Preenche os campos obrigatórios de um passo do wizard: LineEdits vazios
+# recebem texto, e o primeiro grupo de toggles não-marcados é selecionado.
+func _fill_required_fields(root: Node) -> void:
+	# LineEdits (nome / lema)
+	for le in _find_nodes_of_type(root, "LineEdit"):
+		if (le as LineEdit).text.strip_edges() == "":
+			(le as LineEdit).text = "Tester"
+			(le as LineEdit).text_changed.emit("Tester")
+	# Toggles: se NENHUM botão togglable está marcado num container, marca o 1º.
+	# Cobre background/regime/doutrina (escolha única) e as 3 prioridades.
+	var toggles: Array = []
+	for b in _find_buttons(root):
+		if (b as Button).toggle_mode:
+			toggles.append(b)
+	var any_on: bool = false
+	for b in toggles:
+		if (b as Button).button_pressed: any_on = true
+	if not any_on and toggles.size() > 0:
+		(toggles[0] as Button).pressed.emit()
+	# Prioridades: garante 3 marcadas se houver muitos toggles (etapa 4)
+	if toggles.size() >= 6:
+		var on_count: int = 0
+		for b in toggles:
+			if (b as Button).button_pressed: on_count += 1
+		var idx: int = 0
+		while on_count < 3 and idx < toggles.size():
+			if not (toggles[idx] as Button).button_pressed:
+				(toggles[idx] as Button).pressed.emit()
+				on_count += 1
+			idx += 1
+
+func _find_nodes_of_type(root: Node, cls: String, acc: Array = []) -> Array:
+	if root.is_class(cls): acc.append(root)
+	for c in root.get_children():
+		_find_nodes_of_type(c, cls, acc)
+	return acc
+
 func _phase_boot_and_select() -> void:
 	print("\n[2] SELEÇÃO DE NAÇÃO + WIZARD")
 	wm = load("res://scenes/WorldMap.tscn").instantiate()
@@ -185,8 +222,13 @@ func _phase_boot_and_select() -> void:
 		if wm._modal_stack.is_empty():
 			break
 		var top = wm._modal_stack.back()
+		# OBRIGATORIEDADE: preenche os campos do passo atual antes de avançar
+		# (LineEdits: nome/lema; toggles não-selecionados: background/regime/
+		#  doutrina/prioridades). Simula um jogador que escolhe tudo.
+		_fill_required_fields(top)
+		await get_tree().process_frame
 		var nxt := _find_button_by_text(top, ["ASSUMIR", "COMEÇAR", "INICIAR GOVERNO", "CONFIRMAR", "PRÓXIM", "CONTINUAR", "▶"])
-		if nxt == null:
+		if nxt == null or nxt.disabled:
 			break
 		await _press(nxt, "wizard passo %d" % step)
 		await get_tree().create_timer(0.25).timeout

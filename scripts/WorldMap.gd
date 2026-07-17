@@ -230,8 +230,10 @@ func _ready() -> void:
 		_zoom_camera_to_world()  # mundo enquadrado na moldura (consistente c/ pós-wizard)
 		_log_ticker("📂 SAVE", "Sessão restaurada: turno %d" % GameEngine.current_turn, Color(0.4, 1, 0.6))
 	else:
-		# Sem save: mostra modal de seleção de nação
+		# Sem save: TELA DE INÍCIO — fundo background.png cobre o mapa enquanto
+		# o jogador escolhe nação + monta o líder. Some quando o jogo inicia.
 		_show_action_bar(false)
+		_show_setup_backdrop()
 		_open_select_nation_modal()
 
 	# Garante visibilidade mínima do spinner pra dar feedback humano
@@ -851,6 +853,43 @@ func _detach_persistent_content(modal: Control) -> void:
 
 # Track do modal de seleção pra reaproveitar quando o usuário clica em país
 var _select_modal: Control = null
+
+# ── TELA DE INÍCIO: fundo background.png sobre o mapa durante o setup ──
+var _setup_backdrop: CanvasLayer = null
+
+func _show_setup_backdrop() -> void:
+	if _setup_backdrop != null and is_instance_valid(_setup_backdrop): return
+	_setup_backdrop = CanvasLayer.new()
+	# Layer 0: acima do mapa (Node2D, sem CanvasLayer) mas ABAIXO do HUD
+	# (CanvasLayer layer=1, onde vivem os modais). Cobre o mapa, não os modais.
+	_setup_backdrop.layer = 0
+	add_child(_setup_backdrop)
+	var bg := TextureRect.new()
+	bg.texture = load("res://assets/loading_bg.png")
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	_setup_backdrop.add_child(bg)
+	var vig := ColorRect.new()
+	vig.color = Color(0.01, 0.015, 0.025, 0.5)
+	vig.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_setup_backdrop.add_child(vig)
+
+func _hide_setup_backdrop() -> void:
+	if _setup_backdrop == null or not is_instance_valid(_setup_backdrop): return
+	var layer := _setup_backdrop
+	_setup_backdrop = null
+	# Fade suave antes de sumir (o mundo "acende" por trás)
+	var ci := layer.get_child(0) as CanvasItem
+	if ci != null:
+		var tw := ci.create_tween()
+		tw.tween_property(ci, "modulate:a", 0.0, 0.5)
+		tw.parallel().tween_property(layer.get_child(1), "modulate:a", 0.0, 0.5)
+		tw.tween_callback(layer.queue_free)
+	else:
+		layer.queue_free()
 
 func _open_select_nation_modal() -> void:
 	# Modal LARGO: lista à esquerda, dossiê à direita, num único container.
@@ -3054,14 +3093,15 @@ func _apply_historical_leader_to_state(leader: Dictionary) -> void:
 func _open_takeover_wizard(country_code: String) -> void:
 	var n = GameEngine.nations[country_code]
 	# Inicializa estado com defaults
+	# Tudo OBRIGATÓRIO: começa vazio, o jogador precisa escolher cada campo
 	_takeover_state = {
 		"country_code": country_code,
 		"leader_name": "",
 		"leader_age": 50,
-		"leader_background": "politico",
+		"leader_background": "",
 		"leader_motto": "",
-		"government_type": n.regime_politico,
-		"economic_doctrine": "mista",
+		"government_type": "",
+		"economic_doctrine": "",
 		"first_steps": [],  # 3 ações grátis escolhidas
 	}
 	_show_takeover_step_1(country_code)
@@ -3147,10 +3187,9 @@ func _show_takeover_step_1(country_code: String) -> void:
 	name_label.add_theme_font_size_override("font_size", 11)
 	content.add_child(name_label)
 	var name_edit := LineEdit.new()
-	name_edit.placeholder_text = "Ex: Maria Silva, John Doe, ..."
+	name_edit.placeholder_text = "Ex: Maria Silva, John Doe, ... (obrigatório)"
 	name_edit.text = _takeover_state.get("leader_name", "")
 	name_edit.custom_minimum_size = Vector2(0, 36)
-	name_edit.text_changed.connect(func(t: String): _takeover_state["leader_name"] = t)
 	content.add_child(name_edit)
 	# Idade do líder (35-70) — afeta quanto tempo até a sucessão por idade
 	var age_label := Label.new()
@@ -3193,16 +3232,12 @@ func _show_takeover_step_1(country_code: String) -> void:
 		btn.text = bg["label"]
 		btn.tooltip_text = bg["tip"]
 		btn.toggle_mode = true
-		btn.button_pressed = (_takeover_state.get("leader_background", "politico") == bg["id"])
+		# Sem pré-seleção: o jogador PRECISA escolher (obrigatório)
+		btn.button_pressed = (_takeover_state.get("leader_background", "") == bg["id"])
 		btn.set_meta("bg_id", bg["id"])
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.custom_minimum_size = Vector2(0, 38)
 		btn.add_theme_font_size_override("font_size", 11)
-		var bid: String = bg["id"]
-		btn.pressed.connect(func():
-			_takeover_state["leader_background"] = bid
-			for b in bg_btns:
-				b.button_pressed = (b.get_meta("bg_id") == bid))
 		bg_row.add_child(btn)
 		bg_btns.append(btn)
 	# Lema/slogan
@@ -3212,10 +3247,9 @@ func _show_takeover_step_1(country_code: String) -> void:
 	motto_label.add_theme_font_size_override("font_size", 11)
 	content.add_child(motto_label)
 	var motto_edit := LineEdit.new()
-	motto_edit.placeholder_text = "Ex: 'Pelo bem do povo', 'Ordem e Progresso', ..."
+	motto_edit.placeholder_text = "Ex: 'Pelo bem do povo', 'Ordem e Progresso'... (obrigatório)"
 	motto_edit.text = _takeover_state.get("leader_motto", "")
 	motto_edit.custom_minimum_size = Vector2(0, 36)
-	motto_edit.text_changed.connect(func(t: String): _takeover_state["leader_motto"] = t)
 	content.add_child(motto_edit)
 	# Botões navegação
 	content.add_child(HSeparator.new())
@@ -3230,14 +3264,43 @@ func _show_takeover_step_1(country_code: String) -> void:
 	nav_row.add_child(btn_cancel)
 	var btn_next := _make_modal_button("PRÓXIMO ▶", true)
 	btn_next.custom_minimum_size = Vector2(160, 36)
+	nav_row.add_child(btn_next)
+	# Aviso de campos obrigatórios (aparece quando algo falta)
+	var req_lbl := Label.new()
+	req_lbl.add_theme_color_override("font_color", Color(1, 0.6, 0.45))
+	req_lbl.add_theme_font_size_override("font_size", 10)
+	req_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	req_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(req_lbl)
+	# OBRIGATORIEDADE: nome + lema preenchidos + background escolhido.
+	# O botão PRÓXIMO só habilita quando tudo estiver ok.
+	var validate := func():
+		var nome_ok: bool = String(_takeover_state.get("leader_name", "")).strip_edges() != ""
+		var lema_ok: bool = String(_takeover_state.get("leader_motto", "")).strip_edges() != ""
+		var bg_ok: bool = String(_takeover_state.get("leader_background", "")) != ""
+		btn_next.disabled = not (nome_ok and lema_ok and bg_ok)
+		var faltam: Array = []
+		if not nome_ok: faltam.append("nome")
+		if not bg_ok: faltam.append("background")
+		if not lema_ok: faltam.append("lema")
+		req_lbl.text = ("⚠ Preencha: " + ", ".join(faltam)) if not faltam.is_empty() else ""
+	name_edit.text_changed.connect(func(t: String):
+		_takeover_state["leader_name"] = t
+		validate.call())
+	motto_edit.text_changed.connect(func(t: String):
+		_takeover_state["leader_motto"] = t
+		validate.call())
+	for b in bg_btns:
+		b.pressed.connect(func():
+			_takeover_state["leader_background"] = b.get_meta("bg_id")
+			for bb in bg_btns:
+				bb.button_pressed = (bb.get_meta("bg_id") == b.get_meta("bg_id"))
+			validate.call())
 	btn_next.pressed.connect(func():
-		# Auto-fill nome se vazio
-		if String(_takeover_state.get("leader_name", "")).strip_edges() == "":
-			_takeover_state["leader_name"] = "Líder de %s" % n.nome
 		_close_modal(modal_ref[0])
 		_show_takeover_step_2(country_code))
-	nav_row.add_child(btn_next)
-	modal_ref[0] = _open_modal(content, "🎭 ASSUMIR COMANDO — %s" % n.nome, Vector2(620, 540), false)
+	validate.call()  # estado inicial (bloqueado)
+	modal_ref[0] = _open_modal(content, "🎭 ASSUMIR COMANDO — %s" % n.nome, Vector2(620, 560), false)
 
 func _show_takeover_step_2(country_code: String) -> void:
 	var n = GameEngine.nations[country_code]
@@ -3268,24 +3331,19 @@ func _show_takeover_step_2(country_code: String) -> void:
 		{"id": "DITADURA",              "label": "👑 Ditadura Militar",     "tip": "+10 estabilidade, -10 apoio popular"},
 		{"id": "TEOCRACIA",             "label": "✝ Teocracia",             "tip": "+15 estabilidade, mas poucos parceiros"},
 	]
-	# Default: manter
-	if not _takeover_state.has("government_type") or _takeover_state["government_type"] == n.regime_politico:
-		_takeover_state["government_type"] = "manter"
+	# OBRIGATÓRIO: sem pré-seleção — o jogador escolhe (mesmo que "manter")
+	if _takeover_state.get("government_type", "") == n.regime_politico:
+		_takeover_state["government_type"] = ""
 	for gov in governments:
 		var btn := Button.new()
 		btn.text = "  " + gov["label"]
 		btn.tooltip_text = gov["tip"]
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.toggle_mode = true
-		btn.button_pressed = (_takeover_state.get("government_type", "manter") == gov["id"])
+		btn.button_pressed = (_takeover_state.get("government_type", "") == gov["id"])
 		btn.set_meta("gov_id", gov["id"])
 		btn.custom_minimum_size = Vector2(0, 40)
 		btn.add_theme_font_size_override("font_size", 12)
-		var gid: String = gov["id"]
-		btn.pressed.connect(func():
-			_takeover_state["government_type"] = gid
-			for b in gov_btns:
-				b.button_pressed = (b.get_meta("gov_id") == gid))
 		content.add_child(btn)
 		gov_btns.append(btn)
 	# Nav
@@ -3303,10 +3361,20 @@ func _show_takeover_step_2(country_code: String) -> void:
 	nav_row.add_child(btn_back)
 	var btn_next := _make_modal_button("PRÓXIMO ▶", true)
 	btn_next.custom_minimum_size = Vector2(160, 36)
+	nav_row.add_child(btn_next)
+	# OBRIGATÓRIO escolher um regime (mesmo "manter"): PRÓXIMO só habilita depois
+	var gov_validate := func():
+		btn_next.disabled = String(_takeover_state.get("government_type", "")) == ""
+	for b in gov_btns:
+		b.pressed.connect(func():
+			_takeover_state["government_type"] = b.get_meta("gov_id")
+			for bb in gov_btns:
+				bb.button_pressed = (bb.get_meta("gov_id") == b.get_meta("gov_id"))
+			gov_validate.call())
 	btn_next.pressed.connect(func():
 		_close_modal(modal_ref[0])
 		_show_takeover_step_3(country_code))
-	nav_row.add_child(btn_next)
+	gov_validate.call()
 	modal_ref[0] = _open_modal(content, "🏛 SISTEMA DE GOVERNO", Vector2(620, 580), false)
 
 func _show_takeover_step_3(country_code: String) -> void:
@@ -3335,21 +3403,17 @@ func _show_takeover_step_3(country_code: String) -> void:
 		{"id": "planejada",     "label": "🏭 Planejamento Estatal","tip": "Tesouro cresce mais; PIB um pouco mais lento"},
 		{"id": "nordica",       "label": "🌲 Modelo Nórdico",      "tip": "Bem-estar/felicidade em alta; PIB mais lento"},
 	]
+	# OBRIGATÓRIO: sem pré-seleção da doutrina
 	for doc in doctrines:
 		var btn := Button.new()
 		btn.text = "  " + doc["label"]
 		btn.tooltip_text = doc["tip"]
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.toggle_mode = true
-		btn.button_pressed = (_takeover_state.get("economic_doctrine", "mista") == doc["id"])
+		btn.button_pressed = (_takeover_state.get("economic_doctrine", "") == doc["id"])
 		btn.set_meta("doc_id", doc["id"])
 		btn.custom_minimum_size = Vector2(0, 40)
 		btn.add_theme_font_size_override("font_size", 12)
-		var did: String = doc["id"]
-		btn.pressed.connect(func():
-			_takeover_state["economic_doctrine"] = did
-			for b in doc_btns:
-				b.button_pressed = (b.get_meta("doc_id") == did))
 		content.add_child(btn)
 		doc_btns.append(btn)
 	# Nav
@@ -3367,10 +3431,20 @@ func _show_takeover_step_3(country_code: String) -> void:
 	nav_row.add_child(btn_back)
 	var btn_next := _make_modal_button("PRÓXIMO ▶", true)
 	btn_next.custom_minimum_size = Vector2(160, 36)
+	nav_row.add_child(btn_next)
+	# OBRIGATÓRIO escolher a doutrina econômica
+	var doc_validate := func():
+		btn_next.disabled = String(_takeover_state.get("economic_doctrine", "")) == ""
+	for b in doc_btns:
+		b.pressed.connect(func():
+			_takeover_state["economic_doctrine"] = b.get_meta("doc_id")
+			for bb in doc_btns:
+				bb.button_pressed = (bb.get_meta("doc_id") == b.get_meta("doc_id"))
+			doc_validate.call())
 	btn_next.pressed.connect(func():
 		_close_modal(modal_ref[0])
 		_show_takeover_step_4(country_code))
-	nav_row.add_child(btn_next)
+	doc_validate.call()
 	modal_ref[0] = _open_modal(content, "💰 DOUTRINA ECONÔMICA", Vector2(620, 460), false)
 
 const TAKEOVER_FIRST_STEPS := [
@@ -3458,10 +3532,19 @@ func _show_takeover_step_4(country_code: String) -> void:
 	nav_row.add_child(btn_back)
 	var btn_finish := _make_modal_button("⚡ INICIAR GOVERNO", true)
 	btn_finish.custom_minimum_size = Vector2(200, 38)
+	nav_row.add_child(btn_finish)
+	# OBRIGATÓRIO escolher exatamente 3 prioridades. O botão reflete no contador.
+	var finish_validate := func():
+		var sel: Array = _takeover_state.get("first_steps", [])
+		btn_finish.disabled = sel.size() != 3
+		counter_lbl.text = "  ◆ %d/3 prioridades escolhidas%s" % [sel.size(), "  (escolha 3 para iniciar)" if sel.size() != 3 else "  ✓"]
+	# Reconecta o callback dos step_btns para validar
+	for sb in step_btns:
+		sb.pressed.connect(func(): finish_validate.call())
 	btn_finish.pressed.connect(func():
 		_close_modal(modal_ref[0])
 		_finalize_takeover())
-	nav_row.add_child(btn_finish)
+	finish_validate.call()
 	modal_ref[0] = _open_modal(content, "🚀 PRIMEIROS 100 DIAS NO PODER", Vector2(620, 620), false)
 
 # Aplica todas as escolhas do wizard ao Nation e inicia o jogo
@@ -3490,6 +3573,7 @@ func _finalize_takeover() -> void:
 	# Mundo inteiro "preso na moldura" (como na tela de seleção) — o país
 	# do jogador fica destacado pela borda ciano; o zoom é escolha dele.
 	_zoom_camera_to_world()
+	_hide_setup_backdrop()  # o fundo da tela de início some, o mapa aparece
 	_refresh_top_bar()
 	# Log dramatic
 	var leader: String = String(_takeover_state.get("leader_name", "Líder"))
