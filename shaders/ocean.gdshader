@@ -48,11 +48,14 @@ void fragment() {
 		float grey = dot(col, vec3(0.299, 0.587, 0.114));
 		col = mix(vec3(grey), col, 1.15) * 1.30 + vec3(0.010, 0.022, 0.045);
 	} else {
-		// Fora do mundo: azul profundo com fade suave a partir da borda
+		// Fora do mundo: azul profundo LISO com transição curtíssima (60px).
+		// (Antes: esticava a última coluna de pixels → borrão horizontal feio)
 		vec2 d = max(vec2(0.0) - uv, uv - vec2(1.0));
-		float dist = length(max(d, vec2(0.0))) * 3.0;
+		float dist = length(max(d, vec2(0.0)));
 		vec3 edge = texture(earth_tex, clamp(uv, vec2(0.002), vec2(0.998))).rgb;
-		col = mix(edge, border_deep, clamp(dist, 0.0, 1.0));
+		float grey_e = dot(edge, vec3(0.299, 0.587, 0.114));
+		edge = mix(vec3(grey_e), edge, 1.15) * 1.30 + vec3(0.010, 0.022, 0.045);
+		col = mix(edge, border_deep, smoothstep(0.0, 0.03, dist));
 	}
 	// Ondulação viva (modulação sutil — o mar respira sem virar ruído)
 	float n = fbm(wpos * 0.006 + vec2(TIME * 0.020, TIME * 0.011));

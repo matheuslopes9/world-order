@@ -29,12 +29,13 @@ static func _get_country_terrain_mat() -> ShaderMaterial:
 		_country_terrain_mat.set_shader_parameter("earth_tex", load("res://assets/earth_blue_marble.jpg"))
 	return _country_terrain_mat
 # Tintas multiplicativas sobre o terreno realista (mantêm a textura visível)
-# HDR 2D ligado: componentes >1.0 BRILHAM (glow) — destaque real sobre satélite
-const COUNTRY_HOVER   := Color(1.25, 1.25, 1.25)
-const COUNTRY_PREVIEW := Color(0.80, 1.05, 1.45)
-const COUNTRY_PLAYER  := Color(0.55, 1.10, 1.50)
-const COUNTRY_ENEMY   := Color(1.60, 0.50, 0.45)
-const COUNTRY_ALLY    := Color(0.62, 1.35, 0.78)
+# Tints SUTIS sobre o satélite (área) — o destaque forte fica na FRONTEIRA
+# colorida (ver _border_for). Nada de véu branco estourado.
+const COUNTRY_HOVER   := Color(1.10, 1.10, 1.10)
+const COUNTRY_PREVIEW := Color(0.82, 0.96, 1.12)
+const COUNTRY_PLAYER  := Color(0.68, 0.92, 1.10)
+const COUNTRY_ENEMY   := Color(1.12, 0.60, 0.55)
+const COUNTRY_ALLY    := Color(0.72, 1.06, 0.80)
 
 @onready var camera: Camera2D = $MapCamera
 @onready var countries_root: Node2D = $Countries
@@ -1408,24 +1409,8 @@ func _create_country(feature: Dictionary) -> void:
 		if ring.size() < 3: continue
 		var ring_closed := PackedVector2Array(ring)
 		ring_closed.append(ring[0])
-		# PLATAFORMA COSTEIRA: linha larga azul-clara translúcida POR BAIXO do
-		# polígono — a metade interna some sob a terra, a externa vira aquele
-		# brilho de água rasa ao redor das costas (marca dos mapas bonitos).
-		# Ilhotas minúsculas ganham shelf fino (senão viram "blobs" de glow)
-		var ring_size: float = 0.0
-		var rmin := ring[0]
-		var rmax := ring[0]
-		for pt in ring:
-			rmin = Vector2(minf(rmin.x, pt.x), minf(rmin.y, pt.y))
-			rmax = Vector2(maxf(rmax.x, pt.x), maxf(rmax.y, pt.y))
-		ring_size = maxf(rmax.x - rmin.x, rmax.y - rmin.y)
-		var shelf := Line2D.new()
-		shelf.points = ring_closed
-		shelf.width = 4.5 if ring_size > 14.0 else 2.0
-		shelf.default_color = Color(0.62, 0.83, 0.96, 0.10)
-		shelf.joint_mode = Line2D.LINE_JOINT_ROUND
-		shelf.antialiased = false
-		country_node.add_child(shelf)
+		# (Shelf costeiro artificial REMOVIDO: a batimetria real da NASA já
+		# desenha o raso costeiro, e o Line2D borrava nas fronteiras internas)
 		var poly := Polygon2D.new()
 		poly.polygon = ring
 		# Base BRANCA: a cor visível vem de self_modulate (modular não
@@ -3919,13 +3904,13 @@ func _refresh_resource_icons() -> void:
 		# Fundo translúcido
 		var bg := Polygon2D.new()
 		var bg_pts := PackedVector2Array()
-		var radius: float = 12.0
+		var radius: float = 7.0
 		for i in 16:
 			var a: float = TAU * i / 16.0
 			bg_pts.append(Vector2(cos(a) * radius, sin(a) * radius))
 		bg.polygon = bg_pts
 		var bg_color: Color = meta.get("color", Color(0.5, 0.5, 0.5))
-		bg.color = Color(bg_color.r, bg_color.g, bg_color.b, 0.75)
+		bg.color = Color(bg_color.r, bg_color.g, bg_color.b, 0.55)
 		holder.add_child(bg)
 		# Ícone VETORIAL do recurso (game-icons.net, CC BY 3.0) — nítido em
 		# qualquer zoom; fallback pro emoji se o SVG não existir
@@ -3934,7 +3919,7 @@ func _refresh_resource_icons() -> void:
 			var spr := Sprite2D.new()
 			spr.texture = load(icon_path)
 			var tex_size: float = max(1.0, spr.texture.get_width())
-			spr.scale = Vector2(18.0 / tex_size, 18.0 / tex_size)
+			spr.scale = Vector2(11.0 / tex_size, 11.0 / tex_size)
 			spr.modulate = Color(1, 1, 1, 0.95)
 			holder.add_child(spr)
 		else:
@@ -4000,22 +3985,27 @@ func _filter_color(n) -> Color:
 		"POLITICO":
 			return COUNTRY_FILL
 		"ECONOMIA":
+			# Tint verde multiplicativo: quanto maior o PIB, mais verde — a
+			# textura de satélite continua visível (sem lavagem translúcida)
 			var pib: float = n.pib_bilhoes_usd
-			var v: float = clamp(0.1 + log(pib + 1) / log(30000.0) * 0.7, 0.1, 0.85)
-			return Color(0, 1, 0.5, v)
+			var v: float = clamp(0.1 + log(pib + 1) / log(30000.0) * 0.7, 0.1, 0.9)
+			return Color(1.0 - 0.55 * v, 1.02, 1.0 - 0.45 * v)
 		"MILITAR":
 			var orc: float = float(n.militar.get("orcamento_militar_bilhoes", 0))
 			var nukes: int = int(n.militar.get("armas_nucleares", 0))
-			var v: float = clamp(orc / 900.0 + (0.3 if nukes > 0 else 0.0) + 0.05, 0.05, 0.85)
-			return Color(1, 0.3, 0.3, v)
+			var v: float = clamp(orc / 900.0 + (0.3 if nukes > 0 else 0.0) + 0.05, 0.05, 0.9)
+			return Color(1.05, 1.0 - 0.55 * v, 1.0 - 0.55 * v)
 		"ESTABILIDADE":
-			var v: float = clamp(n.estabilidade_politica / 100.0, 0.05, 0.85)
-			if n.estabilidade_politica >= 65:
-				return Color(0, 1, 0.5, v)
-			elif n.estabilidade_politica >= 35:
-				return Color(1, 0.7, 0, v)
+			var stab: float = n.estabilidade_politica
+			if stab >= 65:
+				var g: float = clamp((stab - 65.0) / 35.0, 0.0, 1.0) * 0.5 + 0.2
+				return Color(1.0 - g, 1.02, 1.0 - g * 0.8)
+			elif stab >= 35:
+				var y: float = clamp((65.0 - stab) / 30.0, 0.0, 1.0) * 0.5 + 0.2
+				return Color(1.04, 1.0 - y * 0.25, 1.0 - y)
 			else:
-				return Color(1, 0.3, 0.3, v)
+				var r: float = clamp((35.0 - stab) / 35.0, 0.0, 1.0) * 0.5 + 0.25
+				return Color(1.06, 1.0 - r, 1.0 - r)
 		"RECURSOS":
 			# Pinta país pela cor do recurso predominante (valor mais alto)
 			# Intensidade = magnitude do valor (recursos vão 0-100)
@@ -4024,7 +4014,8 @@ func _filter_color(n) -> Color:
 			var meta: Dictionary = RESOURCE_META.get(top["name"], {})
 			var col: Color = meta.get("color", Color(0.5, 0.5, 0.5))
 			var intensity: float = clamp(float(top["value"]) / 100.0, 0.15, 0.9)
-			return Color(col.r, col.g, col.b, intensity)
+			# Tint multiplicativo na direção da cor do recurso (satélite visível)
+			return Color(1, 1, 1).lerp(col, 0.35 + 0.40 * intensity)
 	return COUNTRY_FILL
 
 # Recursos do jogo com cor + ícone emoji (usado no filtro RECURSOS)
@@ -4066,9 +4057,25 @@ func _paint_country(code: String, color: Color) -> void:
 	if entry.get("last_color", Color(-1, -1, -1)) == color:
 		return
 	entry["last_color"] = color
+	var border_col: Color = _border_for(color)
 	for child in entry["node"].get_children():
 		if child is Polygon2D:
 			child.self_modulate = color
+		elif child is Line2D:
+			child.default_color = border_col
+
+# Fronteira colorida por estado: o highlight elegante em mapa de satélite
+# é o CONTORNO brilhante, não lavar a área inteira. (>1.0 = glow no HDR)
+func _border_for(fill: Color) -> Color:
+	if fill.is_equal_approx(COUNTRY_PLAYER):
+		return Color(0.45, 1.10, 1.40, 0.95)
+	if fill.is_equal_approx(COUNTRY_ENEMY):
+		return Color(1.45, 0.42, 0.38, 0.95)
+	if fill.is_equal_approx(COUNTRY_PREVIEW):
+		return Color(1.30, 1.32, 1.38, 0.95)
+	if fill.is_equal_approx(COUNTRY_ALLY):
+		return Color(0.55, 1.30, 0.72, 0.85)
+	return COUNTRY_STROKE
 
 # ─────────────────────────────────────────────────────────────────
 # TOP BAR REFRESH
