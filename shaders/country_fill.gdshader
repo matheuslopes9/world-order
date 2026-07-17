@@ -31,12 +31,16 @@ float vnoise(vec2 p) {
 
 void fragment() {
 	vec2 uv = vec2(wpos.x / 2000.0, wpos.y / 1000.0);
-	vec3 col = texture(earth_tex, clamp(uv, vec2(0.001), vec2(0.999))).rgb;
+	vec3 sat = texture(earth_tex, clamp(uv, vec2(0.001), vec2(0.999))).rgb;
 	// Realce leve: satélite cru fica lavado em tela — vida sem exagero
-	float grey = dot(col, vec3(0.299, 0.587, 0.114));
-	col = mix(vec3(grey), col, saturation) * brightness;
+	float grey = dot(sat, vec3(0.299, 0.587, 0.114));
+	sat = mix(vec3(grey), sat, saturation) * brightness;
 	// Grão fino (quebra o "liso" do JPEG em zoom alto)
-	col *= 1.0 + (vnoise(wpos * 0.08) - 0.5) * grain_amp;
-	// Tinta política por multiplicação (neutro ≈ branco → satélite puro)
-	COLOR.rgb = col * COLOR.rgb;
+	sat *= 1.0 + (vnoise(wpos * 0.08) - 0.5) * grain_amp;
+	// CHAVE SATÉLITE↔CHAPADO no alpha do modulate:
+	//   a=1 → satélite × tinta (visão realista)
+	//   a=0 → COR LISA pura (filtros coropléticos: militar/economia/etc)
+	vec3 base = mix(vec3(1.0), sat, COLOR.a);
+	COLOR.rgb = base * COLOR.rgb;
+	COLOR.a = 1.0;
 }

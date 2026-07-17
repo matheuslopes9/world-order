@@ -29,13 +29,14 @@ static func _get_country_terrain_mat() -> ShaderMaterial:
 		_country_terrain_mat.set_shader_parameter("earth_tex", load("res://assets/earth_blue_marble.jpg"))
 	return _country_terrain_mat
 # Tintas multiplicativas sobre o terreno realista (mantêm a textura visível)
-# Tints SUTIS sobre o satélite (área) — o destaque forte fica na FRONTEIRA
-# colorida (ver _border_for). Nada de véu branco estourado.
-const COUNTRY_HOVER   := Color(1.10, 1.10, 1.10)
-const COUNTRY_PREVIEW := Color(0.82, 0.96, 1.12)
-const COUNTRY_PLAYER  := Color(0.68, 0.92, 1.10)
-const COUNTRY_ENEMY   := Color(1.12, 0.60, 0.55)
-const COUNTRY_ALLY    := Color(0.72, 1.06, 0.80)
+# VISÃO REALISTA: satélite quase puro — tints de área MÍNIMOS; quem
+# identifica jogador/inimigo/aliado é a FRONTEIRA colorida (_border_for).
+# Alpha=1.0 → satélite; nos filtros de dados as cores usam alpha=0 (chapado).
+const COUNTRY_HOVER   := Color(1.10, 1.10, 1.10, 1.0)
+const COUNTRY_PREVIEW := Color(0.94, 1.00, 1.06, 1.0)
+const COUNTRY_PLAYER  := Color(0.90, 0.99, 1.06, 1.0)
+const COUNTRY_ENEMY   := Color(1.06, 0.85, 0.82, 1.0)
+const COUNTRY_ALLY    := Color(0.90, 1.04, 0.92, 1.0)
 
 @onready var camera: Camera2D = $MapCamera
 @onready var countries_root: Node2D = $Countries
@@ -1422,9 +1423,9 @@ func _create_country(feature: Dictionary) -> void:
 		country_node.add_child(poly)
 		var line := Line2D.new()
 		line.points = ring_closed
-		line.width = 0.6
+		line.width = 0.9
 		line.default_color = COUNTRY_STROKE
-		line.antialiased = false
+		line.antialiased = true
 		country_node.add_child(line)
 		for pt in ring:
 			if first:
@@ -3985,27 +3986,26 @@ func _filter_color(n) -> Color:
 		"POLITICO":
 			return COUNTRY_FILL
 		"ECONOMIA":
-			# Tint verde multiplicativo: quanto maior o PIB, mais verde — a
-			# textura de satélite continua visível (sem lavagem translúcida)
+			# COROPLÉTICO (a=0 → cor lisa no shader): rampa verde-escuro → verde
 			var pib: float = n.pib_bilhoes_usd
-			var v: float = clamp(0.1 + log(pib + 1) / log(30000.0) * 0.7, 0.1, 0.9)
-			return Color(1.0 - 0.55 * v, 1.02, 1.0 - 0.45 * v)
+			var v: float = clamp(0.1 + log(pib + 1) / log(30000.0) * 0.7, 0.1, 1.0)
+			return Color(0.055, 0.20, 0.11, 0.0).lerp(Color(0.16, 0.78, 0.42, 0.0), v)
 		"MILITAR":
 			var orc: float = float(n.militar.get("orcamento_militar_bilhoes", 0))
 			var nukes: int = int(n.militar.get("armas_nucleares", 0))
-			var v: float = clamp(orc / 900.0 + (0.3 if nukes > 0 else 0.0) + 0.05, 0.05, 0.9)
-			return Color(1.05, 1.0 - 0.55 * v, 1.0 - 0.55 * v)
+			var v: float = clamp(orc / 900.0 + (0.3 if nukes > 0 else 0.0) + 0.05, 0.05, 1.0)
+			return Color(0.16, 0.055, 0.05, 0.0).lerp(Color(0.88, 0.24, 0.19, 0.0), v)
 		"ESTABILIDADE":
 			var stab: float = n.estabilidade_politica
 			if stab >= 65:
-				var g: float = clamp((stab - 65.0) / 35.0, 0.0, 1.0) * 0.5 + 0.2
-				return Color(1.0 - g, 1.02, 1.0 - g * 0.8)
+				var g: float = clamp((stab - 65.0) / 35.0, 0.0, 1.0)
+				return Color(0.14, 0.42, 0.22, 0.0).lerp(Color(0.20, 0.72, 0.36, 0.0), g)
 			elif stab >= 35:
-				var y: float = clamp((65.0 - stab) / 30.0, 0.0, 1.0) * 0.5 + 0.2
-				return Color(1.04, 1.0 - y * 0.25, 1.0 - y)
+				var y: float = clamp((stab - 35.0) / 30.0, 0.0, 1.0)
+				return Color(0.72, 0.50, 0.12, 0.0).lerp(Color(0.80, 0.64, 0.16, 0.0), y)
 			else:
-				var r: float = clamp((35.0 - stab) / 35.0, 0.0, 1.0) * 0.5 + 0.25
-				return Color(1.06, 1.0 - r, 1.0 - r)
+				var r: float = clamp(stab / 35.0, 0.0, 1.0)
+				return Color(0.52, 0.10, 0.09, 0.0).lerp(Color(0.72, 0.20, 0.15, 0.0), r)
 		"RECURSOS":
 			# Pinta país pela cor do recurso predominante (valor mais alto)
 			# Intensidade = magnitude do valor (recursos vão 0-100)
@@ -4013,9 +4013,10 @@ func _filter_color(n) -> Color:
 			if top.is_empty(): return COUNTRY_FILL
 			var meta: Dictionary = RESOURCE_META.get(top["name"], {})
 			var col: Color = meta.get("color", Color(0.5, 0.5, 0.5))
-			var intensity: float = clamp(float(top["value"]) / 100.0, 0.15, 0.9)
-			# Tint multiplicativo na direção da cor do recurso (satélite visível)
-			return Color(1, 1, 1).lerp(col, 0.35 + 0.40 * intensity)
+			var intensity: float = clamp(float(top["value"]) / 100.0, 0.15, 1.0)
+			# COROPLÉTICO: cor lisa do recurso, sombreada pela abundância
+			var shade: float = 0.45 + 0.55 * intensity
+			return Color(col.r * shade, col.g * shade, col.b * shade, 0.0)
 	return COUNTRY_FILL
 
 # Recursos do jogo com cor + ícone emoji (usado no filtro RECURSOS)
@@ -4068,13 +4069,13 @@ func _paint_country(code: String, color: Color) -> void:
 # é o CONTORNO brilhante, não lavar a área inteira. (>1.0 = glow no HDR)
 func _border_for(fill: Color) -> Color:
 	if fill.is_equal_approx(COUNTRY_PLAYER):
-		return Color(0.45, 1.10, 1.40, 0.95)
+		return Color(0.40, 1.02, 1.26, 0.95)
 	if fill.is_equal_approx(COUNTRY_ENEMY):
-		return Color(1.45, 0.42, 0.38, 0.95)
+		return Color(1.28, 0.38, 0.34, 0.95)
 	if fill.is_equal_approx(COUNTRY_PREVIEW):
-		return Color(1.30, 1.32, 1.38, 0.95)
+		return Color(1.20, 1.22, 1.26, 0.95)
 	if fill.is_equal_approx(COUNTRY_ALLY):
-		return Color(0.55, 1.30, 0.72, 0.85)
+		return Color(0.50, 1.18, 0.66, 0.85)
 	return COUNTRY_STROKE
 
 # ─────────────────────────────────────────────────────────────────
