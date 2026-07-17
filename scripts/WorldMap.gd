@@ -2074,8 +2074,13 @@ func _show_options_modal() -> void:
 	# Modal de OPÇÕES em 4 abas (Jogo · Vídeo · Áudio · Sistema).
 	# Cada aba é um ScrollContainer com um VBox — organização limpa.
 	var modal_ref: Array = [null]
+	# Wrapper: abas em cima + botão SALVAR fixo embaixo (visível em qualquer aba)
+	var wrap := VBoxContainer.new()
+	wrap.add_theme_constant_override("separation", 10)
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var tabs := TabContainer.new()
-	tabs.custom_minimum_size = Vector2(540, 560)
+	tabs.custom_minimum_size = Vector2(540, 520)
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.add_child(_build_tab_jogo(modal_ref))
@@ -2086,7 +2091,28 @@ func _show_options_modal() -> void:
 	tabs.set_tab_title(1, "🖥 Vídeo")
 	tabs.set_tab_title(2, "🔊 Áudio")
 	tabs.set_tab_title(3, "⚙ Sistema")
-	modal_ref[0] = _open_modal(tabs, "⚙ OPÇÕES", Vector2(560, 620))
+	wrap.add_child(tabs)
+	# Botão SALVAR CONFIGURAÇÕES — fixo no rodapé, fora das abas
+	var btn_save_cfg := _make_modal_button("💾 SALVAR CONFIGURAÇÕES", true)
+	btn_save_cfg.custom_minimum_size = Vector2(0, 44)
+	btn_save_cfg.pressed.connect(func():
+		_persist_all_settings()
+		_log_ticker("💾 CONFIG", "Configurações salvas", Color(0.4, 1, 0.6)))
+	wrap.add_child(btn_save_cfg)
+	modal_ref[0] = _open_modal(wrap, "⚙ OPÇÕES", Vector2(560, 640))
+
+# Persiste TODAS as configurações (settings.cfg + audio.cfg) de uma vez.
+# As opções já salvam ao mudar, mas o botão dá segurança/feedback ao usuário.
+func _persist_all_settings() -> void:
+	if AudioManager and AudioManager.has_method("_save_cfg"):
+		AudioManager._save_cfg()
+	# settings.cfg de jogo/vídeo já é gravado pelos _apply_*; garante o flush
+	# de difficulty/ai_speed que vivem em GameEngine.settings.
+	var cfg := ConfigFile.new()
+	cfg.load("user://settings.cfg")
+	cfg.set_value("game", "difficulty", GameEngine.settings.get("difficulty", "normal"))
+	cfg.set_value("game", "ai_speed", int(GameEngine.settings.get("ai_speed", 8)))
+	cfg.save("user://settings.cfg")
 
 # Container-padrão de uma aba: ScrollContainer > VBox (retorna o VBox p/ encher)
 func _new_options_tab(tab_name: String) -> ScrollContainer:
@@ -2496,7 +2522,16 @@ func _open_decisions_history_modal() -> void:
 			var d: Dictionary = log_entries[i]
 			list.add_child(_make_decision_card(d, historical_choices.get(d.get("event_id", ""), "")))
 
-	_open_modal(content, "📜 HISTÓRICO DE DECISÕES", Vector2(800, 580))
+	# Botão VOLTAR — fecha o histórico e reabre o menu de Opções (de onde veio)
+	var hist_modal_ref: Array = [null]
+	var btn_back := _make_modal_button("← Voltar às Opções", false)
+	btn_back.custom_minimum_size = Vector2(0, 40)
+	btn_back.pressed.connect(func():
+		_close_modal(hist_modal_ref[0])
+		_show_options_modal())
+	content.add_child(btn_back)
+
+	hist_modal_ref[0] = _open_modal(content, "📜 HISTÓRICO DE DECISÕES", Vector2(800, 580))
 
 func _make_decision_card(entry: Dictionary, historical_choice: String) -> PanelContainer:
 	var card := PanelContainer.new()
