@@ -33,7 +33,7 @@ static func _get_country_terrain_mat() -> ShaderMaterial:
 # identifica jogador/inimigo/aliado é a FRONTEIRA colorida (_border_for).
 # Alpha=1.0 → satélite; nos filtros de dados as cores usam alpha=0 (chapado).
 const COUNTRY_HOVER   := Color(1.10, 1.10, 1.10, 1.0)
-const COUNTRY_PREVIEW := Color(0.94, 1.00, 1.06, 1.0)
+const COUNTRY_PREVIEW := Color(1.06, 1.02, 0.94, 1.0)
 const COUNTRY_PLAYER  := Color(0.90, 0.99, 1.06, 1.0)
 const COUNTRY_ENEMY   := Color(1.06, 0.85, 0.82, 1.0)
 const COUNTRY_ALLY    := Color(0.90, 1.04, 0.92, 1.0)
@@ -192,6 +192,8 @@ func _ready() -> void:
 	# Signal de storylines (Sessão 3 do roadmap) — abre o mesmo modal de decisão
 	if GameEngine and GameEngine.storylines and GameEngine.storylines.has_signal("storyline_triggered"):
 		GameEngine.storylines.storyline_triggered.connect(_on_storyline_triggered)
+	# MOLDURA DO MUNDO: fecha o mapa em [0,2000]x[0,1000] — sem "mundo infinito"
+	_build_world_frame()
 	# Cria layer pra markers
 	event_markers_layer = Node2D.new()
 	event_markers_layer.name = "EventMarkers"
@@ -233,6 +235,30 @@ func _ready() -> void:
 	_hide_spinner()
 	_play_scene_fade_in()
 	print("[MAP] %d países | carregado em %d ms" % [countries.size(), Time.get_ticks_msec() - t0])
+
+# Moldura fechando o mundo: linha dourada na borda exata do mapa + uma
+# linha externa fantasma (efeito "mesa de comando"). Estático, custo zero.
+func _build_world_frame() -> void:
+	var frame := Line2D.new()
+	frame.name = "WorldFrame"
+	frame.points = PackedVector2Array([
+		Vector2(0, 0), Vector2(2000, 0), Vector2(2000, 1000),
+		Vector2(0, 1000), Vector2(0, 0)])
+	frame.width = 2.2
+	frame.default_color = Color(0.80, 0.65, 0.30, 0.55)
+	frame.z_index = 3
+	frame.antialiased = true
+	add_child(frame)
+	var outer := Line2D.new()
+	outer.name = "WorldFrameOuter"
+	outer.points = PackedVector2Array([
+		Vector2(-14, -14), Vector2(2014, -14), Vector2(2014, 1014),
+		Vector2(-14, 1014), Vector2(-14, -14)])
+	outer.width = 1.0
+	outer.default_color = Color(0.80, 0.65, 0.30, 0.20)
+	outer.z_index = 3
+	outer.antialiased = true
+	add_child(outer)
 
 # Fade-in cinematográfico ao entrar no mapa: overlay preto desvanece e o
 # mundo "acende". Roda por cima de tudo (CanvasLayer 99) e se remove sozinho.
@@ -3869,6 +3895,11 @@ func _on_map_filter_pressed(filter_id: String) -> void:
 	for child in map_filters.get_children():
 		if child is Button:
 			child.button_pressed = (child.get_meta("filter_id", "") == filter_id)
+	# Oceano acompanha: satélite no realista, CHAPADO escuro nos filtros de dados
+	var ocean := get_node_or_null("Ocean") as ColorRect
+	if ocean != null and ocean.material is ShaderMaterial:
+		(ocean.material as ShaderMaterial).set_shader_parameter(
+			"data_mode", 0.0 if filter_id == "POLITICO" else 1.0)
 	_repaint_map()
 	_refresh_resource_icons()  # mostra/esconde camada de ícones
 
@@ -3989,7 +4020,7 @@ func _filter_color(n) -> Color:
 			# COROPLÉTICO (a=0 → cor lisa no shader): rampa verde-escuro → verde
 			var pib: float = n.pib_bilhoes_usd
 			var v: float = clamp(0.1 + log(pib + 1) / log(30000.0) * 0.7, 0.1, 1.0)
-			return Color(0.055, 0.20, 0.11, 0.0).lerp(Color(0.16, 0.78, 0.42, 0.0), v)
+			return Color(0.045, 0.075, 0.150, 0.0).lerp(Color(0.24, 0.56, 0.96, 0.0), v)
 		"MILITAR":
 			var orc: float = float(n.militar.get("orcamento_militar_bilhoes", 0))
 			var nukes: int = int(n.militar.get("armas_nucleares", 0))
@@ -4073,7 +4104,7 @@ func _border_for(fill: Color) -> Color:
 	if fill.is_equal_approx(COUNTRY_ENEMY):
 		return Color(1.28, 0.38, 0.34, 0.95)
 	if fill.is_equal_approx(COUNTRY_PREVIEW):
-		return Color(1.20, 1.22, 1.26, 0.95)
+		return Color(1.30, 1.06, 0.42, 0.95)  # DOURADO — assinatura do jogo
 	if fill.is_equal_approx(COUNTRY_ALLY):
 		return Color(0.50, 1.18, 0.66, 0.85)
 	return COUNTRY_STROKE

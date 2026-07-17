@@ -1,11 +1,13 @@
-// OCEANO v4 — BATIMETRIA REAL da NASA Blue Marble + vida animada.
-// Dentro dos bounds do mundo [0,2000]×[0,1000] sampleia o mar REAL da
-// textura (dorsais, fossas, plataformas continentais). Fora, extrapola o
-// azul profundo. Ondas fbm e glint solar entram como MODULAÇÃO leve.
+// OCEANO v5 — satélite NASA no modo realista; CHAPADO escuro no modo dados.
+// Fora do mundo [0,2000]×[0,1000]: azul profundo LISO imediato (zero blur —
+// nada de amostrar/esticar a borda da textura). O mundo é fechado por uma
+// moldura desenhada pelo WorldMap.
 shader_type canvas_item;
 
 uniform sampler2D earth_tex : source_color, filter_linear_mipmap, repeat_disable;
-uniform vec3 border_deep : source_color = vec3(0.020, 0.050, 0.105);
+uniform vec3 border_deep : source_color = vec3(0.016, 0.030, 0.058);
+uniform vec3 data_ocean : source_color = vec3(0.028, 0.045, 0.080);
+uniform float data_mode : hint_range(0.0, 1.0) = 0.0;  // 1 = filtro de dados
 uniform float wave_strength : hint_range(0.0, 0.5) = 0.14;
 uniform float grid_alpha : hint_range(0.0, 0.3) = 0.020;
 uniform float grid_step = 250.0;
@@ -41,32 +43,33 @@ float fbm(vec2 p) {
 
 void fragment() {
 	vec2 uv = vec2(wpos.x / 2000.0, wpos.y / 1000.0);
+	bool inside = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
 	vec3 col;
-	if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
-		// MAR REAL da NASA (batimetria) — leve realce de contraste
+	if (!inside) {
+		// FORA DO MUNDO: cor lisa, SEM textura — zero blur/smear
+		col = border_deep;
+	} else if (data_mode > 0.5) {
+		// MODO DADOS (filtros): oceano chapado escuro — o mapa vira um
+		// painel de dados limpo, países em escala de cor por cima
+		col = data_ocean;
+		// Grade discreta mantém a leitura cartográfica
+		vec2 g = abs(fract(wpos / grid_step) - 0.5);
+		float dline = min(g.x, g.y) * grid_step;
+		float grid = 1.0 - smoothstep(0.0, 1.3, dline);
+		col += vec3(0.30, 0.42, 0.58) * grid * (grid_alpha * 1.6);
+	} else {
+		// MODO REALISTA: mar REAL da NASA (batimetria) + vida animada
 		col = texture(earth_tex, uv).rgb;
 		float grey = dot(col, vec3(0.299, 0.587, 0.114));
 		col = mix(vec3(grey), col, 1.15) * 1.30 + vec3(0.010, 0.022, 0.045);
-	} else {
-		// Fora do mundo: azul profundo LISO com transição curtíssima (60px).
-		// (Antes: esticava a última coluna de pixels → borrão horizontal feio)
-		vec2 d = max(vec2(0.0) - uv, uv - vec2(1.0));
-		float dist = length(max(d, vec2(0.0)));
-		vec3 edge = texture(earth_tex, clamp(uv, vec2(0.002), vec2(0.998))).rgb;
-		float grey_e = dot(edge, vec3(0.299, 0.587, 0.114));
-		edge = mix(vec3(grey_e), edge, 1.15) * 1.30 + vec3(0.010, 0.022, 0.045);
-		col = mix(edge, border_deep, smoothstep(0.0, 0.03, dist));
+		float n = fbm(wpos * 0.006 + vec2(TIME * 0.020, TIME * 0.011));
+		col *= 1.0 + (n - 0.5) * wave_strength;
+		float glint = smoothstep(0.82, 0.95, vnoise(wpos * 0.0065 + vec2(TIME * 0.05, -TIME * 0.03)));
+		col += vec3(0.10, 0.13, 0.15) * glint * 0.35;
+		vec2 g = abs(fract(wpos / grid_step) - 0.5);
+		float dline = min(g.x, g.y) * grid_step;
+		float grid = 1.0 - smoothstep(0.0, 1.3, dline);
+		col += vec3(0.45, 0.60, 0.75) * grid * grid_alpha;
 	}
-	// Ondulação viva (modulação sutil — o mar respira sem virar ruído)
-	float n = fbm(wpos * 0.006 + vec2(TIME * 0.020, TIME * 0.011));
-	col *= 1.0 + (n - 0.5) * wave_strength;
-	// Glint solar itinerante
-	float glint = smoothstep(0.82, 0.95, vnoise(wpos * 0.0065 + vec2(TIME * 0.05, -TIME * 0.03)));
-	col += vec3(0.10, 0.13, 0.15) * glint * 0.35;
-	// Grade náutica fantasma (identidade estratégica, bem discreta)
-	vec2 g = abs(fract(wpos / grid_step) - 0.5);
-	float dline = min(g.x, g.y) * grid_step;
-	float grid = 1.0 - smoothstep(0.0, 1.3, dline);
-	col += vec3(0.45, 0.60, 0.75) * grid * grid_alpha;
 	COLOR = vec4(col, 1.0);
 }
