@@ -824,13 +824,24 @@ func _play_scene_fade_in() -> void:
 	tw.tween_callback(black.queue_free)
 
 func _play_entrance_animation() -> void:
-	var box := get_node_or_null("Center/Card/MainBox")
-	if box == null: return
-	box.modulate = Color(1, 1, 1, 0)
-	box.position += Vector2(0, 30)
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(box, "modulate", Color(1, 1, 1, 1), 0.6).set_trans(Tween.TRANS_CUBIC)
-	tw.tween_property(box, "position", box.position - Vector2(0, 30), 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# NUNCA animar a POSITION de um filho de container: o tween brigava com o
+	# layout do PanelContainer e congelava o MainBox em (0,0) — conteúdo
+	# grudado no canto do card, sem margens ("menu torto" dependente de timing).
+	# Fade + scale-in do CARD (scale não participa do layout — seguro).
+	var card := get_node_or_null("Center/Card") as Control
+	var box := get_node_or_null("Center/Card/MainBox") as Control
+	if box != null:
+		box.modulate = Color(1, 1, 1, 0)
+		var tw := create_tween()
+		tw.tween_property(box, "modulate:a", 1.0, 0.55).set_trans(Tween.TRANS_CUBIC)
+	if card != null:
+		card.pivot_offset = card.size / 2.0
+		card.resized.connect(func():
+			if is_instance_valid(card):
+				card.pivot_offset = card.size / 2.0)
+		card.scale = Vector2(0.965, 0.965)
+		var tw2 := card.create_tween()
+		tw2.tween_property(card, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _start_brand_pulse() -> void:
 	var brand := get_node_or_null("Center/Card/MainBox/TitleSection/Brand")
