@@ -376,11 +376,20 @@ func _show_loading_screen() -> void:
 	_loading_layer = CanvasLayer.new()
 	_loading_layer.layer = 100
 	add_child(_loading_layer)
-	var bg := ColorRect.new()
-	bg.color = Color(0.016, 0.020, 0.030, 1.0)  # OPACO — nada vaza
+	# Fundo com TEXTURA (metal desgastado azul-petróleo) — cobre a tela toda
+	var bg := TextureRect.new()
+	bg.texture = load("res://assets/loading_bg.png")
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	_loading_layer.add_child(bg)
+	# Vinheta escura por cima (foca o centro + garante legibilidade do texto)
+	var vig := ColorRect.new()
+	vig.color = Color(0.01, 0.015, 0.025, 0.55)
+	vig.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_loading_layer.add_child(vig)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_loading_layer.add_child(center)

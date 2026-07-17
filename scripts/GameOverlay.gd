@@ -190,7 +190,14 @@ func _render_panel(panel_id: String) -> void:
 # PAINEL: GOVERNO
 # ─────────────────────────────────────────────────────────────────
 
-## PAINEL GABINETE — hub central: os 6 ministros com nível, XP e pesquisa.
+# Mapa pasta (Nation.MINISTERIOS) → id do painel (MINISTRY_META) p/ cor+ícone
+const PASTA_TO_PANEL := {
+	"casa_civil": "governo", "fazenda": "economia", "seguranca": "seguranca",
+	"saude": "saude", "educacao": "educacao", "exterior": "exterior",
+}
+
+## PAINEL GABINETE — "mesa de gabinete": grid 2×3 de cartões ministeriais,
+## cada um com sua cor, retrato em destaque, nível em estrelas e XP.
 func _render_gabinete() -> void:
 	var n = GameEngine.player_nation
 	if n == null: return
@@ -198,70 +205,95 @@ func _render_gabinete() -> void:
 	_add_advisor_header("presidente", "GABINETE PRESIDENCIAL",
 		"Seu governo, Presidente. Cada ministério cresce com investimento — e mais ministérios pesquisam em paralelo.",
 		"neutro", Color(0.4, 0.8, 1))
-	_add_section_title("MINISTÉRIOS (%d trilhas de pesquisa simultâneas)" % n.research_slots())
+	_add_section_title("MINISTÉRIOS  ·  %d trilhas em paralelo" % n.research_slots())
+	# Grid 2 colunas — a "mesa de gabinete"
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel_content.add_child(grid)
 	for m in snap:
-		_add_minister_card(m)
+		grid.add_child(_make_minister_card(m))
 	_add_separator()
 	_add_hint_label("💡 Clique num ministério na barra inferior para agir nele. Suba o nível da Casa Civil para liberar mais trilhas de pesquisa paralelas.")
 
-## Card de um ministro no hub: retrato + nível + barra XP + pesquisa ativa.
-func _add_minister_card(m: Dictionary) -> void:
+## Cartão temático de um ministro: cor própria, retrato + nível + XP + pesquisa.
+func _make_minister_card(m: Dictionary) -> Control:
+	var pasta: String = String(m.get("pasta", ""))
+	var panel_id: String = PASTA_TO_PANEL.get(pasta, "gabinete")
+	var accent: Color = ministry_color(panel_id)
 	var box := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.09, 0.12, 0.17, 0.92)
-	sb.border_width_left = 3
-	sb.border_color = Color(0.3, 0.6, 0.85)
-	sb.set_corner_radius_all(6)
-	sb.content_margin_left = 8; sb.content_margin_right = 8
-	sb.content_margin_top = 7; sb.content_margin_bottom = 7
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var sb := _make_card_style(accent, 0.55)
+	sb.border_width_top = 2  # faixa de cor no topo do cartão
 	box.add_theme_stylebox_override("panel", sb)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	box.add_child(row)
-	var pv := PortraitView.make(GameEngine.player_nation.codigo_iso, String(m["role"]), "neutro", 52.0)
-	pv.custom_minimum_size = Vector2(52, 62)
-	pv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(pv)
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 2)
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(col)
+	col.add_theme_constant_override("separation", 5)
+	box.add_child(col)
+	# Cabeçalho: retrato + nome + ícone do ministério
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	col.add_child(head)
+	var pv := PortraitView.make(GameEngine.player_nation.codigo_iso, String(m["role"]), "neutro", 46.0)
+	pv.custom_minimum_size = Vector2(46, 55)
+	pv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(pv)
+	var titcol := VBoxContainer.new()
+	titcol.add_theme_constant_override("separation", 1)
+	titcol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	titcol.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(titcol)
+	var ico_row := HBoxContainer.new()
+	ico_row.add_theme_constant_override("separation", 4)
+	var ico := make_ministry_icon(panel_id, 15.0)
+	ico.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ico_row.add_child(ico)
 	var title := Label.new()
-	title.text = "%s %s" % [m["icon"], m["nome"]]
-	title.add_theme_color_override("font_color", Color(0.9, 0.95, 1))
+	title.text = String(m["nome"])
+	title.add_theme_color_override("font_color", Color(0.95, 0.97, 1))
 	title.add_theme_font_size_override("font_size", 12)
-	col.add_child(title)
-	# nível + estrelas
+	title.clip_text = true
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ico_row.add_child(title)
+	titcol.add_child(ico_row)
 	var nv: int = int(m["nivel"])
-	var stars := "★".repeat(nv) + "☆".repeat(5 - nv)
-	var lvl := Label.new()
-	lvl.text = "Nível %d  %s" % [nv, stars]
-	lvl.add_theme_color_override("font_color", Color(1, 0.82, 0.3))
-	lvl.add_theme_font_size_override("font_size", 10)
-	col.add_child(lvl)
-	# barra de XP
+	var stars := Label.new()
+	stars.text = "★".repeat(nv) + "☆".repeat(5 - nv)
+	stars.add_theme_color_override("font_color", accent)
+	stars.add_theme_font_size_override("font_size", 11)
+	titcol.add_child(stars)
+	# Barra de XP estilizada (nível → próximo)
 	var bar := ProgressBar.new()
 	bar.custom_minimum_size = Vector2(0, 8)
 	bar.max_value = 100.0
 	bar.value = float(m["xp_pct"])
 	bar.show_percentage = false
+	var bar_bg := StyleBoxFlat.new()
+	bar_bg.bg_color = Color(0.02, 0.03, 0.045, 1)
+	bar_bg.set_corner_radius_all(4)
+	bar.add_theme_stylebox_override("background", bar_bg)
+	var bar_fill := StyleBoxFlat.new()
+	bar_fill.bg_color = accent
+	bar_fill.set_corner_radius_all(4)
+	bar.add_theme_stylebox_override("fill", bar_fill)
 	col.add_child(bar)
-	# trilha de pesquisa ativa (se houver)
+	# Pesquisa ativa (ou verba/ocioso)
 	var pesq: Dictionary = m.get("pesquisa", {})
 	var info := Label.new()
 	if not pesq.is_empty():
-		info.text = "🔬 %s (%d%%)" % [pesq.get("name", "?"), int(pesq.get("pct", 0))]
-		info.add_theme_color_override("font_color", Color(0.5, 0.85, 1))
+		info.text = "🔬 %s · %d%%" % [pesq.get("name", "?"), int(pesq.get("pct", 0))]
+		info.add_theme_color_override("font_color", Color(0.6, 0.88, 1))
 	else:
 		var vb: float = float(m.get("verba", 0.0))
 		info.text = "P&D: $%dB/ano" % int(vb) if vb > 0 else "sem pesquisa ativa"
-		info.add_theme_color_override("font_color", Color(0.6, 0.7, 0.82))
+		info.add_theme_color_override("font_color", Color(0.55, 0.62, 0.72))
 	info.add_theme_font_size_override("font_size", 10)
+	info.clip_text = true
+	info.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	col.add_child(info)
-	panel_content.add_child(box)
-	var sp := Control.new()
-	sp.custom_minimum_size = Vector2(0, 5)
-	panel_content.add_child(sp)
+	return box
 
 ## PAINEL SAÚDE — Ministro reage à felicidade/população.
 func _render_saude() -> void:
