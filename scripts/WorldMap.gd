@@ -293,21 +293,13 @@ func _show_loading_screen() -> void:
 	lbl.add_theme_font_size_override("font_size", 15)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(lbl)
-	# SPINNER dourado girando (feedback vivo enquanto o mundo monta)
-	var spin := Label.new()
+	# SPINNER de arco (desenhado via _draw — suave, profissional)
+	var spin := Control.new()
 	spin.name = "LoadingSpinner"
-	spin.text = "◐"
-	spin.add_theme_font_size_override("font_size", 42)
-	spin.add_theme_color_override("font_color", Color(0.90, 0.74, 0.36))
+	spin.set_script(load("res://scripts/LoadingSpinner.gd"))
+	spin.custom_minimum_size = Vector2(58, 58)
 	spin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	spin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(spin)
-	# Pivô no centro real (size só existe após o layout) → rotação no lugar
-	spin.resized.connect(func():
-		if is_instance_valid(spin):
-			spin.pivot_offset = spin.size / 2.0)
-	var spin_tw := spin.create_tween().set_loops()
-	spin_tw.tween_property(spin, "rotation", TAU, 1.1).from(0.0)
 	var hint := Label.new()
 	hint.text = "195 nações  ·  2000 → 2100  ·  o século é seu"
 	hint.add_theme_color_override("font_color", Color(0.52, 0.52, 0.55))
@@ -1664,9 +1656,10 @@ func _clamp_camera() -> void:
 	var central_h: float = max(100.0, vp_size.y - TOP_BAR_H - BOTTOM_BAR_H)
 	var min_zoom_x: float = central_w / MAP_WIDTH
 	var min_zoom_y: float = central_h / MAP_HEIGHT
-	# Trava zoom mínimo no nível "fit" EXATO — o mapa preenche a área visível
-	# no eixo crítico (a folga de 5% deixava o clamp lutando com o pan).
-	var min_zoom_local: float = max(min_zoom_x, min_zoom_y)
+	# Zoom mínimo = CONTAIN-fit: o mundo INTEIRO cabe na área central (entre
+	# as barras), com a moldura visível — antes era cover-fit e a parte de
+	# baixo do mapa ficava escondida atrás dos menus ("mapa descendo").
+	var min_zoom_local: float = min(min_zoom_x, min_zoom_y) * 0.94
 	var z: float = clamp(camera.zoom.x, min_zoom_local, ZOOM_MAX)
 	camera.zoom = Vector2(z, z)
 	var half_w: float = (central_w * 0.5) / z
