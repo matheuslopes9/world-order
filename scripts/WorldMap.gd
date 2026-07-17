@@ -293,18 +293,21 @@ func _show_loading_screen() -> void:
 	lbl.add_theme_font_size_override("font_size", 15)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(lbl)
-	# Barra de progresso dourada (preenchimento suave enquanto o mundo monta)
-	var bar := ProgressBar.new()
-	bar.name = "LoadingBar"
-	bar.custom_minimum_size = Vector2(420, 10)
-	bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	bar.min_value = 0.0
-	bar.max_value = 100.0
-	bar.value = 0.0
-	bar.show_percentage = false
-	v.add_child(bar)
-	var bar_tw := bar.create_tween()
-	bar_tw.tween_property(bar, "value", 92.0, 2.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	# SPINNER dourado girando (feedback vivo enquanto o mundo monta)
+	var spin := Label.new()
+	spin.name = "LoadingSpinner"
+	spin.text = "◐"
+	spin.add_theme_font_size_override("font_size", 42)
+	spin.add_theme_color_override("font_color", Color(0.90, 0.74, 0.36))
+	spin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	spin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(spin)
+	# Pivô no centro real (size só existe após o layout) → rotação no lugar
+	spin.resized.connect(func():
+		if is_instance_valid(spin):
+			spin.pivot_offset = spin.size / 2.0)
+	var spin_tw := spin.create_tween().set_loops()
+	spin_tw.tween_property(spin, "rotation", TAU, 1.1).from(0.0)
 	var hint := Label.new()
 	hint.text = "195 nações  ·  2000 → 2100  ·  o século é seu"
 	hint.add_theme_color_override("font_color", Color(0.52, 0.52, 0.55))
@@ -321,16 +324,6 @@ func _hide_loading_screen() -> void:
 		return
 	var layer := _loading_layer
 	_loading_layer = null
-	# Completa a barra (100%) num último respiro antes do fade
-	var bar := layer.get_node_or_null("CenterContainer/VBoxContainer/LoadingBar")
-	if bar == null:
-		for c0 in layer.get_children():
-			if c0 is CenterContainer:
-				bar = c0.find_child("LoadingBar", true, false)
-				break
-	if bar is ProgressBar:
-		var btw := (bar as ProgressBar).create_tween()
-		btw.tween_property(bar, "value", 100.0, 0.15)
 	# Fade cinematográfico: o mundo "acende" por trás do loading
 	var faders: Array = []
 	for c in layer.get_children():
@@ -3076,7 +3069,9 @@ func _finalize_takeover() -> void:
 		game_overlay.activate()
 	_show_action_bar(true)
 	_repaint_map()
-	_zoom_camera_to_country(player_code)
+	# Mundo inteiro "preso na moldura" (como na tela de seleção) — o país
+	# do jogador fica destacado pela borda ciano; o zoom é escolha dele.
+	_zoom_camera_to_world()
 	_refresh_top_bar()
 	# Log dramatic
 	var leader: String = String(_takeover_state.get("leader_name", "Líder"))
