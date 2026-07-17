@@ -16,6 +16,7 @@ var shard: int = 0
 var shards: int = 1
 var games: int = 250
 var all_active: bool = false  # --active=1: desliga o controle passivo (teste de cobertura)
+var scenario_id: String = "campanha"  # --scenario=decada_critica etc.
 
 var ns_dict: Dictionary = {}
 var results: Array = []
@@ -38,6 +39,7 @@ func _ready() -> void:
 				"--shards": shards = int(kv[1])
 				"--games": games = int(kv[1])
 				"--active": all_active = int(kv[1]) == 1
+				"--scenario": scenario_id = kv[1]
 	await get_tree().process_frame
 	_backup_user_files()
 	var raw = GameEngine._load_json("res://data/nations.json")
@@ -112,7 +114,7 @@ func _reset_engine() -> void:
 	E._war_score.clear()
 	E.settings["difficulty"] = "normal"
 	E.settings["mode"] = "inspirado"
-	E.settings["scenario"] = "campanha"
+	E.settings["scenario"] = scenario_id
 	E.nations.clear()
 	var n_script = load("res://scripts/Nation.gd")
 	for c in ns_dict:
@@ -133,6 +135,9 @@ func _reset_engine() -> void:
 		E.achievements.unlocked = {}
 	E.timeline.historic_event_decision.connect(_on_historic)
 	E.storylines.storyline_triggered.connect(_on_storyline)
+	# Aplica o cenário (janela de anos, bônus, modificadores temáticos) se não for campanha
+	if scenario_id != "campanha":
+		E.apply_scenario(scenario_id)
 	_endgame_result = {}
 	_decisions = 0
 
@@ -160,7 +165,9 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 	var death_ctx := {}
 	var t_start := Time.get_ticks_msec()
 
-	while E.date_year < END_YEAR and E.current_turn < MAX_TURNS:
+	# Fim do jogo respeita o end_year do cenário (Década Crítica=2024, etc.)
+	var end_year: int = int(E.active_scenario.get("end_year", END_YEAR)) if not E.active_scenario.is_empty() else END_YEAR
+	while E.date_year < end_year and E.current_turn < MAX_TURNS:
 		if not passive:
 			# Gabinete: ajusta verba de P&D por persona (abre trilhas paralelas)
 			bot._manage_ministry_budgets()
