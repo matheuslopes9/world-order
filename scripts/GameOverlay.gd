@@ -380,15 +380,21 @@ func _render_saude() -> void:
 		fala = "O SUS vai bem. Com mais verba, alcançamos cada cidadão."
 		expr = "feliz" if n.felicidade > 65.0 else "neutro"
 	_add_advisor_header("saude", "MIN. DA SAÚDE  ·  Nível %d" % lvl, fala, expr, ministry_color("saude"))
-	_add_section_title("INDICADORES DE SAÚDE")
+	var saude_c: Color = ministry_color("saude")
+	# KPIs de vitais
+	var fel_cor := Color(0.30, 0.92, 0.62) if n.felicidade >= 60.0 else (Color(1, 0.5, 0.4) if n.felicidade < 40.0 else Color(1, 0.82, 0.3))
+	_add_kpi_grid([
+		["FELICIDADE", "%d%%" % int(n.felicidade), "sinal vital do povo", fel_cor],
+		["POPULAÇÃO", _fmt_thousands(n.populacao), "habitantes", saude_c],
+		["GASTO EM SAÚDE", "$%dB" % int(n.gasto_social.get("saude", 0)), "por ano", Color(0.30, 0.92, 0.62)],
+	], 3)
+	_add_section_title("VITAIS DA NAÇÃO", saude_c)
 	_add_bar("Felicidade", n.felicidade, true)
-	_add_data_row("População", _fmt_thousands(n.populacao))
-	_add_data_row("Gasto em saúde", "$%dB" % int(n.gasto_social.get("saude", 0)))
 	_add_ministry_rd_controls("saude")
 	_add_separator()
-	_add_section_title("AÇÕES DE SAÚDE")
+	_add_section_title("AÇÕES DE SAÚDE", saude_c)
 	for a in GameEngine.get_panel_actions("saude"):
-		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "saude", Color(0.5, 0.9, 0.8)))
+		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "saude", saude_c))
 
 ## PAINEL EDUCAÇÃO — Ministro puxa a ciência.
 func _render_educacao() -> void:
@@ -398,15 +404,19 @@ func _render_educacao() -> void:
 	var fala: String = "Educação é o motor da nação, Presidente. Cada real investido volta em ciência."
 	var expr: String = "feliz" if n.velocidade_pesquisa > 1.3 else "neutro"
 	_add_advisor_header("educacao", "MIN. DA EDUCAÇÃO  ·  Nível %d" % lvl, fala, expr, ministry_color("educacao"))
-	_add_section_title("INDICADORES DE ENSINO")
-	_add_data_row("Velocidade de pesquisa", "%.2f×" % n.velocidade_pesquisa, Color(0.5, 0.85, 1))
-	_add_data_row("Techs concluídas", "%d de %d" % [n.tecnologias_concluidas.size(), GameEngine.tech.tech_index.size() if GameEngine.tech else 0])
-	_add_data_row("Gasto em educação", "$%dB" % int(n.gasto_social.get("educacao", 0)))
+	var edu_c: Color = ministry_color("educacao")
+	var total_techs: int = GameEngine.tech.tech_index.size() if GameEngine.tech else 0
+	var vel_cor := Color(0.30, 0.92, 0.62) if n.velocidade_pesquisa > 1.3 else edu_c
+	_add_kpi_grid([
+		["VELOCIDADE", "%.2f×" % n.velocidade_pesquisa, "ritmo de pesquisa", vel_cor],
+		["TECHS", "%d/%d" % [n.tecnologias_concluidas.size(), total_techs], "conhecimento nacional", edu_c],
+		["GASTO EM ENSINO", "$%dB" % int(n.gasto_social.get("educacao", 0)), "por ano", Color(0.30, 0.92, 0.62)],
+	], 3)
 	_add_ministry_rd_controls("educacao")
 	_add_separator()
-	_add_section_title("AÇÕES DE EDUCAÇÃO")
+	_add_section_title("AÇÕES DE EDUCAÇÃO", edu_c)
 	for a in GameEngine.get_panel_actions("educacao"):
-		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "educacao", Color(0.5, 0.7, 1)))
+		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "educacao", edu_c))
 	_add_separator()
 	_add_hint_label("🔬 A pesquisa científica de cada ministério é gerida na aba Tech — cada pasta pesquisa a sua trilha em paralelo.")
 
@@ -1288,12 +1298,15 @@ func _render_intel() -> void:
 	else:
 		i_fala = "Aguardo suas ordens nas sombras. Aponte o alvo no mapa."
 	_add_advisor_header("seguranca", "MIN. DA JUSTIÇA & SEGURANÇA · Inteligência", i_fala, "neutro", ministry_color("intel"))
-	_add_section_title("INTELIGÊNCIA")
-	_add_data_row("Intel Score", "%.1f" % n.intel_score, Color(0, 0.823, 1))
-	_add_data_row("Segurança Intel", "%.1f" % n.seguranca_intel, Color(0.4, 1, 0.6))
-	_add_data_row("Operações realizadas", "%d" % n.spy_ops_log.size())
+	var intel_c: Color = ministry_color("intel")
+	var seg_cor := Color(0.30, 0.92, 0.62) if n.seguranca_intel >= 55.0 else (Color(1, 0.5, 0.4) if n.seguranca_intel < 40.0 else Color(1, 0.82, 0.3))
+	_add_kpi_grid([
+		["INTEL SCORE", "%.0f" % n.intel_score, "capacidade ofensiva", intel_c],
+		["CONTRA-INTEL", "%.0f" % n.seguranca_intel, "defesa contra espiões", seg_cor],
+		["OPERAÇÕES", "%d" % n.spy_ops_log.size(), "no histórico", Color(0.75, 0.80, 0.88)],
+	], 3)
 	_add_separator()
-	_add_section_title("OPERAÇÕES DISPONÍVEIS")
+	_add_section_title("OPERAÇÕES DISPONÍVEIS", intel_c)
 	var wm0 = get_node_or_null("/root/WorldMap")
 	var alvo: String = String(wm0.preview_code) if wm0 != null and wm0.get("preview_code") != null else ""
 	if alvo != "" and GameEngine.player_nation != null and alvo != GameEngine.player_nation.codigo_iso and GameEngine.nations.has(alvo):

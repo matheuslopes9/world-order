@@ -4257,30 +4257,51 @@ func _open_bailout_modal(terms: Dictionary) -> void:
 # FILTROS DE MAPA
 # ─────────────────────────────────────────────────────────────────
 
+# Filtros do mapa: glifo + COR que casa com o que o filtro pinta no mapa.
+# (Satélite/Político = neutro; Economia azul; Militar vermelho;
+#  Estabilidade verde; Recursos dourado — a mesma lógica de _filter_color.)
+const MAP_FILTERS := [
+	{"id": "SATELITE",     "label": "Satélite",     "glifo": "🛰", "cor": Color(0.55, 0.75, 0.95)},
+	{"id": "POLITICO",     "label": "Político",     "glifo": "🏛", "cor": Color(0.70, 0.75, 0.85)},
+	{"id": "ECONOMIA",     "label": "Economia",     "glifo": "💰", "cor": Color(0.30, 0.62, 0.98)},
+	{"id": "MILITAR",      "label": "Militar",      "glifo": "⚔",  "cor": Color(0.95, 0.38, 0.32)},
+	{"id": "ESTABILIDADE", "label": "Estabilidade", "glifo": "🏛", "cor": Color(0.35, 0.90, 0.55)},
+	{"id": "RECURSOS",     "label": "Recursos",     "glifo": "⛏", "cor": Color(0.92, 0.76, 0.36)},
+]
+
 func _build_map_filters() -> void:
 	if map_filters == null: return
 	for c in map_filters.get_children(): c.queue_free()
-	var filters := [
-		{"id": "SATELITE",     "label": "Satélite"},
-		{"id": "POLITICO",     "label": "Político"},
-		{"id": "ECONOMIA",     "label": "Economia"},
-		{"id": "MILITAR",      "label": "Militar"},
-		{"id": "ESTABILIDADE", "label": "Estabilidade"},
-		{"id": "RECURSOS",     "label": "Recursos"},
-	]
-	for f in filters:
+	for f in MAP_FILTERS:
+		var fid: String = f["id"]
+		var cor: Color = f["cor"]
+		var is_sel: bool = fid == current_filter
 		var btn := Button.new()
 		btn.toggle_mode = true
-		btn.button_pressed = (f["id"] == "SATELITE")
-		btn.set_meta("filter_id", f["id"])
-		btn.text = f["label"]
-		btn.custom_minimum_size = Vector2(56, 30)
+		btn.button_pressed = is_sel
+		btn.set_meta("filter_id", fid)
+		btn.set_meta("filter_cor", cor)
+		btn.text = "%s %s" % [f["glifo"], f["label"]]
+		btn.custom_minimum_size = Vector2(56, 32)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.clip_text = true
 		btn.tooltip_text = f["label"]
 		btn.add_theme_font_size_override("font_size", 11)
 		btn.focus_mode = Control.FOCUS_NONE
-		btn.pressed.connect(_on_map_filter_pressed.bind(f["id"]))
+		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		# Estado SELECIONADO acende na cor do filtro (indica o que está no mapa)
+		var sb_sel := StyleBoxFlat.new()
+		sb_sel.bg_color = Color(cor.r * 0.20, cor.g * 0.20, cor.b * 0.20, 0.95)
+		sb_sel.border_color = cor
+		sb_sel.set_border_width_all(1)
+		sb_sel.set_corner_radius_all(7)
+		btn.add_theme_stylebox_override("pressed", sb_sel)
+		var sb_h := sb_sel.duplicate() as StyleBoxFlat
+		sb_h.bg_color = Color(cor.r * 0.12, cor.g * 0.12, cor.b * 0.12, 0.8)
+		btn.add_theme_stylebox_override("hover", sb_h)
+		btn.add_theme_color_override("font_pressed_color", cor)
+		btn.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1))
+		btn.pressed.connect(_on_map_filter_pressed.bind(fid))
 		map_filters.add_child(btn)
 
 func _on_map_filter_pressed(filter_id: String) -> void:
