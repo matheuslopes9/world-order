@@ -451,6 +451,7 @@ func _render_economia() -> void:
 	_add_separator()
 	# ── CRÉDITO & DÍVIDA ──
 	_add_section_title("CRÉDITO & DÍVIDA")
+	_render_complexidade_economica(n)
 	var rating: float = n.rating_credito()
 	var letra: String = n.rating_letra()
 	var rating_cor := Color(0.4, 1, 0.6) if rating >= 66.0 else (Color(1, 0.5, 0.4) if rating < 42.0 else Color(1, 0.82, 0.3))
@@ -601,6 +602,27 @@ func _render_economia() -> void:
 	_add_section_title("AÇÕES ECONÔMICAS")
 	for a in GameEngine.get_panel_actions("economia"):
 		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "economia", Color(0, 1, 0.5)))
+
+# Seção "Complexidade Econômica" do painel de economia: ECS + grau de
+# processamento por setor (raw vs manufaturado) + aviso de volatilidade.
+func _render_complexidade_economica(n) -> void:
+	_add_section_title("COMPLEXIDADE ECONOMICA")
+	var ecs: float = n.complexidade_economica
+	var ecs_cor := Color(0.4, 1, 0.6) if ecs >= 62.0 else (Color(1, 0.5, 0.4) if ecs < 40.0 else Color(1, 0.82, 0.3))
+	_add_data_row("Indice (ECS)", "%s  (%d/100)" % [n.complexidade_letra(), int(ecs)], ecs_cor)
+	var setores_nome := {"energia": "Energia", "alimentos": "Alimentos", "materias_primas": "Materias-primas"}
+	for s in n.COMMODITY_SECTORS:
+		if n._setor_oferta(s) >= 60.0:  # so setores que o pais realmente exporta
+			var proc: float = n._grau_proc(s) * 100.0
+			var tag := "manufaturado" if proc >= 60.0 else ("semi-processado" if proc >= 30.0 else "bruto (raw)")
+			var pcor := Color(0.4, 1, 0.6) if proc >= 60.0 else (Color(1, 0.6, 0.4) if proc < 30.0 else Color(1, 0.82, 0.3))
+			_add_data_row("  %s" % setores_nome.get(s, s), "%d%% processado - %s" % [int(proc), tag], pcor)
+	var vol: float = n.commodity_volatilidade()
+	if vol >= 0.35:
+		_add_hint_label("Economia dependente de commodities brutas: receita e inflacao mais volateis. Use Upgrade Industrial para agregar valor.")
+	elif ecs >= 62.0:
+		_add_hint_label("Economia sofisticada: crescimento estavel e menos exposto a choques de preco.")
+	_add_separator()
 
 # ─────────────────────────────────────────────────────────────────
 # PAINEL: DIPLOMACIA
@@ -1923,16 +1945,31 @@ func _compute_legacy_narrative(n) -> String:
 	return "\n".join(lines)
 
 func _show_event_modal(event: Dictionary) -> void:
+	# Ancora no modal_layer do WorldMap (CanvasLayer full-rect) para centralizar
+	# corretamente. Se adicionado ao próprio GameOverlay (que vive dentro de um
+	# card de modal), o PRESET_CENTER + position manual saíam pro canto da tela.
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	var host: Node = null
+	var modal_parent: Node = self
+	if tree != null:
+		host = tree.root.get_node_or_null("WorldMap")
+		if host != null and host.get("modal_layer") != null:
+			modal_parent = host.modal_layer
 	var modal := ColorRect.new()
 	modal.color = Color(0, 0, 0, 0.85)
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(modal)  # filho do GameOverlay (não da root → limpa em scene change)
+	if modal_parent is CanvasItem:
+		(modal_parent as CanvasItem).visible = true
+	modal_parent.add_child(modal)
+	# CenterContainer full-rect: centraliza sem offset manual, em qualquer resolução
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	modal.add_child(center)
 	var box := PanelContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.custom_minimum_size = Vector2(560, 360)
-	box.position = Vector2(-280, -180)
-	modal.add_child(box)
+	center.add_child(box)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	box.add_child(v)

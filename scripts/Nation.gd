@@ -41,6 +41,17 @@ var exportacoes: Dictionary = {}    # setor -> $B/ano
 var importacoes: Dictionary = {}    # setor -> $B/ano
 var import_dependencia: Dictionary = {}  # setor -> 0..1 (vulnerabilidade)
 
+# ── COMPLEXIDADE ECONÔMICA (raw commodity vs processed/manufactured) ──
+# Economic Complexity Score (0-100): quão sofisticada é a economia. Países que
+# exportam commodities BRUTAS (soja, minério, petróleo cru) têm ECS baixo — muita
+# receita, mas volátil e com baixo valor agregado. Países que PROCESSAM/manufaturam
+# (Alemanha, Coreia) têm ECS alto — crescimento mais estável e sustentado.
+# grau_processamento[setor] = 0..1: fração da produção do setor que é PROCESSADA
+# (0 = tudo bruto/raw, 1 = tudo manufaturado). Sobe com "upgrade industrial".
+var complexidade_economica: float = 35.0     # ECS 0-100 (cacheado, recalc 1×/turno)
+var grau_processamento: Dictionary = {}      # setor -> 0..1 (raw→processed)
+var _volatilidade_commodity: float = 0.0     # 0..1: exposição a commodities brutas (cache)
+
 # Eleições
 var proxima_eleicao_turno = null  # Variant: int ou null
 var intervalo_eleicoes: int = 60   # ~5 anos × 12 meses (ritmo mensal)
@@ -54,6 +65,10 @@ var lider_idade: int = 55
 var lider_desde_turno: int = 0
 var turnos_impopular: int = 0   # contador p/ queda por impopularidade prolongada
 var lideres_passados: int = 0   # quantas trocas de líder já houve (p/ histórico/UI)
+
+# Multiplicador de ameaça (dificuldade escolhida) — escala a espiral de crise etc.
+# Setado no jogador pelo GameEngine.confirm_player_nation. Bots ficam em 1.0.
+var threat_mult: float = 1.0
 
 # Recursos & Militar (Dictionaries)
 var recursos: Dictionary = {}
@@ -189,10 +204,41 @@ func from_dict(data: Dictionary, code: String, baked_tier: String = "") -> Natio
 	# Confiança do investidor inicial: derivada das instituições de partida
 	confianca_investidor = clamp(55.0 - corrupcao * 0.6 + (estabilidade_politica - 50.0) * 0.3, 10.0, 90.0)
 
+	# ── COMPLEXIDADE ECONÔMICA inicial ──
+	# grau_processamento por setor: quanto o país já processa cada commodity de
+	# partida. Deriva do PIB per capita (economia rica processa mais) mas pode
+	# ser sobrescrito por nations.json ("grau_processamento": {...}).
+	_init_complexidade(data)
+
 	# Balança comercial inicial (pra UI ter valores no turno 0)
 	update_balanca_comercial()
 
 	return self
+
+# Inicializa o Economic Complexity Score e o grau de processamento por setor.
+# Brasil (rico em recursos brutos, pouca manufatura) → ECS baixo; Alemanha/Coreia
+# (manufatura e tech densas) → ECS alto. Deriva do PIB per capita + tech, com
+# override opcional via nations.json ("complexidade_economica", "grau_processamento").
+func _init_complexidade(data: Dictionary) -> void:
+	# Proxy de desenvolvimento: PIB per capita em milhares de USD (0..~1)
+	var pc_k: float = pib_per_capita() / 1000.0
+	var dev: float = clampf(pc_k / 50.0, 0.0, 1.0)   # $50k/hab ≈ economia madura
+	# Grau de processamento base: economia desenvolvida processa mais suas commodities
+	var base_proc: float = clampf(0.10 + dev * 0.55, 0.0, 0.85)
+	grau_processamento = {}
+	for s in COMMODITY_SECTORS:
+		grau_processamento[s] = base_proc
+	# Override explícito por nação (data-driven)
+	if data.has("grau_processamento") and data["grau_processamento"] is Dictionary:
+		for s in data["grau_processamento"]:
+			grau_processamento[s] = clampf(float(data["grau_processamento"][s]), 0.0, 1.0)
+	# ECS inicial: override direto ou derivado (dev + tech). Recompute refina depois.
+	if data.has("complexidade_economica"):
+		complexidade_economica = clampf(float(data["complexidade_economica"]), 0.0, 100.0)
+	else:
+		var tech0: float = clampf(tecnologias_concluidas.size() / 40.0, 0.0, 1.0)
+		complexidade_economica = clampf(20.0 + dev * 55.0 + tech0 * 15.0, 0.0, 100.0)
+	recompute_complexidade()
 
 # ─────────────────────────────────────────────────────────────────
 # DIFICULDADE
@@ -276,6 +322,69 @@ func _setor_oferta(setor: String) -> float:
 		melhor = maxf(melhor, clampf(tecnologias_concluidas.size() * 3.0, 0.0, 90.0))
 	return melhor
 
+# ── COMPLEXIDADE ECONÔMICA ──
+# Setores de commodity BRUTA por natureza (baixo valor agregado por padrão).
+# 'industriais' já é manufatura/serviços (processado); os outros 3 nascem raw
+# e só sobem de grau de processamento via upgrade industrial.
+const COMMODITY_SECTORS := ["energia", "alimentos", "materias_primas"]
+
+# Grau de processamento efetivo de um setor (0..1): quanto da produção é
+# manufaturada em vez de exportada bruta. 'industriais' é sempre ~processado.
+func _grau_proc(setor: String) -> float:
+	if setor == "industriais":
+		return 1.0
+	return clampf(float(grau_processamento.get(setor, 0.0)), 0.0, 1.0)
+
+# Recalcula o Economic Complexity Score (0-100). Chamado 1×/turno (perf).
+# ECS alto = economia diversificada + industrializada + com tech. Ele:
+#   • dá bônus de crescimento sustentado ao PIB (economias complexas)
+#   • reduz a volatilidade de receita/inflação
+#   • é elevado ao processar commodities (upgrade industrial)
+func recompute_complexidade() -> void:
+	# 1) Base industrial: oferta do setor industriais (manufatura/serviços/tech)
+	var indust: float = _setor_oferta("industriais") / 100.0            # 0..1
+	# 2) Tech acumulada (fronteira tecnológica)
+	var tech: float = clampf(tecnologias_concluidas.size() / 40.0, 0.0, 1.0)
+	# 3) Diversidade: nº de setores com oferta relevante (não depender de 1 só)
+	var setores_ativos: int = 0
+	for s in TRADE_SECTORS:
+		if _setor_oferta(s) >= 40.0:
+			setores_ativos += 1
+	var diversidade: float = clampf(float(setores_ativos) / 4.0, 0.0, 1.0)
+	# 4) Processamento médio das commodities (o país agrega valor?)
+	var proc_med: float = 0.0
+	for s in COMMODITY_SECTORS:
+		proc_med += _grau_proc(s)
+	proc_med /= float(COMMODITY_SECTORS.size())                          # 0..1
+	# Score ponderado (industrialização e tech pesam mais)
+	var score: float = (indust * 34.0) + (tech * 26.0) + (diversidade * 18.0) + (proc_med * 22.0)
+	# EWMA suave para não pular bruscamente turno a turno
+	complexidade_economica = clampf(complexidade_economica * 0.7 + score * 0.3, 0.0, 100.0)
+
+	# Volatilidade de commodity: quanto MAIS a economia depende de commodities
+	# BRUTAS (raw, sem processar), mais volátil é a receita/inflação/balança.
+	var raw_exposure: float = 0.0
+	var raw_weight: float = 0.0
+	for s in COMMODITY_SECTORS:
+		var oferta: float = _setor_oferta(s) / 100.0
+		if oferta > 0.0:
+			raw_exposure += oferta * (1.0 - _grau_proc(s))   # bruto pesa; processado não
+			raw_weight += oferta
+	_volatilidade_commodity = clampf(raw_exposure / maxf(0.001, raw_weight + 0.5), 0.0, 1.0)
+
+# Volatilidade (0..1) de exposição a commodities brutas — lida pela inflação/receita.
+func commodity_volatilidade() -> float:
+	return _volatilidade_commodity
+
+# Letra/rótulo do ECS para UI (parecido com rating de crédito).
+func complexidade_letra() -> String:
+	var c: float = complexidade_economica
+	if c >= 80.0: return "Muito Alta"
+	elif c >= 62.0: return "Alta"
+	elif c >= 45.0: return "Média"
+	elif c >= 28.0: return "Baixa"
+	return "Muito Baixa"
+
 var _saldo_comercial_cache: float = 0.0  # cacheado por update (perf)
 
 # Recalcula exportações, importações e dependência a cada turno.
@@ -297,9 +406,14 @@ func update_balanca_comercial() -> void:
 	for setor in TRADE_SECTORS:
 		var oferta: float = _setor_oferta(setor)
 		var mult: float = commodity_multiplier if setor == "energia" else 1.0
+		# VALOR AGREGADO: exportar bruto (raw) rende MENOS que manufaturado.
+		# grau 0 (tudo raw) → fator 1.0; grau 1 (tudo processado) → fator 1.6.
+		# 'industriais' já é processado (fator alto). Isto recompensa industrializar.
+		var proc: float = _grau_proc(setor)
+		var valor_agregado: float = 1.0 + 0.6 * proc
 		if oferta >= 60.0:
 			var forca: float = (oferta - 60.0) / 40.0  # 0..1
-			var e: float = base * (0.3 + 0.7 * forca) * mult
+			var e: float = base * (0.3 + 0.7 * forca) * mult * valor_agregado
 			exportacoes[setor] = e
 			exp_sum += e
 		elif oferta < 50.0:
@@ -421,6 +535,8 @@ var frontier_pib_pc: float = 0.0
 var commodity_multiplier: float = 1.0
 
 func update_pib(global_factor: float = 1.0) -> void:
+	# Recalcula complexidade econômica ANTES (usada pela balança e pelo crescimento)
+	recompute_complexidade()
 	# Atualiza a balança comercial antes de tudo (usada por receita e PIB)
 	update_balanca_comercial()
 	var stab: float = estabilidade_politica / 100.0
@@ -470,6 +586,14 @@ func update_pib(global_factor: float = 1.0) -> void:
 	# (economia exportadora), déficit crônico freia. Normalizado pelo PIB.
 	var saldo_pct: float = calc_balanca_comercial() / max(1.0, pib_bilhoes_usd / 12.0)
 	growth += clampf(saldo_pct, -0.5, 0.5) * 0.004
+	# COMPLEXIDADE ECONÔMICA: economias sofisticadas (industrializadas, diversas,
+	# com tech) crescem de forma mais SUSTENTADA. Centro em 50 (neutro): ECS 100 →
+	# +0.25%/tri; ECS 0 → -0.20%/tri (dependência de commodity bruta trava o catch-up).
+	var ecs_delta: float = (complexidade_economica - 50.0) / 50.0  # -1 … +1
+	if ecs_delta >= 0.0:
+		growth += ecs_delta * 0.0025
+	else:
+		growth += ecs_delta * 0.0020
 	# Cap superior apertado (0.030 vs 0.035): em 1200 turnos mensais, um país no teto
 	# compunha até PIB runaway (>1e8) na cauda extrema. Não afeta a mediana (bem abaixo).
 	growth = clamp(growth, -0.03, 0.030)
@@ -590,7 +714,11 @@ func process_turn_finances() -> void:
 	if decay_pct > 0.0 and inflacao_target > inflacao:
 		inflacao_target = inflacao + (inflacao_target - inflacao) * (1.0 - decay_pct)
 	# Ritmo mensal: shock/3 e peso do alvo /3 (EWMA preserva a meia-vida em tempo real).
-	var shock: float = (randf() - 0.5) * 2.0 / 3.0
+	# VOLATILIDADE DE COMMODITY: exportar bruto (soja, minério, petróleo cru) expõe a
+	# preços internacionais que oscilam MUITO mais que manufaturados. Amplia o shock em
+	# até +80% conforme a exposição a commodities não-processadas.
+	var vol_mult: float = 1.0 + 0.8 * commodity_volatilidade()
+	var shock: float = (randf() - 0.5) * 2.0 / 3.0 * vol_mult
 	inflacao = clamp(inflacao * 0.933 + inflacao_target * 0.067 + shock, 0.0, 100.0)
 
 	# Inflação alta corrói felicidade e apoio
@@ -648,10 +776,11 @@ func update_government(global_factor: float = 1.0) -> void:
 	# ESPIRAL DE CRISE: quando estabilidade E apoio já estão baixos, o desgaste se
 	# realimenta (protestos, êxodo, paralisia) — crises viram PERIGOSAS de verdade em
 	# vez de se auto-corrigirem. Dá tensão: sobreviver a uma crise é uma conquista.
+	# threat_mult escala com a dificuldade escolhida (setado no jogador pelo engine).
 	if estabilidade_politica < 30.0 and apoio_popular < 35.0:
 		var severidade: float = (30.0 - estabilidade_politica) / 30.0  # 0..1
-		estabilidade_politica = maxf(0.0, estabilidade_politica - severidade * 1.5)
-		apoio_popular = maxf(0.0, apoio_popular - severidade * 1.0)
+		estabilidade_politica = maxf(0.0, estabilidade_politica - severidade * 1.5 * threat_mult)
+		apoio_popular = maxf(0.0, apoio_popular - severidade * 1.0 * threat_mult)
 
 	corrupcao = clamp(corrupcao, 0.0, 100.0)
 	burocracia_eficiencia = clamp(burocracia_eficiencia, 0.0, 100.0)

@@ -199,6 +199,25 @@ func _generate_economy_actions(n) -> Array:
 				"reason": "Explorar recursos — recurso mín=%.0f" % min_res
 			})
 
+	# Upgrade industrial (custo 70): industrializar quando o país exporta commodity
+	# BRUTA e tem baixa complexidade (rico em recursos, pouca manufatura = Brasil).
+	# Score sobe com a volatilidade (dependência de commodity bruta) e cai com ECS alto.
+	if tesouro >= 90:
+		var vol: float = n.commodity_volatilidade()
+		var ecs: float = n.complexidade_economica
+		# só se há setor de commodity exportável ainda pouco processado
+		var tem_alvo: bool = false
+		for s in n.COMMODITY_SECTORS:
+			if n._setor_oferta(s) >= 60.0 and n._grau_proc(s) < 0.9:
+				tem_alvo = true
+				break
+		if tem_alvo and vol >= 0.25:
+			out.append({
+				"type": "panel_action", "action": "upgrade_industrial",
+				"score": 30.0 + vol * 35.0 + maxf(0.0, 55.0 - ecs) * 0.4, "category": "economia",
+				"reason": "Industrializar — commodity bruta (vol=%.2f, ECS=%.0f)" % [vol, ecs]
+			})
+
 	return out
 
 func _generate_social_actions(n) -> Array:

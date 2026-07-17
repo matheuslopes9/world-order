@@ -34,6 +34,24 @@ var player_actions_remaining: int = PLAYER_ACTIONS_PER_TURN
 
 signal player_actions_changed(remaining: int)
 
+# Multiplicador de AMEAÇA pela dificuldade escolhida (easy/normal/hard/brutal).
+# Escala a intensidade de crises/choques/agressão que atingem o JOGADOR — deixa o
+# jogador escolher o nível de tensão. 1.0 = normal; >1 = mais perigoso.
+func difficulty_threat_mult() -> float:
+	match settings.get("difficulty", "normal"):
+		"easy":   return 0.6
+		"hard":   return 1.5
+		"brutal": return 2.2
+		_:        return 1.0
+
+# Intervalo (em turnos/meses) entre provocações da nemesis — quanto mais difícil, mais frequente.
+func _nemesis_provo_interval() -> int:
+	match settings.get("difficulty", "normal"):
+		"easy":   return 20
+		"hard":   return 11
+		"brutal": return 8
+		_:        return 15
+
 func _consume_action() -> bool:
 	if player_actions_remaining <= 0:
 		return false
@@ -433,6 +451,8 @@ func confirm_player_nation(code: String) -> void:
 		"MUITO_DIFICIL": 2.8, "QUASE_IMPOSSIVEL": 3.5
 	}.get(player_nation.tier_dificuldade, 1.0))
 	player_nation.tesouro = round(player_nation.tesouro * diff_mult * tier_mult)
+	# Dificuldade escolhida escala a AMEAÇA ao jogador (espiral de crise, choques…)
+	player_nation.threat_mult = difficulty_threat_mult()
 	# Aplica perks ativos do meta_progression (XP unlocks)
 	if meta_progression:
 		meta_progression.apply_perks_to_player(player_nation)
@@ -1545,8 +1565,8 @@ func _update_player_nemesis() -> void:
 			"body": "Relação caiu para %d — esperar provocações nos próximos turnos." % int(worst_rel),
 			"color": Color(1, 0.4, 0.3),
 		}, [worst_code, player_nation.codigo_iso], nations[worst_code].continente if nations.has(worst_code) else "")
-	elif current_turn % 15 == 0:
-		# Provocação periódica do rival declarado (a cada ~15 meses)
+	elif current_turn % _nemesis_provo_interval() == 0:
+		# Provocação periódica do rival declarado (intervalo escala com a dificuldade)
 		var rival = nations.get(player_nemesis)
 		if rival != null:
 			var provocations: Array = [
@@ -1562,9 +1582,10 @@ func _update_player_nemesis() -> void:
 				"body": "",
 				"color": Color(1, 0.55, 0.3),
 			}, [player_nemesis, player_nation.codigo_iso], rival.continente)
-			# Aplica pequena penalidade contínua de relação (rival ataca)
-			player_nation.relacoes[player_nemesis] = clamp(float(player_nation.relacoes.get(player_nemesis, 0)) - 3, -100, 100)
-			rival.relacoes[player_nation.codigo_iso] = clamp(float(rival.relacoes.get(player_nation.codigo_iso, 0)) - 3, -100, 100)
+			# Penalidade contínua de relação (rival ataca) — escala com a dificuldade
+			var provo_pen: float = 3.0 * player_nation.threat_mult
+			player_nation.relacoes[player_nemesis] = clamp(float(player_nation.relacoes.get(player_nemesis, 0)) - provo_pen, -100, 100)
+			rival.relacoes[player_nation.codigo_iso] = clamp(float(rival.relacoes.get(player_nation.codigo_iso, 0)) - provo_pen, -100, 100)
 
 # COALIZÃO DE CONTENÇÃO (#9): quando o jogador domina o mundo, as outras grandes
 # potências se unem para conter sua hegemonia (balancing realista — ninguém quer um
@@ -2590,6 +2611,7 @@ const PANEL_ACTIONS := {
 	"infra_megaprojeto":    {"panel": "economia", "min": "fazenda",    "cost": 100, "label": "🌉 MEGAPROJETO",         "desc": "PIB +2.5%, Estab -2"},
 	"subsidios":            {"panel": "economia", "min": "fazenda",    "cost": 40,  "label": "💵 SUBSÍDIOS SETORIAIS", "desc": "PIB +1.5%, Corrup +3"},
 	"explorar_recurso":     {"panel": "economia", "min": "fazenda",    "cost": 20,  "label": "⛏ EXPLORAR RECURSOS",   "desc": "Recurso escasso +15%"},
+	"upgrade_industrial":   {"panel": "economia", "min": "fazenda",    "cost": 70,  "label": "🏭 UPGRADE INDUSTRIAL",  "desc": "Processa commodity bruta → manufatura. +Complexidade, +valor de export"},
 	# ── SAÚDE ──
 	"investir_saude":       {"panel": "saude",    "min": "saude",      "cost": 20,  "label": "🏥 INVESTIR NO SUS",     "desc": "Felic +4, Apoio +2"},
 	"campanha_vacinacao":   {"panel": "saude",    "min": "saude",      "cost": 30,  "label": "💉 CAMPANHA DE VACINAÇÃO","desc": "Felic +6, População +0.4%"},
@@ -2874,6 +2896,32 @@ func _apply_panel_action(n, action_id: String) -> String:
 				rec[min_k] = min(100.0, float(rec[min_k]) + 15.0)
 				return "%s +15%%" % min_k.capitalize()
 			return "Sem recursos mapeados"
+		"upgrade_industrial":
+			# Escolhe o setor de commodity com MAIOR oferta e MENOR processamento —
+			# onde industrializar rende mais valor agregado. Sobe o grau em +0.15.
+			var alvo := ""
+			var melhor_ganho: float = -1.0
+			for s in n.COMMODITY_SECTORS:
+				var oferta: float = n._setor_oferta(s)
+				if oferta < 40.0:
+					continue  # setor irrelevante não vale industrializar
+				var proc: float = n._grau_proc(s)
+				if proc >= 0.98:
+					continue  # já totalmente processado
+				# Ganho ∝ oferta × espaço restante para processar
+				var ganho: float = (oferta / 100.0) * (1.0 - proc)
+				if ganho > melhor_ganho:
+					melhor_ganho = ganho
+					alvo = s
+			if alvo == "":
+				return "Nenhum setor de commodity para industrializar"
+			var ganho_proc: float = 0.15 * mult
+			n.grau_processamento[alvo] = clampf(n._grau_proc(alvo) + ganho_proc, 0.0, 1.0)
+			# Reflete de imediato na complexidade e na balança (a UI atualiza no turno)
+			n.recompute_complexidade()
+			n.update_balanca_comercial()
+			var nomes := {"energia": "Energia", "alimentos": "Alimentos", "materias_primas": "Matérias-primas"}
+			return "%s industrializada (+valor agregado)" % nomes.get(alvo, alvo)
 	return "OK"
 
 # Gasto social permanente ESCALADO AO PIB (0.4% por investimento, teto 2%

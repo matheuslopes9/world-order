@@ -252,6 +252,8 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 		"min_niveis": _snapshot_niveis(n),
 		"corrupcao_f": snappedf(n.corrupcao, 0.1),
 		"confianca_f": snappedf(n.confianca_investidor, 0.1),
+		"ecs_f": snappedf(n.complexidade_economica, 0.1),
+		"commodity_vol_f": snappedf(n.commodity_volatilidade(), 0.01),
 		"empresas_sairam": n.empresas_sairam,
 		"desviado": snappedf(n.tesouro_desviado_total, 0.1),
 		"balanca": snappedf(n.calc_balanca_comercial() * 12.0, 0.1),

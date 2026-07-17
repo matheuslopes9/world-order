@@ -55,6 +55,8 @@ func _ready() -> void:
 
 	# Seletor de modo de jogo (inspirado / livre) — inserido antes do ButtonRow
 	_add_mode_selector()
+	# Seletor de DIFICULDADE (fácil / normal / difícil / brutal)
+	_add_difficulty_selector()
 	# Seletor de cenário (campanha, década crítica, sandbox, etc)
 	_add_scenario_selector()
 	# Botão de progresso (XP / perks desbloqueados entre saves)
@@ -692,6 +694,63 @@ func _add_mode_selector() -> void:
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mode_box.add_child(hint)
+
+func _add_difficulty_selector() -> void:
+	# VBox de "DIFICULDADE" inserido antes do ButtonRow (o JOGADOR escolhe a tensão)
+	var main_box := get_node_or_null("Center/Card/MainBox")
+	var button_row := get_node_or_null("Center/Card/MainBox/ButtonRow")
+	if main_box == null or button_row == null: return
+
+	var diff_box := VBoxContainer.new()
+	diff_box.add_theme_constant_override("separation", 6)
+	diff_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	main_box.add_child(diff_box)
+	main_box.move_child(diff_box, button_row.get_index())  # antes do ButtonRow
+
+	var lbl := Label.new()
+	lbl.text = "◆ DIFICULDADE"
+	lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.85))
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	diff_box.add_child(lbl)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 6)
+	diff_box.add_child(row)
+
+	var current_diff: String = GameEngine.settings.get("difficulty", "normal")
+	var btns: Array = []
+	var diffs := [
+		{"id": "easy",   "label": "🌱 Fácil",   "tip": "Mais tesouro inicial, ameaças fracas. Ideal para aprender."},
+		{"id": "normal", "label": "⚖ Normal",   "tip": "Equilíbrio padrão. A campanha como foi projetada."},
+		{"id": "hard",   "label": "🔥 Difícil",  "tip": "Menos tesouro, crises se aprofundam, rivais mais duros."},
+		{"id": "brutal", "label": "💀 Brutal",   "tip": "Sobrevivência no fio da navalha. Uma crise ignorada te derruba."},
+	]
+	for d in diffs:
+		var b := Button.new()
+		b.text = d["label"]
+		b.tooltip_text = d["tip"]
+		b.toggle_mode = true
+		b.button_pressed = (d["id"] == current_diff)
+		b.set_meta("diff_id", d["id"])
+		b.custom_minimum_size = Vector2(96, 34)
+		b.add_theme_font_size_override("font_size", 12)
+		b.focus_mode = Control.FOCUS_NONE
+		var diff_id: String = d["id"]
+		b.pressed.connect(func():
+			GameEngine.settings["difficulty"] = diff_id
+			for other in btns:
+				other.button_pressed = (other.get_meta("diff_id") == diff_id))
+		row.add_child(b)
+		btns.append(b)
+
+	var hint := Label.new()
+	hint.text = "Escala tesouro inicial, crises e agressividade dos rivais"
+	hint.add_theme_color_override("font_color", Color(0.5, 0.62, 0.78, 1))
+	hint.add_theme_font_size_override("font_size", 10)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	diff_box.add_child(hint)
 
 func _play_entrance_animation() -> void:
 	var box := get_node_or_null("Center/Card/MainBox")

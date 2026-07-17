@@ -75,7 +75,7 @@ func _run() -> void:
 	print("[3] Catálogo central de ações (PANEL_ACTIONS)")
 	_check(E.get_panel_actions("governo").size() == 4, "4 ações da Casa Civil (painel governo)")
 	_check(E.get_panel_actions("seguranca").size() == 8, "8 ações de Justiça & Segurança (segurança + defesa)")
-	_check(E.get_panel_actions("economia").size() == 6, "6 ações da Fazenda")
+	_check(E.get_panel_actions("economia").size() == 7, "7 ações da Fazenda (inclui upgrade industrial)")
 	_check(E.get_panel_actions("saude").size() == 3, "3 ações de Saúde")
 	_check(E.get_panel_actions("educacao").size() == 3, "3 ações de Educação")
 	# toda ação declara seu ministério dono
@@ -253,6 +253,38 @@ func _run() -> void:
 	n_p.update_balanca_comercial()
 	var exp0: float = float(n_p.exportacoes.get("energia", 0.0))
 	_check(exp1 > exp0 * 1.9, "choque de commodities dobra exportação de energia ($%.1f vs $%.1f)" % [exp1, exp0])
+
+	print("[12c2] Complexidade econômica (raw vs processed)")
+	var n_ce = load("res://scripts/Nation.gd").new()
+	n_ce.pib_bilhoes_usd = 500.0
+	n_ce.populacao = 50_000_000
+	n_ce.recursos = {"petroleo": 90.0, "minerios": 85.0, "agricultura": 80.0}
+	n_ce.grau_processamento = {"energia": 0.0, "materias_primas": 0.0, "alimentos": 0.0}
+	n_ce.recompute_complexidade()
+	var ecs_raw: float = n_ce.complexidade_economica
+	var vol_raw: float = n_ce.commodity_volatilidade()
+	n_ce.update_balanca_comercial()
+	var exp_raw: float = float(n_ce.exportacoes.get("materias_primas", 0.0))
+	# Industrializa tudo → ECS sobe, volatilidade cai, exportação vale mais
+	n_ce.grau_processamento = {"energia": 1.0, "materias_primas": 1.0, "alimentos": 1.0}
+	n_ce.recompute_complexidade()
+	var ecs_proc: float = n_ce.complexidade_economica
+	var vol_proc: float = n_ce.commodity_volatilidade()
+	n_ce.update_balanca_comercial()
+	var exp_proc: float = float(n_ce.exportacoes.get("materias_primas", 0.0))
+	_check(ecs_proc > ecs_raw, "industrializar eleva o ECS (%.0f → %.0f)" % [ecs_raw, ecs_proc])
+	_check(vol_proc < vol_raw, "processar reduz volatilidade de commodity (%.2f → %.2f)" % [vol_raw, vol_proc])
+	_check(exp_proc > exp_raw * 1.3, "manufatura vale mais que bruto na exportação ($%.1f vs $%.1f)" % [exp_proc, exp_raw])
+	# Ação de upgrade industrial sobe o grau de processamento de um setor
+	E.player_nation.recursos["minerios"] = 85.0
+	E.player_nation.grau_processamento["materias_primas"] = 0.0
+	E.player_nation.recompute_complexidade()
+	var proc_antes: float = E.player_nation._grau_proc("materias_primas")
+	E.player_actions_remaining = 5
+	E.player_nation.tesouro = 5000.0
+	var r_up: Dictionary = E.player_panel_action("upgrade_industrial")
+	_check(r_up.get("ok", false), "upgrade_industrial executa: %s" % r_up.get("msg", ""))
+	_check(E.player_nation._grau_proc("materias_primas") > proc_antes, "upgrade_industrial eleva o grau de processamento (%.2f → %.2f)" % [proc_antes, E.player_nation._grau_proc("materias_primas")])
 
 	print("[12d] Economia de escala científica")
 	var fake_n = load("res://scripts/Nation.gd").new()

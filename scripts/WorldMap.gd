@@ -1592,7 +1592,12 @@ func _make_modal_shell(min_size: Vector2, title_text: String) -> Dictionary:
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
 	modal.z_index = 100
-	add_child(modal)
+	# Parentear no modal_layer (full-rect no CanvasLayer), não no WorldMap (Node2D).
+	if modal_layer != null:
+		modal_layer.visible = true
+		modal_layer.add_child(modal)
+	else:
+		add_child(modal)
 	var bg := ColorRect.new()
 	bg.color = Color(0, 0.05, 0.08, 0.82)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -3064,11 +3069,17 @@ func _show_tutorial() -> void:
 
 func _show_tutorial_page(pages: Array, idx: int) -> void:
 	# Backdrop em tela cheia (bloqueia cliques no jogo, mas permite cliques nos filhos)
+	# IMPORTANTE: parentear no modal_layer (Control full-rect no CanvasLayer), NÃO no
+	# WorldMap (Node2D) — senão o CenterContainer calcula contra rect zero e vai pro canto.
 	var modal := Control.new()
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
 	modal.z_index = 100
-	add_child(modal)
+	if modal_layer != null:
+		modal_layer.visible = true
+		modal_layer.add_child(modal)
+	else:
+		add_child(modal)
 
 	var bg := ColorRect.new()
 	bg.color = Color(0, 0.05, 0.08, 0.85)
@@ -3587,12 +3598,19 @@ func _show_spy_picker_modal(target_code: String) -> void:
 	modal.color = Color(0, 0, 0, 0.85)
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(modal)  # filho da scene atual (limpa em scene_change)
+	if modal_layer != null:
+		modal_layer.visible = true
+		modal_layer.add_child(modal)
+	else:
+		add_child(modal)
+	# CenterContainer full-rect centraliza sem offset manual (funciona em qualquer resolução)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	modal.add_child(center)
 	var box := PanelContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.custom_minimum_size = Vector2(640, 600)
-	box.position = Vector2(-320, -300)
-	modal.add_child(box)
+	center.add_child(box)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(scroll)
@@ -3651,12 +3669,18 @@ func _show_treaty_picker_modal(target_code: String) -> void:
 	modal.color = Color(0, 0, 0, 0.85)
 	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(modal)  # filho da scene atual (limpa em scene_change)
+	if modal_layer != null:
+		modal_layer.visible = true
+		modal_layer.add_child(modal)
+	else:
+		add_child(modal)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	modal.add_child(center)
 	var box := PanelContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.custom_minimum_size = Vector2(560, 480)
-	box.position = Vector2(-280, -240)
-	modal.add_child(box)
+	center.add_child(box)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	box.add_child(v)

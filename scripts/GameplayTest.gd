@@ -80,12 +80,19 @@ func _find_button_by_text(root: Node, needles: Array) -> Button:
 				return b
 	return null
 
-# Modais "soltos" (ColorRect direto na cena — padrão spy/treaty/trade/event)
+# Modais "soltos" (ColorRect com filhos — padrão spy/treaty/trade/event).
+# Agora vivem no modal_layer (CanvasLayer full-rect) para centralizarem certo;
+# varremos tanto o modal_layer quanto os filhos diretos da cena (fallback antigo).
 func _loose_modals() -> Array:
 	var out: Array = []
-	for c in wm.get_children():
-		if c is ColorRect and c.get_child_count() > 0:
-			out.append(c)
+	var scopes: Array = []
+	if wm.get("modal_layer") != null:
+		scopes.append(wm.modal_layer)
+	scopes.append(wm)
+	for scope in scopes:
+		for c in scope.get_children():
+			if c is ColorRect and c.get_child_count() > 0:
+				out.append(c)
 	return out
 
 func _topup() -> void:
@@ -207,7 +214,7 @@ func _phase_panel_actions() -> void:
 	# Ações PADRÃO (via PANEL_ACTIONS) consomem ação-de-turno + custo. O painel
 	# economia TAMBÉM tem botões FINANCEIROS (empréstimo/dívida/bolsa/cripto) que
 	# movem dinheiro sem consumir ação-de-turno — testados à parte (ver SystemsCheck).
-	var expected := {"governo": 4, "economia": 6, "seguranca": 8, "saude": 3, "educacao": 3}
+	var expected := {"governo": 4, "economia": 7, "seguranca": 8, "saude": 3, "educacao": 3}
 	for panel_id in expected.keys():
 		wm._open_overlay_modal(panel_id)
 		await get_tree().process_frame
@@ -512,7 +519,12 @@ func _phase_event_modals() -> void:
 	var tes0: float = GameEngine.player_nation.tesouro
 	overlay._show_event_modal(fake)
 	await get_tree().process_frame
-	var ebtn := _find_button_by_text(overlay, ["Aceitar"])
+	# O modal de evento agora vive no modal_layer (centralização correta); procura lá
+	# primeiro, com fallback no próprio overlay.
+	var evt_scope = wm.modal_layer if wm.get("modal_layer") != null else overlay
+	var ebtn := _find_button_by_text(evt_scope, ["Aceitar"])
+	if ebtn == null:
+		ebtn = _find_button_by_text(overlay, ["Aceitar"])
 	_test("Modal de evento abre com choice", ebtn != null)
 	if ebtn:
 		await _press(ebtn, "choice de evento")

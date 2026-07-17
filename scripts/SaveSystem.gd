@@ -196,6 +196,8 @@ static func _serialize_nations(nations: Dictionary) -> Dictionary:
 			"burocracia_eficiencia": n.burocracia_eficiencia,
 			"felicidade": n.felicidade,
 			"confianca_investidor": n.confianca_investidor,
+			"complexidade_economica": n.complexidade_economica,
+			"grau_processamento": n.grau_processamento,
 			"empresas_sairam": n.empresas_sairam,
 			"tesouro_desviado_total": n.tesouro_desviado_total,
 			"defaults_no_historico": n.defaults_no_historico,
