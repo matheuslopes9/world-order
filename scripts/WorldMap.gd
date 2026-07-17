@@ -284,7 +284,7 @@ func _show_loading_screen() -> void:
 	logo.texture = load("res://assets/logo.png")
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	logo.custom_minimum_size = Vector2(0, 340)
+	logo.custom_minimum_size = Vector2(0, 470)
 	v.add_child(logo)
 	var lbl := Label.new()
 	lbl.name = "LoadingLabel"
@@ -1486,7 +1486,7 @@ func _load_world_data() -> void:
 	for feature in features:
 		_create_country(feature)
 		i += 1
-		if i % 30 == 0:
+		if i % 10 == 0:
 			await get_tree().process_frame
 
 func _create_country(feature: Dictionary) -> void:
