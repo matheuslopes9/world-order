@@ -11,8 +11,10 @@ const MAP_WIDTH: float  = 2000.0
 const MAP_HEIGHT: float = 1000.0
 
 # Cores Plague-Inc style
-const COUNTRY_FILL    := Color(0.082, 0.106, 0.137)
-const COUNTRY_STROKE  := Color(0.157, 0.196, 0.247)
+# NEUTRO = quase-branco: o shader de biomas pinta o terreno REAL e o
+# self_modulate apenas TINGE (jogador ciano, inimigo vermelho, filtros).
+const COUNTRY_FILL    := Color(0.93, 0.93, 0.90)
+const COUNTRY_STROKE  := Color(0.10, 0.11, 0.12, 0.85)
 
 # Material de TERRENO compartilhado por TODOS os Polygon2D dos países.
 # Uma única instância → o batcher agrupa; o relevo vem do shader em world
@@ -24,11 +26,12 @@ static func _get_country_terrain_mat() -> ShaderMaterial:
 		_country_terrain_mat = ShaderMaterial.new()
 		_country_terrain_mat.shader = load("res://shaders/country_fill.gdshader")
 	return _country_terrain_mat
-const COUNTRY_HOVER   := Color(0.20, 0.27, 0.34)
-const COUNTRY_PREVIEW := Color(0.0, 0.5, 0.85, 0.7)
-const COUNTRY_PLAYER  := Color(0.0, 0.823, 1.0, 0.95)
-const COUNTRY_ENEMY   := Color(1.0, 0.2, 0.2, 0.85)
-const COUNTRY_ALLY    := Color(0.0, 1.0, 0.5, 0.6)
+# Tintas multiplicativas sobre o terreno realista (mantêm a textura visível)
+const COUNTRY_HOVER   := Color(1.0, 1.0, 1.0)
+const COUNTRY_PREVIEW := Color(0.55, 0.78, 1.0)
+const COUNTRY_PLAYER  := Color(0.35, 0.85, 1.0)
+const COUNTRY_ENEMY   := Color(1.0, 0.40, 0.38)
+const COUNTRY_ALLY    := Color(0.50, 1.0, 0.62)
 
 @onready var camera: Camera2D = $MapCamera
 @onready var countries_root: Node2D = $Countries
@@ -266,7 +269,7 @@ func _build_legacy_nodes() -> void:
 	left_panel.add_child(lv)
 	var lp_title := Label.new()
 	lp_title.text = "■ SELECIONE SUA NAÇÃO"
-	lp_title.add_theme_color_override("font_color", Color(0, 0.823, 1))
+	lp_title.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
 	lp_title.add_theme_font_size_override("font_size", 14)
 	lv.add_child(lp_title)
 	var lp_sub := Label.new()
@@ -515,7 +518,7 @@ func _open_modal(content: Control, title: String = "", min_size: Vector2 = Vecto
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.035, 0.06, 0.10, 0.99)
 	sb.set_border_width_all(2)
-	sb.border_color = Color(0, 0.823, 1, 0.9)
+	sb.border_color = Color(0.80, 0.65, 0.30, 0.60)
 	sb.set_corner_radius_all(14)
 	# (sem shadow externo — visual pode iludir hitbox)
 	sb.content_margin_left = 26
@@ -555,7 +558,7 @@ func _open_modal(content: Control, title: String = "", min_size: Vector2 = Vecto
 
 	# Linha decorativa ciano
 	var deco := ColorRect.new()
-	deco.color = Color(0, 0.823, 1, 0.55)
+	deco.color = Color(0.80, 0.65, 0.30, 0.50)
 	deco.custom_minimum_size = Vector2(80, 2)
 	deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(deco)
@@ -632,7 +635,7 @@ func _open_select_nation_modal() -> void:
 	split.add_child(left_panel)
 	# Linha vertical decorativa
 	var vsep := ColorRect.new()
-	vsep.color = Color(0, 0.55, 0.78, 0.4)
+	vsep.color = Color(0.78, 0.62, 0.28, 0.35)
 	vsep.custom_minimum_size = Vector2(2, 0)
 	vsep.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vsep.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -640,6 +643,10 @@ func _open_select_nation_modal() -> void:
 	split.add_child(right_panel)
 
 	_select_modal = _open_modal(split, "🌍 SELECIONE SUA NAÇÃO", Vector2(1080, 660), false)
+	# Pré-seleciona a 1ª nação: o dossiê abre preenchido (nunca vazio/quebrado)
+	if preview_code == "" and nations_list != null and nations_list.item_count > 0:
+		nations_list.select(0)
+		_on_nation_list_selected(0)
 
 # Mantido para compatibilidade — abre dossiê quando NÃO há modal de seleção aberto
 # (ex: após assumir comando, clicando em outro país no mapa)
@@ -1235,8 +1242,8 @@ func _style_hero_buttons() -> void:
 	# Botão MENU/OPÇÕES da topbar — pílula com glow ciano
 	if menu_button:
 		var sb_n := StyleBoxFlat.new()
-		sb_n.bg_color = Color(0.05, 0.12, 0.18, 0.9)
-		sb_n.border_color = Color(0, 0.823, 1, 0.7)
+		sb_n.bg_color = Color(0.070, 0.072, 0.085, 0.92)
+		sb_n.border_color = Color(0.80, 0.65, 0.30, 0.65)
 		sb_n.set_border_width_all(1)
 		sb_n.set_corner_radius_all(18)  # pílula
 		sb_n.content_margin_left = 16
@@ -1244,11 +1251,11 @@ func _style_hero_buttons() -> void:
 		sb_n.content_margin_top = 8
 		sb_n.content_margin_bottom = 8
 		var sb_h := sb_n.duplicate() as StyleBoxFlat
-		sb_h.bg_color = Color(0, 0.55, 0.78, 0.95)
-		sb_h.border_color = Color(0, 1, 1, 1)
+		sb_h.bg_color = Color(0.128, 0.122, 0.105, 1.0)
+		sb_h.border_color = Color(0.92, 0.76, 0.38, 1)
 		# (sem shadow — evita offset entre visual e hitbox)
 		var sb_p := sb_n.duplicate() as StyleBoxFlat
-		sb_p.bg_color = Color(0, 0.30, 0.48, 1)
+		sb_p.bg_color = Color(0.30, 0.24, 0.11, 1)
 		menu_button.add_theme_stylebox_override("normal", sb_n)
 		menu_button.add_theme_stylebox_override("hover", sb_h)
 		menu_button.add_theme_stylebox_override("pressed", sb_p)
@@ -1259,8 +1266,8 @@ func _style_hero_buttons() -> void:
 	# Botão PRÓXIMO TURNO — retangular destacado, SEM shadow (evita offset visual)
 	if next_turn_button:
 		var sb_n2 := StyleBoxFlat.new()
-		sb_n2.bg_color = Color(0, 0.55, 0.78, 0.95)
-		sb_n2.border_color = Color(0, 0.95, 1, 1)
+		sb_n2.bg_color = Color(0.86, 0.69, 0.30, 1)
+		sb_n2.border_color = Color(1.0, 0.88, 0.55, 0.9)
 		sb_n2.set_border_width_all(2)
 		sb_n2.set_corner_radius_all(10)
 		sb_n2.content_margin_left = 18
@@ -1268,28 +1275,29 @@ func _style_hero_buttons() -> void:
 		sb_n2.content_margin_top = 10
 		sb_n2.content_margin_bottom = 10
 		var sb_h2 := sb_n2.duplicate() as StyleBoxFlat
-		sb_h2.bg_color = Color(0, 0.78, 0.98, 1)
+		sb_h2.bg_color = Color(0.95, 0.79, 0.40, 1)
 		var sb_p2 := sb_n2.duplicate() as StyleBoxFlat
-		sb_p2.bg_color = Color(0, 0.40, 0.65, 1)
+		sb_p2.bg_color = Color(0.70, 0.55, 0.22, 1)
 		next_turn_button.add_theme_stylebox_override("normal", sb_n2)
 		next_turn_button.add_theme_stylebox_override("hover", sb_h2)
 		next_turn_button.add_theme_stylebox_override("pressed", sb_p2)
 		next_turn_button.add_theme_stylebox_override("focus", sb_h2)
-		next_turn_button.add_theme_color_override("font_color", Color(1, 1, 1))
-		next_turn_button.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+		next_turn_button.add_theme_color_override("font_color", Color(0.11, 0.09, 0.04))
+		next_turn_button.add_theme_color_override("font_hover_color", Color(0.08, 0.06, 0.02))
+		next_turn_button.add_theme_color_override("font_pressed_color", Color(0.11, 0.09, 0.04))
 		next_turn_button.add_theme_font_size_override("font_size", 14)
 
 	# Botões de zoom — sem shadow
 	for zb in [zoom_in_btn, zoom_out_btn, zoom_reset_btn]:
 		if zb == null: continue
 		var sb_z := StyleBoxFlat.new()
-		sb_z.bg_color = Color(0.04, 0.08, 0.12, 0.9)
-		sb_z.border_color = Color(0, 0.55, 0.78, 0.55)
+		sb_z.bg_color = Color(0.065, 0.068, 0.080, 0.92)
+		sb_z.border_color = Color(0.42, 0.38, 0.30, 0.55)
 		sb_z.set_border_width_all(1)
 		sb_z.set_corner_radius_all(8)
 		var sb_zh := sb_z.duplicate() as StyleBoxFlat
-		sb_zh.bg_color = Color(0, 0.45, 0.65, 0.9)
-		sb_zh.border_color = Color(0, 1, 1, 1)
+		sb_zh.bg_color = Color(0.128, 0.122, 0.105, 1)
+		sb_zh.border_color = Color(0.92, 0.76, 0.38, 1)
 		zb.add_theme_stylebox_override("normal", sb_z)
 		zb.add_theme_stylebox_override("hover", sb_zh)
 		zb.add_theme_stylebox_override("pressed", sb_zh)
@@ -1648,7 +1656,7 @@ func _make_modal_shell(min_size: Vector2, title_text: String) -> Dictionary:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.035, 0.06, 0.10, 0.98)
 	sb.set_border_width_all(2)
-	sb.border_color = Color(0, 0.823, 1, 0.85)
+	sb.border_color = Color(0.80, 0.65, 0.30, 0.60)
 	sb.set_corner_radius_all(14)
 	# (sem shadow)
 	sb.content_margin_left = 28
@@ -1669,7 +1677,7 @@ func _make_modal_shell(min_size: Vector2, title_text: String) -> Dictionary:
 		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(title)
 		var deco := ColorRect.new()
-		deco.color = Color(0, 0.823, 1, 0.6)
+		deco.color = Color(0.80, 0.65, 0.30, 0.50)
 		deco.custom_minimum_size = Vector2(60, 2)
 		deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(deco)
@@ -2531,7 +2539,7 @@ func _show_takeover_step_1(country_code: String) -> void:
 	# Indicador de etapa
 	var step_lbl := Label.new()
 	step_lbl.text = "ETAPA 1 / 4 — IDENTIDADE DO LÍDER"
-	step_lbl.add_theme_color_override("font_color", Color(0, 0.95, 1, 0.85))
+	step_lbl.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
 	step_lbl.add_theme_font_size_override("font_size", 11)
 	step_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(step_lbl)
@@ -2699,7 +2707,7 @@ func _show_takeover_step_2(country_code: String) -> void:
 	content.custom_minimum_size = Vector2(560, 0)
 	var step_lbl := Label.new()
 	step_lbl.text = "ETAPA 2 / 4 — SISTEMA DE GOVERNO"
-	step_lbl.add_theme_color_override("font_color", Color(0, 0.95, 1, 0.85))
+	step_lbl.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
 	step_lbl.add_theme_font_size_override("font_size", 11)
 	step_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(step_lbl)
@@ -2768,7 +2776,7 @@ func _show_takeover_step_3(country_code: String) -> void:
 	content.custom_minimum_size = Vector2(560, 0)
 	var step_lbl := Label.new()
 	step_lbl.text = "ETAPA 3 / 4 — DOUTRINA ECONÔMICA"
-	step_lbl.add_theme_color_override("font_color", Color(0, 0.95, 1, 0.85))
+	step_lbl.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
 	step_lbl.add_theme_font_size_override("font_size", 11)
 	step_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(step_lbl)
@@ -2843,7 +2851,7 @@ func _show_takeover_step_4(country_code: String) -> void:
 	content.custom_minimum_size = Vector2(560, 0)
 	var step_lbl := Label.new()
 	step_lbl.text = "ETAPA 4 / 4 — PRIMEIROS 100 DIAS"
-	step_lbl.add_theme_color_override("font_color", Color(0, 0.95, 1, 0.85))
+	step_lbl.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
 	step_lbl.add_theme_font_size_override("font_size", 11)
 	step_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(step_lbl)
@@ -3167,7 +3175,7 @@ func _show_tutorial_page(pages: Array, idx: int) -> void:
 
 	# Linha decorativa cyan
 	var deco := ColorRect.new()
-	deco.color = Color(0, 0.823, 1, 0.6)
+	deco.color = Color(0.80, 0.65, 0.30, 0.50)
 	deco.custom_minimum_size = Vector2(60, 2)
 	deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(deco)
@@ -3235,11 +3243,11 @@ func _make_modal_button(label: String, primary: bool = false) -> Button:
 	b.mouse_filter = Control.MOUSE_FILTER_STOP
 	var sb_norm := StyleBoxFlat.new()
 	if primary:
-		sb_norm.bg_color = Color(0, 0.55, 0.78, 1)
-		sb_norm.border_color = Color(0, 0.95, 1, 1)
+		sb_norm.bg_color = Color(0.86, 0.69, 0.30, 1)
+		sb_norm.border_color = Color(1.0, 0.88, 0.55, 0.9)
 	else:
-		sb_norm.bg_color = Color(0.08, 0.13, 0.19, 0.9)
-		sb_norm.border_color = Color(0.25, 0.45, 0.6, 0.8)
+		sb_norm.bg_color = Color(0.075, 0.080, 0.095, 0.94)
+		sb_norm.border_color = Color(0.36, 0.34, 0.28, 0.7)
 	sb_norm.set_border_width_all(1)
 	sb_norm.set_corner_radius_all(8)
 	sb_norm.content_margin_left = 14
@@ -3247,15 +3255,17 @@ func _make_modal_button(label: String, primary: bool = false) -> Button:
 	sb_norm.content_margin_top = 10
 	sb_norm.content_margin_bottom = 10
 	var sb_hover := sb_norm.duplicate() as StyleBoxFlat
-	sb_hover.bg_color = Color(0, 0.7, 0.95, 1) if primary else Color(0.10, 0.20, 0.30, 1)
-	sb_hover.border_color = Color(0, 1, 1, 1)
+	sb_hover.bg_color = Color(0.95, 0.79, 0.40, 1) if primary else Color(0.125, 0.120, 0.105, 1)
+	sb_hover.border_color = Color(0.92, 0.76, 0.38, 1)
 	var sb_press := sb_norm.duplicate() as StyleBoxFlat
-	sb_press.bg_color = Color(0, 0.45, 0.65, 1) if primary else Color(0.05, 0.10, 0.15, 1)
+	sb_press.bg_color = Color(0.70, 0.55, 0.22, 1) if primary else Color(0.30, 0.24, 0.11, 1)
 	b.add_theme_stylebox_override("normal", sb_norm)
 	b.add_theme_stylebox_override("hover", sb_hover)
 	b.add_theme_stylebox_override("pressed", sb_press)
 	b.add_theme_stylebox_override("focus", sb_hover)
-	b.add_theme_color_override("font_color", Color(1, 1, 1))
+	b.add_theme_color_override("font_color", Color(0.11, 0.09, 0.04) if primary else Color(0.92, 0.91, 0.88))
+	b.add_theme_color_override("font_hover_color", Color(0.08, 0.06, 0.02) if primary else Color(1, 1, 1))
+	b.add_theme_color_override("font_pressed_color", Color(0.11, 0.09, 0.04) if primary else Color(1, 0.95, 0.82))
 	b.add_theme_color_override("font_hover_color", Color(1, 1, 1))
 	return b
 
