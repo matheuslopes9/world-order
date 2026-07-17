@@ -2,10 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/MainMenu.gd" id="1_main"]
 [ext_resource type="Texture2D" uid="uid://bsxtvfdalo74w" path="res://assets/logo.png" id="2_logo"]
-[ext_resource type="Shader" path="res://shaders/menu_bg.gdshader" id="3_menubg"]
-
-[sub_resource type="ShaderMaterial" id="menubg_mat"]
-shader = ExtResource("3_menubg")
+[ext_resource type="Texture2D" uid="uid://c1v7dd48c4h4b" path="res://assets/loading_bg.png" id="3_bg"]
 
 [sub_resource type="StyleBoxFlat" id="card_main"]
 bg_color = Color(0.040, 0.044, 0.056, 0.97)
@@ -34,15 +31,16 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main")
 
-[node name="Background" type="ColorRect" parent="."]
-material = SubResource("menubg_mat")
+[node name="Background" type="TextureRect" parent="."]
+texture = ExtResource("3_bg")
+expand_mode = 1
+stretch_mode = 6
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.018, 0.030, 0.054, 1)
 mouse_filter = 2
 
 [node name="GridOverlay" type="ColorRect" parent="."]
@@ -52,7 +50,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0.823, 1, 0.020)
+color = Color(0.01, 0.015, 0.025, 0.45)
 mouse_filter = 2
 
 [node name="Center" type="CenterContainer" parent="."]
