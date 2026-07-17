@@ -613,7 +613,7 @@ const TECH_POWER_SCALE := 40.0
 const REL_BREADTH_SCALE := 25.0
 
 func compute_power_score(n) -> float:
-	var pib_norm: float = n.pib_bilhoes_usd / _world_max_pib
+	var pib_norm: float = _pib_power_norm(n.pib_bilhoes_usd)
 	var mil_norm: float = n.get_military_power() / _world_max_mil
 	var tech_norm: float = clamp(float(n.tecnologias_concluidas.size()) / TECH_POWER_SCALE, 0.0, 1.0)
 	var rel_sum: float = 0.0
@@ -626,10 +626,20 @@ func compute_power_score(n) -> float:
 	var rel_norm: float = rel_quality * (0.3 + 0.7 * rel_breadth)
 	return 40.0 * pib_norm + 25.0 * mil_norm + 20.0 * tech_norm + 15.0 * rel_norm
 
+# Normalização COMPRIMIDA do PIB para o score de poder. Linear (pib/max) fazia o PIB
+# de nações pequenas virar ~0 (China a $1,5 quadrilhão) → virada épica = 0%. Log puro
+# facilitava demais o topo (hegemonia no turno 180). Meio-termo: razão elevada a 0.5
+# (raiz) — comprime a escala o bastante para nações pequenas contarem, mas o PIB
+# absoluto ainda ordena claramente o topo (grandes potências continuam à frente).
+func _pib_power_norm(pib: float) -> float:
+	var mx: float = maxf(_world_max_pib, 200.0)
+	var ratio: float = clampf(maxf(pib, 50.0) / mx, 0.0, 1.0)
+	return pow(ratio, 0.5)
+
 # Decomposição do score de poder — a UI usa pra mostrar ONDE investir.
 # (mesma fórmula de compute_power_score; manter em sincronia)
 func get_power_breakdown(n) -> Dictionary:
-	var pib_norm: float = n.pib_bilhoes_usd / _world_max_pib
+	var pib_norm: float = _pib_power_norm(n.pib_bilhoes_usd)
 	var mil_norm: float = n.get_military_power() / _world_max_mil
 	var tech_norm: float = clamp(float(n.tecnologias_concluidas.size()) / TECH_POWER_SCALE, 0.0, 1.0)
 	var rel_sum: float = 0.0
@@ -759,7 +769,7 @@ func evaluate_endgame() -> void:
 	var power_rank: int = get_power_rank(n.codigo_iso)
 	# 35% do líder (era 50% — inalcançável: a China da IA cresce ~200× e
 	# virava um teto impossível; 0 hegemonias em 900 jogos simulados)
-	var econ_relevante: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.35
+	var econ_relevante: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.45
 	if power_rank == 1 and econ_relevante and n.apoio_popular >= 55.0 and n.estabilidade_politica >= 55.0:
 		n.set_meta("hegemony_streak", int(n.get_meta("hegemony_streak", 0)) + 1)
 	else:
