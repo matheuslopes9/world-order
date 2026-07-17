@@ -4272,6 +4272,9 @@ const MAP_FILTERS := [
 func _build_map_filters() -> void:
 	if map_filters == null: return
 	for c in map_filters.get_children(): c.queue_free()
+	# Filtros = botões SÓ-GLIFO quadrados (nunca cortam; o nome vai no tooltip
+	# e numa etiqueta abaixo do ativo). Compactos, cabem ao lado dos 11
+	# ministérios sem espremer o rótulo.
 	for f in MAP_FILTERS:
 		var fid: String = f["id"]
 		var cor: Color = f["cor"]
@@ -4281,28 +4284,34 @@ func _build_map_filters() -> void:
 		btn.button_pressed = is_sel
 		btn.set_meta("filter_id", fid)
 		btn.set_meta("filter_cor", cor)
-		btn.text = "%s %s" % [f["glifo"], f["label"]]
-		btn.custom_minimum_size = Vector2(56, 32)
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.clip_text = true
+		btn.text = f["glifo"]
+		btn.custom_minimum_size = Vector2(40, 40)
 		btn.tooltip_text = f["label"]
-		btn.add_theme_font_size_override("font_size", 11)
+		btn.add_theme_font_size_override("font_size", 18)
 		btn.focus_mode = Control.FOCUS_NONE
 		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		# Estado SELECIONADO acende na cor do filtro (indica o que está no mapa)
+		# Selecionado: acende na cor do filtro. Normal/hover: neutro discreto.
+		var sb_n := StyleBoxFlat.new()
+		sb_n.bg_color = Color(0.065, 0.068, 0.080, 0.85)
+		sb_n.border_color = Color(0.30, 0.32, 0.36, 0.5)
+		sb_n.set_border_width_all(1)
+		sb_n.set_corner_radius_all(8)
+		btn.add_theme_stylebox_override("normal", sb_n)
 		var sb_sel := StyleBoxFlat.new()
-		sb_sel.bg_color = Color(cor.r * 0.20, cor.g * 0.20, cor.b * 0.20, 0.95)
+		sb_sel.bg_color = Color(cor.r * 0.22, cor.g * 0.22, cor.b * 0.22, 0.95)
 		sb_sel.border_color = cor
-		sb_sel.set_border_width_all(1)
-		sb_sel.set_corner_radius_all(7)
+		sb_sel.set_border_width_all(2)
+		sb_sel.set_corner_radius_all(8)
+		sb_sel.shadow_color = Color(cor.r, cor.g, cor.b, 0.25)
+		sb_sel.shadow_size = 4
 		btn.add_theme_stylebox_override("pressed", sb_sel)
-		var sb_h := sb_sel.duplicate() as StyleBoxFlat
-		sb_h.bg_color = Color(cor.r * 0.12, cor.g * 0.12, cor.b * 0.12, 0.8)
+		var sb_h := sb_n.duplicate() as StyleBoxFlat
+		sb_h.bg_color = Color(cor.r * 0.14, cor.g * 0.14, cor.b * 0.14, 0.85)
+		sb_h.border_color = Color(cor.r, cor.g, cor.b, 0.7)
 		btn.add_theme_stylebox_override("hover", sb_h)
-		btn.add_theme_color_override("font_pressed_color", cor)
-		btn.add_theme_color_override("font_hover_color", Color(0.95, 0.97, 1))
 		btn.pressed.connect(_on_map_filter_pressed.bind(fid))
 		map_filters.add_child(btn)
+	_refresh_filter_label()
 
 func _on_map_filter_pressed(filter_id: String) -> void:
 	current_filter = filter_id
@@ -4314,8 +4323,30 @@ func _on_map_filter_pressed(filter_id: String) -> void:
 	if ocean != null and ocean.material is ShaderMaterial:
 		(ocean.material as ShaderMaterial).set_shader_parameter(
 			"data_mode", 0.0 if filter_id == "SATELITE" else 1.0)
+	_refresh_filter_label()
 	_repaint_map()
 	_refresh_resource_icons()  # mostra/esconde camada de ícones
+
+# Etiqueta "MAPA: <filtro>" antes dos botões de filtro — como viraram
+# só-glifo, o nome do modo ativo (na cor do filtro) aparece aqui.
+func _refresh_filter_label() -> void:
+	if map_filters == null: return
+	var lbl := map_filters.get_node_or_null("FilterLabel") as Label
+	if lbl == null:
+		lbl = Label.new()
+		lbl.name = "FilterLabel"
+		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		map_filters.add_child(lbl)
+		map_filters.move_child(lbl, 0)  # antes dos botões
+	var meta := {}
+	for f in MAP_FILTERS:
+		if f["id"] == current_filter:
+			meta = f
+			break
+	lbl.text = String(meta.get("label", "")).to_upper()
+	lbl.add_theme_color_override("font_color", meta.get("cor", Color(0.7, 0.7, 0.75)))
 
 # Constrói (ou esconde) a camada de ícones de recursos.
 # Aparece só quando filtro == RECURSOS. Cada país com top resource >= 60
