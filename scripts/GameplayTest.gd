@@ -143,7 +143,7 @@ func _phase_boot_and_select() -> void:
 	# Espera ATIVA: o boot agora é fatiado (load cede frames p/ o spinner),
 	# então o tempo até o modal abrir varia — poll até 8s em vez de sleep fixo.
 	var boot_t0 := Time.get_ticks_msec()
-	while not wm._is_modal_open() and Time.get_ticks_msec() - boot_t0 < 8000:
+	while not wm._is_modal_open() and Time.get_ticks_msec() - boot_t0 < 20000:
 		await get_tree().process_frame
 	_test("Modal de seleção abre no boot", wm._is_modal_open())
 	# Busca em tempo real

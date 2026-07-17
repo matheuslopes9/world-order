@@ -1643,10 +1643,16 @@ func _load_world_data() -> void:
 		await get_tree().process_frame
 	_world_parse_thread.wait_to_finish()
 	_world_parse_thread = null
-	# FASE 2: instanciação fatiada por VÉRTICES (~2200/frame ≈ 60 FPS)
+	# FASE 2: instanciação fatiada por VÉRTICES (~2200/frame ≈ 60 FPS).
+	# Em HEADLESS (testes/sims) monta tudo síncrono — o fatiamento existe
+	# só para o spinner do jogador; nos testes ele só atrasa o boot.
+	var headless: bool = DisplayServer.get_name() == "headless"
 	var verts_left: int = 2200
 	for data in _world_parsed:
-		verts_left = await _instantiate_country(data, verts_left)
+		if headless:
+			verts_left = await _instantiate_country(data, 999999999)
+		else:
+			verts_left = await _instantiate_country(data, verts_left)
 	_world_parsed = []
 
 # Instancia um país a partir da geometria pré-convertida (Fase 2).
