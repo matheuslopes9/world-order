@@ -1481,7 +1481,8 @@ func _add_news_card(ev: Dictionary) -> void:
 func _add_section_title(text: String) -> void:
 	var lbl := Label.new()
 	lbl.text = "■ " + text
-	lbl.add_theme_color_override("font_color", Color(0, 0.823, 1))
+	# Dourado premium — chrome do jogo; o ciano fica para DADOS/valores
+	lbl.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
 	lbl.add_theme_font_size_override("font_size", 11)
 	panel_content.add_child(lbl)
 

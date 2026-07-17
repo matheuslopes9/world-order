@@ -126,6 +126,7 @@ func _ready() -> void:
 	_add_credits_button()
 
 	# ─── ANIMAÇÃO DE ENTRADA + ESTILO PREMIUM ───
+	_play_scene_fade_in()
 	_play_entrance_animation()
 	_start_brand_pulse()
 	_start_status_pulse()
@@ -809,6 +810,18 @@ func _add_difficulty_selector() -> void:
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	diff_box.add_child(hint)
+
+# Fade preto → menu (entrada suave da cena; se remove sozinho)
+func _play_scene_fade_in() -> void:
+	var black := ColorRect.new()
+	black.color = Color(0, 0, 0, 1)
+	black.set_anchors_preset(Control.PRESET_FULL_RECT)
+	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	black.z_index = 300
+	add_child(black)
+	var tw := black.create_tween()
+	tw.tween_property(black, "color:a", 0.0, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(black.queue_free)
 
 func _play_entrance_animation() -> void:
 	var box := get_node_or_null("Center/Card/MainBox")

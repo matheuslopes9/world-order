@@ -13,6 +13,17 @@ const MAP_HEIGHT: float = 1000.0
 # Cores Plague-Inc style
 const COUNTRY_FILL    := Color(0.082, 0.106, 0.137)
 const COUNTRY_STROKE  := Color(0.157, 0.196, 0.247)
+
+# Material de TERRENO compartilhado por TODOS os Polygon2D dos países.
+# Uma única instância → o batcher agrupa; o relevo vem do shader em world
+# space e a cor política continua no self_modulate (zero re-triangulação).
+static var _country_terrain_mat: ShaderMaterial = null
+
+static func _get_country_terrain_mat() -> ShaderMaterial:
+	if _country_terrain_mat == null:
+		_country_terrain_mat = ShaderMaterial.new()
+		_country_terrain_mat.shader = load("res://shaders/country_fill.gdshader")
+	return _country_terrain_mat
 const COUNTRY_HOVER   := Color(0.20, 0.27, 0.34)
 const COUNTRY_PREVIEW := Color(0.0, 0.5, 0.85, 0.7)
 const COUNTRY_PLAYER  := Color(0.0, 0.823, 1.0, 0.95)
@@ -212,8 +223,23 @@ func _ready() -> void:
 	if elapsed < 350:
 		await get_tree().create_timer((350 - elapsed) / 1000.0).timeout
 	_hide_spinner()
-
+	_play_scene_fade_in()
 	print("[MAP] %d países | carregado em %d ms" % [countries.size(), Time.get_ticks_msec() - t0])
+
+# Fade-in cinematográfico ao entrar no mapa: overlay preto desvanece e o
+# mundo "acende". Roda por cima de tudo (CanvasLayer 99) e se remove sozinho.
+func _play_scene_fade_in() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 99
+	add_child(layer)
+	var black := ColorRect.new()
+	black.color = Color(0, 0, 0, 1)
+	black.set_anchors_preset(Control.PRESET_FULL_RECT)
+	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(black)
+	var tw := black.create_tween()
+	tw.tween_property(black, "color:a", 0.0, 0.65).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(layer.queue_free)
 
 # Animação pulse contínuo no botão "PRÓXIMO TURNO"
 func _start_next_turn_pulse() -> void:
@@ -1375,6 +1401,8 @@ func _create_country(feature: Dictionary) -> void:
 		# re-triangula o mesh — setar .color re-triangulava 548k vértices)
 		poly.color = Color.WHITE
 		poly.self_modulate = COUNTRY_FILL
+		# Textura de terreno procedural (relevo) — material COMPARTILHADO
+		poly.material = _get_country_terrain_mat()
 		country_node.add_child(poly)
 		var line := Line2D.new()
 		var ring_closed := PackedVector2Array(ring)
