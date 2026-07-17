@@ -169,7 +169,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_detect_compact_mode()
 	_build_legacy_nodes()
-	_load_world_data()
+	await _load_world_data()
 	_setup_camera()
 	_populate_nations_list()
 	_build_map_filters()
@@ -222,7 +222,7 @@ func _ready() -> void:
 		game_overlay.activate()
 		_show_action_bar(true)
 		_repaint_map()
-		_zoom_camera_to_country(player_code)
+		_zoom_camera_to_world()  # mundo enquadrado na moldura (consistente c/ pós-wizard)
 		_log_ticker("📂 SAVE", "Sessão restaurada: turno %d" % GameEngine.current_turn, Color(0.4, 1, 0.6))
 	else:
 		# Sem save: mostra modal de seleção de nação
@@ -1486,8 +1486,16 @@ func _load_world_data() -> void:
 	if json.parse(raw) != OK:
 		push_error("Erro ao parsear world.json")
 		return
-	for feature in json.data.get("features", []):
+	# FATIADO: a montagem dos ~3000 polígonos bloqueava a main thread por
+	# segundos — nenhum frame renderizava e o spinner do loading congelava.
+	# Um await a cada lote deixa a UI respirar (spinner gira, fade funciona).
+	var features: Array = json.data.get("features", [])
+	var i: int = 0
+	for feature in features:
 		_create_country(feature)
+		i += 1
+		if i % 30 == 0:
+			await get_tree().process_frame
 
 func _create_country(feature: Dictionary) -> void:
 	var props: Dictionary = feature.get("properties", {})
