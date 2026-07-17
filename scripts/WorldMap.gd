@@ -1478,16 +1478,17 @@ func _load_world_data() -> void:
 	if json.parse(raw) != OK:
 		push_error("Erro ao parsear world.json")
 		return
-	# FATIADO: a montagem dos ~3000 polígonos bloqueava a main thread por
-	# segundos — nenhum frame renderizava e o spinner do loading congelava.
-	# Um await a cada lote deixa a UI respirar (spinner gira, fade funciona).
+	# ORÇAMENTO DE TEMPO POR FRAME (~6ms de montagem + overhead ≈ 60 FPS):
+	# fatiar por contagem era irregular — um lote com Rússia/Canadá (dezenas
+	# de ilhas) estourava 100ms e o spinner engasgava. Agora montamos países
+	# até gastar o orçamento do frame e cedemos — giro liso do início ao fim.
 	var features: Array = json.data.get("features", [])
-	var i: int = 0
+	var frame_start: int = Time.get_ticks_usec()
 	for feature in features:
 		_create_country(feature)
-		i += 1
-		if i % 10 == 0:
+		if Time.get_ticks_usec() - frame_start > 6000:
 			await get_tree().process_frame
+			frame_start = Time.get_ticks_usec()
 
 func _create_country(feature: Dictionary) -> void:
 	var props: Dictionary = feature.get("properties", {})
