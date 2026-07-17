@@ -634,7 +634,7 @@ func compute_power_score(n) -> float:
 func _pib_power_norm(pib: float) -> float:
 	var mx: float = maxf(_world_max_pib, 200.0)
 	var ratio: float = clampf(maxf(pib, 50.0) / mx, 0.0, 1.0)
-	return pow(ratio, 0.5)
+	return pow(ratio, 0.65)
 
 # Decomposição do score de poder — a UI usa pra mostrar ONDE investir.
 # (mesma fórmula de compute_power_score; manter em sincronia)
@@ -769,12 +769,12 @@ func evaluate_endgame() -> void:
 	var power_rank: int = get_power_rank(n.codigo_iso)
 	# 35% do líder (era 50% — inalcançável: a China da IA cresce ~200× e
 	# virava um teto impossível; 0 hegemonias em 900 jogos simulados)
-	var econ_relevante: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.45
+	var econ_relevante: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.40
 	if power_rank == 1 and econ_relevante and n.apoio_popular >= 55.0 and n.estabilidade_politica >= 55.0:
 		n.set_meta("hegemony_streak", int(n.get_meta("hegemony_streak", 0)) + 1)
 	else:
 		n.set_meta("hegemony_streak", 0)
-	if int(n.get_meta("hegemony_streak", 0)) >= 48 and current_turn >= 180:
+	if int(n.get_meta("hegemony_streak", 0)) >= 48 and current_turn >= 300:
 		victory_achieved = true
 		if achievements:
 			achievements.on_victory(n.tier_dificuldade)
