@@ -148,6 +148,10 @@ const TOP_BAR_H_NORMAL: float = 54.0
 const TOP_BAR_H_COMPACT: float = 46.0
 const BOTTOM_BAR_H_NORMAL: float = 170.0
 const BOTTOM_BAR_H_COMPACT: float = 138.0
+# Respiro extra reservado ao redor do mundo enquadrado (só nos cálculos de
+# CÂMERA — não muda a altura visual das barras). Dá aquele "espacinho" entre
+# a moldura do mapa e a barra inferior/superior no zoom-out.
+const MAP_PAD: float = 26.0
 # Threshold: viewports com altura ≤ 800 entram em modo compact
 const COMPACT_VIEWPORT_HEIGHT: float = 800.0
 # Resolved values (preenchido em _ready conforme viewport)
@@ -1723,7 +1727,7 @@ func _setup_camera() -> void:
 	camera.position = Vector2(MAP_WIDTH / 2.0, MAP_HEIGHT / 2.0)
 	var vp_size := get_viewport_rect().size
 	var central_w: float = vp_size.x - LEFT_PANEL_W - RIGHT_PANEL_W
-	var central_h: float = vp_size.y - TOP_BAR_H - BOTTOM_BAR_H
+	var central_h: float = vp_size.y - TOP_BAR_H - BOTTOM_BAR_H - MAP_PAD * 2.0
 	var z: float = min(central_w / MAP_WIDTH, central_h / MAP_HEIGHT) * 0.95
 	camera.zoom = Vector2(z, z)
 	_apply_central_offset()
@@ -1737,8 +1741,9 @@ func _apply_central_offset() -> void:
 	var central_center_x: float = (central_left + central_right) / 2.0
 	var screen_center_x: float = vp_size.x / 2.0
 	var dx_screen: float = screen_center_x - central_center_x
-	var central_top: float = TOP_BAR_H
-	var central_bottom: float = vp_size.y - BOTTOM_BAR_H
+	# +MAP_PAD dos dois lados: o centro de foco reserva respiro em cima e embaixo
+	var central_top: float = TOP_BAR_H + MAP_PAD
+	var central_bottom: float = vp_size.y - BOTTOM_BAR_H - MAP_PAD
 	var central_center_y: float = (central_top + central_bottom) / 2.0
 	var screen_center_y: float = vp_size.y / 2.0
 	var dy_screen: float = screen_center_y - central_center_y
@@ -1808,7 +1813,7 @@ func _zoom_camera_to_world() -> void:
 	var vp_size := get_viewport_rect().size
 	var right_used: float = RIGHT_PANEL_W if (right_panel and right_panel.visible) else 0.0
 	var central_w: float = vp_size.x - LEFT_PANEL_W - right_used
-	var central_h: float = vp_size.y - TOP_BAR_H - BOTTOM_BAR_H
+	var central_h: float = vp_size.y - TOP_BAR_H - BOTTOM_BAR_H - MAP_PAD * 2.0
 	var z: float = min(central_w / MAP_WIDTH, central_h / MAP_HEIGHT) * 0.95
 	camera_target_zoom = Vector2(z, z)
 	camera_animating = true
@@ -1817,7 +1822,8 @@ func _clamp_camera() -> void:
 	var vp_size := get_viewport_rect().size
 	var right_used: float = RIGHT_PANEL_W if (right_panel and right_panel.visible) else 0.0
 	var central_w: float = max(100.0, vp_size.x - LEFT_PANEL_W - right_used)
-	var central_h: float = max(100.0, vp_size.y - TOP_BAR_H - BOTTOM_BAR_H)
+	# +2×MAP_PAD reserva respiro em cima e embaixo do mundo enquadrado
+	var central_h: float = max(100.0, vp_size.y - TOP_BAR_H - BOTTOM_BAR_H - MAP_PAD * 2.0)
 	var min_zoom_x: float = central_w / MAP_WIDTH
 	var min_zoom_y: float = central_h / MAP_HEIGHT
 	# Zoom mínimo = CONTAIN-fit: o mundo INTEIRO cabe na área central (entre
