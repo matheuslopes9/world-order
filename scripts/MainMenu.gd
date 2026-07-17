@@ -14,6 +14,61 @@ const MONO_FONT := preload("res://fonts/CascadiaMono.ttf")
 # anterior vinha de cada fileira ter uma largura diferente (368/402/420/432).
 const ROW_W := 440
 
+# ── PALETA DO MENU: dark premium + DOURADO (casa com o logo do brasão) ──
+# O ciano fica para o HUD do jogo; o menu é a vitrine e segue o logo.
+const M_GOLD        := Color(0.88, 0.72, 0.34)        # acento principal
+const M_GOLD_DIM    := Color(0.82, 0.68, 0.34, 0.80)  # títulos de seção
+const M_GOLD_SOFT   := Color(0.80, 0.65, 0.30, 0.45)  # bordas
+const M_TEXT        := Color(0.92, 0.91, 0.88)        # branco quente
+const M_TEXT_DIM    := Color(0.58, 0.58, 0.60)        # hints
+const M_BTN_BG      := Color(0.070, 0.076, 0.092, 0.95)
+const M_BTN_BORDER  := Color(0.34, 0.32, 0.27, 0.55)
+const M_BTN_HOVER   := Color(0.115, 0.115, 0.125, 1.0)
+const M_BTN_SEL_BG  := Color(0.30, 0.24, 0.11, 0.95)  # toggle selecionado
+const M_CTA_BG      := Color(0.86, 0.69, 0.30)        # botão principal dourado
+const M_CTA_TEXT    := Color(0.11, 0.09, 0.04)
+
+# StyleBox base dos botões do menu (pill escuro neutro, borda discreta)
+func _menu_sb(bg: Color, border: Color, radius: int = 10) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(radius)
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 9
+	sb.content_margin_bottom = 9
+	return sb
+
+# Aplica o estilo premium a um botão do menu (normal/hover/pressed dourado).
+func _menu_style_button(b: Button) -> void:
+	if b == null: return
+	b.add_theme_stylebox_override("normal", _menu_sb(M_BTN_BG, M_BTN_BORDER))
+	b.add_theme_stylebox_override("hover", _menu_sb(M_BTN_HOVER, M_GOLD_SOFT))
+	b.add_theme_stylebox_override("pressed", _menu_sb(M_BTN_SEL_BG, M_GOLD))
+	b.add_theme_stylebox_override("focus", _menu_sb(M_BTN_HOVER, M_GOLD_SOFT))
+	b.add_theme_stylebox_override("disabled", _menu_sb(Color(0.05, 0.05, 0.06, 0.6), Color(0.2, 0.2, 0.2, 0.4)))
+	b.add_theme_color_override("font_color", M_TEXT)
+	b.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+	b.add_theme_color_override("font_pressed_color", Color(1, 0.95, 0.82))
+	b.add_theme_color_override("font_focus_color", Color(1, 1, 1))
+
+# Percorre todos os botões do card e aplica o estilo (pega seletores,
+# idioma, progresso, créditos etc. de uma vez — consistência garantida).
+func _apply_menu_button_theme() -> void:
+	var card := get_node_or_null("Center/Card")
+	if card == null: return
+	var stack: Array = [card]
+	while not stack.is_empty():
+		var nd = stack.pop_back()
+		if nd is Button and nd != map_button:
+			_menu_style_button(nd)
+		elif nd is OptionButton:
+			_menu_style_button(nd)
+		for c in nd.get_children():
+			stack.append(c)
+
 # Paleta consolidada — referenciada pelos modais e UI dinâmica
 const PALETTE := {
 	"cyan": Color(0, 0.823, 1, 0.9),
@@ -70,11 +125,12 @@ func _ready() -> void:
 	# Botão de créditos depois dos demais
 	_add_credits_button()
 
-	# ─── ANIMAÇÃO DE ENTRADA + SCANLINES ───
+	# ─── ANIMAÇÃO DE ENTRADA + ESTILO PREMIUM ───
 	_play_entrance_animation()
 	_start_brand_pulse()
 	_start_status_pulse()
-	_spawn_startup_scanline()
+	# (scanline CRT removida — poluía o menu e cortava o card ao meio)
+	_apply_menu_button_theme()
 	_style_main_buttons()
 
 	# Intro cinematográfica — só na primeira vez que o jogador abre o jogo
@@ -235,8 +291,8 @@ func _add_scenario_selector() -> void:
 	main_box.move_child(scen_box, button_row.get_index())
 
 	var lbl := Label.new()
-	lbl.text = "◆ CENÁRIO"
-	lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.85))
+	lbl.text = "CENÁRIO"
+	lbl.add_theme_color_override("font_color", M_GOLD_DIM)
 	lbl.add_theme_font_size_override("font_size", 11)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	scen_box.add_child(lbl)
@@ -249,7 +305,7 @@ func _add_scenario_selector() -> void:
 
 	# Hint que muda conforme cenário selecionado
 	var hint := Label.new()
-	hint.add_theme_color_override("font_color", Color(0.55, 0.65, 0.78))
+	hint.add_theme_color_override("font_color", M_TEXT_DIM)
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -373,10 +429,6 @@ func _add_language_selector() -> void:
 	box.add_theme_constant_override("separation", 6)
 	box.custom_minimum_size = Vector2(ROW_W, 0)
 	button_row.add_child(box)
-	var lbl := Label.new()
-	lbl.text = "🌐"
-	lbl.add_theme_font_size_override("font_size", 14)
-	box.add_child(lbl)
 	for loc in Accessibility.SUPPORTED_LOCALES:
 		var label_text: String = "PT" if loc == "pt_BR" else loc.to_upper()
 		var btn := Button.new()
@@ -657,14 +709,13 @@ func _add_mode_selector() -> void:
 	main_box.move_child(mode_box, button_row.get_index())  # coloca antes do ButtonRow
 
 	var lbl := Label.new()
-	lbl.text = "◆ MODO DE CAMPANHA"
-	lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.85))
+	lbl.text = "MODO DE CAMPANHA"
+	lbl.add_theme_color_override("font_color", M_GOLD_DIM)
 	lbl.add_theme_font_size_override("font_size", 11)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mode_box.add_child(lbl)
 
 	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(ROW_W, 0)
 	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	row.add_theme_constant_override("separation", 8)
 	mode_box.add_child(row)
@@ -672,8 +723,8 @@ func _add_mode_selector() -> void:
 	var current_mode: String = GameEngine.settings.get("mode", "inspirado")
 	var btns: Array = []
 	var modes := [
-		{"id": "inspirado", "label": "🕰  Inspirado", "tip": "Eventos históricos disparam em janelas reais (11/9 em 2001, etc)"},
-		{"id": "livre",     "label": "🎲  Livre",     "tip": "Eventos com janelas alargadas — IA reage sem constraint histórico"},
+		{"id": "inspirado", "label": "Inspirado", "tip": "Eventos históricos disparam em janelas reais (11/9 em 2001, etc)"},
+		{"id": "livre",     "label": "Livre",     "tip": "Eventos com janelas alargadas — IA reage sem constraint histórico"},
 	]
 	for m in modes:
 		var b := Button.new()
@@ -682,8 +733,8 @@ func _add_mode_selector() -> void:
 		b.toggle_mode = true
 		b.button_pressed = (m["id"] == current_mode)
 		b.set_meta("mode_id", m["id"])
-		b.custom_minimum_size = Vector2(0, 36)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		# Largura FIXA idêntica: (ROW_W - separação) / 2 — alinhamento perfeito
+		b.custom_minimum_size = Vector2((ROW_W - 8) / 2.0, 36)
 		b.add_theme_font_size_override("font_size", 12)
 		b.focus_mode = Control.FOCUS_NONE
 		var mode_id: String = m["id"]
@@ -696,7 +747,7 @@ func _add_mode_selector() -> void:
 
 	var hint := Label.new()
 	hint.text = "Campanha 100 anos: 2000 → 2100"
-	hint.add_theme_color_override("font_color", Color(0.5, 0.62, 0.78, 1))
+	hint.add_theme_color_override("font_color", M_TEXT_DIM)
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mode_box.add_child(hint)
@@ -714,25 +765,24 @@ func _add_difficulty_selector() -> void:
 	main_box.move_child(diff_box, button_row.get_index())  # antes do ButtonRow
 
 	var lbl := Label.new()
-	lbl.text = "◆ DIFICULDADE"
-	lbl.add_theme_color_override("font_color", Color(0, 0.823, 1, 0.85))
+	lbl.text = "DIFICULDADE"
+	lbl.add_theme_color_override("font_color", M_GOLD_DIM)
 	lbl.add_theme_font_size_override("font_size", 11)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	diff_box.add_child(lbl)
 
 	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(ROW_W, 0)
 	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	row.add_theme_constant_override("separation", 6)
+	row.add_theme_constant_override("separation", 8)
 	diff_box.add_child(row)
 
 	var current_diff: String = GameEngine.settings.get("difficulty", "normal")
 	var btns: Array = []
 	var diffs := [
-		{"id": "easy",   "label": "🌱 Fácil",   "tip": "Mais tesouro inicial, ameaças fracas. Ideal para aprender."},
-		{"id": "normal", "label": "⚖ Normal",   "tip": "Equilíbrio padrão. A campanha como foi projetada."},
-		{"id": "hard",   "label": "🔥 Difícil",  "tip": "Menos tesouro, crises se aprofundam, rivais mais duros."},
-		{"id": "brutal", "label": "💀 Brutal",   "tip": "Sobrevivência no fio da navalha. Uma crise ignorada te derruba."},
+		{"id": "easy",   "label": "Fácil",   "tip": "Mais tesouro inicial, ameaças fracas. Ideal para aprender."},
+		{"id": "normal", "label": "Normal",  "tip": "Equilíbrio padrão. A campanha como foi projetada."},
+		{"id": "hard",   "label": "Difícil", "tip": "Menos tesouro, crises se aprofundam, rivais mais duros."},
+		{"id": "brutal", "label": "Brutal",  "tip": "Sobrevivência no fio da navalha. Uma crise ignorada te derruba."},
 	]
 	for d in diffs:
 		var b := Button.new()
@@ -741,8 +791,8 @@ func _add_difficulty_selector() -> void:
 		b.toggle_mode = true
 		b.button_pressed = (d["id"] == current_diff)
 		b.set_meta("diff_id", d["id"])
-		b.custom_minimum_size = Vector2(0, 34)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		# Largura FIXA idêntica: (ROW_W - 3×separação) / 4 — sem torto possível
+		b.custom_minimum_size = Vector2((ROW_W - 24) / 4.0, 34)
 		b.add_theme_font_size_override("font_size", 12)
 		b.focus_mode = Control.FOCUS_NONE
 		var diff_id: String = d["id"]
@@ -755,7 +805,7 @@ func _add_difficulty_selector() -> void:
 
 	var hint := Label.new()
 	hint.text = "Escala tesouro inicial, crises e agressividade dos rivais"
-	hint.add_theme_color_override("font_color", Color(0.5, 0.62, 0.78, 1))
+	hint.add_theme_color_override("font_color", M_TEXT_DIM)
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	diff_box.add_child(hint)
@@ -778,12 +828,10 @@ func _start_brand_pulse() -> void:
 
 func _start_status_pulse() -> void:
 	if status_label == null: return
-	# Glow contínuo no status
-	status_label.add_theme_constant_override("shadow_outline_size", 10)
-	status_label.add_theme_color_override("font_shadow_color", Color(0, 1, 0.55, 0.5))
+	# Respiração sutil de opacidade — sem glow neon (visual premium e limpo)
 	var tw := create_tween().set_loops()
-	tw.tween_property(status_label, "modulate", Color(1.2, 1.2, 1.2), 1.0).set_trans(Tween.TRANS_SINE)
-	tw.tween_property(status_label, "modulate", Color(1, 1, 1), 1.0).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(status_label, "modulate:a", 0.72, 1.8).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(status_label, "modulate:a", 1.0, 1.8).set_trans(Tween.TRANS_SINE)
 
 func _spawn_startup_scanline() -> void:
 	# Linha ciano que atravessa horizontalmente — efeito CRT
@@ -808,28 +856,30 @@ func _spawn_startup_scanline() -> void:
 	tw.tween_interval(4.0)
 
 func _style_main_buttons() -> void:
-	# MapButton: botão grande, SEM shadow (shadow expande visual além da hitbox e
-	# faz o usuário clicar abaixo do que aparece). Bordas simétricas pra hitbox bater.
+	# CTA (INICIAR/CONTINUAR): DOURADO SÓLIDO com texto escuro — o único bloco
+	# de cor forte do menu, casa com o logo. Sem shadow (hitbox = visual).
 	if map_button:
 		var sb_n := StyleBoxFlat.new()
-		sb_n.bg_color = Color(0, 0.55, 0.78, 0.9)
-		sb_n.border_color = Color(0, 0.95, 1, 1)
-		sb_n.set_border_width_all(2)
+		sb_n.bg_color = M_CTA_BG
+		sb_n.border_color = Color(1.0, 0.88, 0.55, 0.9)
+		sb_n.set_border_width_all(1)
 		sb_n.set_corner_radius_all(12)
 		sb_n.content_margin_left = 22
 		sb_n.content_margin_right = 22
 		sb_n.content_margin_top = 14
 		sb_n.content_margin_bottom = 14
 		var sb_h := sb_n.duplicate() as StyleBoxFlat
-		sb_h.bg_color = Color(0, 0.78, 0.98, 1)
+		sb_h.bg_color = Color(0.95, 0.79, 0.40)
 		var sb_p := sb_n.duplicate() as StyleBoxFlat
-		sb_p.bg_color = Color(0, 0.40, 0.65, 1)
+		sb_p.bg_color = Color(0.70, 0.55, 0.22)
 		map_button.add_theme_stylebox_override("normal", sb_n)
 		map_button.add_theme_stylebox_override("hover", sb_h)
 		map_button.add_theme_stylebox_override("pressed", sb_p)
 		map_button.add_theme_stylebox_override("focus", sb_h)
-		map_button.add_theme_color_override("font_color", Color(1, 1, 1))
-		map_button.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+		map_button.add_theme_color_override("font_color", M_CTA_TEXT)
+		map_button.add_theme_color_override("font_hover_color", Color(0.08, 0.06, 0.02))
+		map_button.add_theme_color_override("font_pressed_color", M_CTA_TEXT)
+		map_button.add_theme_color_override("font_focus_color", M_CTA_TEXT)
 		_attach_hover_pop_simple(map_button)
 	if test_button:
 		_attach_hover_pop_simple(test_button)

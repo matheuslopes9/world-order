@@ -1,11 +1,11 @@
-// FUNDO CINEMATOGRÁFICO DO MENU — aurora azul-petróleo em deriva lenta + vinheta.
-// 1 quad full-screen → custo desprezível. Amplitude baixa: o card continua o herói.
+// FUNDO CINEMATOGRÁFICO DO MENU — nébula quente em deriva lenta sobre carvão.
+// Paleta dourada discreta (casa com o logo do brasão). 1 quad → custo ~zero.
 shader_type canvas_item;
 
-uniform vec3 base_color : source_color = vec3(0.010, 0.022, 0.042);
-uniform vec3 aurora_a : source_color = vec3(0.0, 0.10, 0.19);
-uniform vec3 aurora_b : source_color = vec3(0.0, 0.38, 0.55);
-uniform float intensity : hint_range(0.0, 1.0) = 0.34;
+uniform vec3 base_color : source_color = vec3(0.010, 0.011, 0.015);
+uniform vec3 nebula_a : source_color = vec3(0.070, 0.058, 0.032);
+uniform vec3 nebula_b : source_color = vec3(0.240, 0.185, 0.085);
+uniform float intensity : hint_range(0.0, 1.0) = 0.42;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -32,16 +32,16 @@ float fbm(vec2 p) {
 
 void fragment() {
 	vec2 uv = UV;
-	// Aurora: banda de fbm que deriva lentamente na diagonal
-	float n = fbm(uv * vec2(2.6, 3.4) + vec2(TIME * 0.020, -TIME * 0.012));
-	float band = smoothstep(0.38, 0.80, n);
-	vec3 aurora = mix(aurora_a, aurora_b, band);
-	vec3 col = base_color + aurora * band * intensity;
-	// Estrelas fixas bem fracas (pontos de hash)
-	float star = step(0.9985, hash(floor(uv * vec2(220.0, 130.0))));
-	col += vec3(0.55, 0.75, 0.9) * star * 0.10;
+	// Nébula dourada em deriva diagonal muito lenta
+	float n = fbm(uv * vec2(2.4, 3.2) + vec2(TIME * 0.016, -TIME * 0.010));
+	float band = smoothstep(0.42, 0.85, n);
+	vec3 nebula = mix(nebula_a, nebula_b, band);
+	vec3 col = base_color + nebula * band * intensity;
+	// Poeira de estrelas fixa, quente e fraca
+	float star = step(0.9986, hash(floor(uv * vec2(220.0, 130.0))));
+	col += vec3(0.85, 0.75, 0.55) * star * 0.09;
 	// Vinheta: foco no centro, onde vive o card
-	float vig = smoothstep(1.15, 0.35, distance(uv, vec2(0.5)));
-	col *= mix(0.70, 1.05, vig);
+	float vig = smoothstep(1.18, 0.32, distance(uv, vec2(0.5)));
+	col *= mix(0.62, 1.06, vig);
 	COLOR = vec4(col, 1.0);
 }
