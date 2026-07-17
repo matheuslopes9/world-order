@@ -1432,6 +1432,8 @@ func _show_action_bar(visible_state: bool) -> void:
 var _resource_widgets: Dictionary = {}  # id → Label (valor)
 
 const RESOURCE_FIELDS := [
+	{"id": "poder",    "icon": "🌍", "label": "Poder",    "color": Color(0, 0.90, 1)},
+	{"id": "score",    "icon": "🏆", "label": "Score",    "color": Color(0.4, 0.85, 1)},
 	{"id": "pib",      "icon": "💰", "label": "PIB",      "color": Color(0, 0.95, 1)},
 	{"id": "tesouro",  "icon": "🏦", "label": "Tesouro",  "color": Color(0, 1, 0.55)},
 	{"id": "militar",  "icon": "⚔",  "label": "Militar",  "color": Color(1, 0.55, 0.45)},
@@ -1475,11 +1477,23 @@ func _build_resource_bar() -> void:
 		val.add_theme_color_override("font_color", entry["color"])
 		val.add_theme_font_size_override("font_size", 16)
 		val.add_theme_font_override("font", MONO_FONT)
-		val.add_theme_constant_override("shadow_outline_size", 6)
-		val.add_theme_color_override("font_shadow_color", Color(entry["color"].r, entry["color"].g, entry["color"].b, 0.4))
+		# Sombra chapada discreta (o shadow_outline serrilhava os números)
+		val.add_theme_constant_override("shadow_outline_size", 0)
+		val.add_theme_constant_override("shadow_offset_x", 1)
+		val.add_theme_constant_override("shadow_offset_y", 1)
+		val.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
 		cell.add_child(val)
 		hbox.add_child(cell)
 		_resource_widgets[entry["id"]] = val
+
+# Score do jogador (mesma fórmula de antes, agora reutilizável nas 2 barras).
+func _compute_score(n) -> int:
+	return int(
+		(n.pib_bilhoes_usd / 1000.0) * 10 +
+		(n.estabilidade_politica * 2) +
+		(n.tecnologias_concluidas.size() * 50) +
+		(n.tesouro * 0.01) +
+		GameEngine.current_turn * 10)
 
 func _refresh_resource_bar() -> void:
 	if _resource_widgets.is_empty() or GameEngine.player_nation == null: return
@@ -1502,7 +1516,11 @@ func _refresh_resource_bar() -> void:
 	var pm: float = n.get_military_power()
 	# Tech
 	var tech_count: int = n.tecnologias_concluidas.size()
+	# Poder mundial (rank) e Score — movidos da barra superior
+	var rank: int = GameEngine.get_power_rank(n.codigo_iso)
 	var values := {
+		"poder":     "#%d" % rank,
+		"score":     "%04d" % _compute_score(n),
 		"pib":       pib_str,
 		"tesouro":   "$%dB" % int(n.tesouro),
 		"militar":   "%.1f" % pm,
@@ -1593,14 +1611,13 @@ func _apply_mono_to_topbar() -> void:
 		if lbl == null: continue
 		lbl.add_theme_font_override("font", MONO_FONT)
 		lbl.add_theme_font_size_override("font_size", 15)
-		# Outline simulando text-shadow glow do CSS
+		# Sombra CHAPADA discreta p/ legibilidade (o shadow_outline grande
+		# criava aquele serrilhado pixelado feio nos números). Limpo e nítido.
 		lbl.add_theme_constant_override("outline_size", 0)
-		lbl.add_theme_constant_override("shadow_offset_x", 0)
-		lbl.add_theme_constant_override("shadow_offset_y", 0)
-		lbl.add_theme_constant_override("shadow_outline_size", 8)
-		# shadow_color reaproveita a font_color com alpha → cria glow
-		var fc: Color = lbl.get_theme_color("font_color")
-		lbl.add_theme_color_override("font_shadow_color", Color(fc.r, fc.g, fc.b, 0.45))
+		lbl.add_theme_constant_override("shadow_outline_size", 0)
+		lbl.add_theme_constant_override("shadow_offset_x", 1)
+		lbl.add_theme_constant_override("shadow_offset_y", 1)
+		lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
 
 # Hover "pop" SEM scale — apenas brilho via modulate (não desloca hitbox)
 func _attach_hover_pop(btn: Control, _scale_unused: float = 1.04) -> void:
@@ -4285,9 +4302,9 @@ func _build_map_filters() -> void:
 		btn.set_meta("filter_id", fid)
 		btn.set_meta("filter_cor", cor)
 		btn.text = f["glifo"]
-		btn.custom_minimum_size = Vector2(40, 40)
+		btn.custom_minimum_size = Vector2(34, 32)
 		btn.tooltip_text = f["label"]
-		btn.add_theme_font_size_override("font_size", 18)
+		btn.add_theme_font_size_override("font_size", 15)
 		btn.focus_mode = Control.FOCUS_NONE
 		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		# Selecionado: acende na cor do filtro. Normal/hover: neutro discreto.
@@ -4620,14 +4637,7 @@ func _refresh_top_bar() -> void:
 	elif treasury_label:
 		treasury_label.text = "—"
 	if GameEngine.player_nation and score_label:
-		var n = GameEngine.player_nation
-		var score: int = int(
-			(n.pib_bilhoes_usd / 1000.0) * 10 +
-			(n.estabilidade_politica * 2) +
-			(n.tecnologias_concluidas.size() * 50) +
-			(n.tesouro * 0.01) +
-			GameEngine.current_turn * 10)
-		score_label.text = "%04d" % score
+		score_label.text = "%04d" % _compute_score(GameEngine.player_nation)
 	elif score_label:
 		score_label.text = "0000"
 	# Posição no ranking mundial de poder (a métrica de vitória, sempre à vista)

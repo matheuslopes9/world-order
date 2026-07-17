@@ -116,8 +116,10 @@ text = "1"
 vertical_alignment = 1
 
 [node name="VSep3" type="VSeparator" parent="HUD/TopBar/HBox"]
+visible = false
 
 [node name="TreasuryBlock" type="HBoxContainer" parent="HUD/TopBar/HBox"]
+visible = false
 theme_override_constants/separation = 6
 
 [node name="TreasuryCap" type="Label" parent="HUD/TopBar/HBox/TreasuryBlock"]
@@ -152,8 +154,10 @@ text = "DEFCON 5"
 vertical_alignment = 1
 
 [node name="VSep5" type="VSeparator" parent="HUD/TopBar/HBox"]
+visible = false
 
 [node name="ScoreBlock" type="HBoxContainer" parent="HUD/TopBar/HBox"]
+visible = false
 theme_override_constants/separation = 6
 
 [node name="ScoreCap" type="Label" parent="HUD/TopBar/HBox/ScoreBlock"]
@@ -170,8 +174,10 @@ text = "0000"
 vertical_alignment = 1
 
 [node name="VSep6" type="VSeparator" parent="HUD/TopBar/HBox"]
+visible = false
 
 [node name="RankBlock" type="HBoxContainer" parent="HUD/TopBar/HBox"]
+visible = false
 theme_override_constants/separation = 6
 
 [node name="RankCap" type="Label" parent="HUD/TopBar/HBox/RankBlock"]
@@ -189,6 +195,7 @@ text = "🌍 #—"
 vertical_alignment = 1
 
 [node name="VSep6b" type="VSeparator" parent="HUD/TopBar/HBox"]
+visible = false
 
 [node name="ActionsBlock" type="HBoxContainer" parent="HUD/TopBar/HBox"]
 theme_override_constants/separation = 6
@@ -208,6 +215,12 @@ vertical_alignment = 1
 
 [node name="Filler" type="Control" parent="HUD/TopBar/HBox"]
 size_flags_horizontal = 3
+
+[node name="MapFilters" type="HBoxContainer" parent="HUD/TopBar/HBox"]
+unique_name_in_owner = true
+theme_override_constants/separation = 4
+
+[node name="VSepFilt" type="VSeparator" parent="HUD/TopBar/HBox"]
 
 [node name="MenuButton" type="Button" parent="HUD/TopBar/HBox"]
 unique_name_in_owner = true
@@ -274,12 +287,6 @@ custom_minimum_size = Vector2(0, 56)
 unique_name_in_owner = true
 theme_override_constants/separation = 6
 size_flags_horizontal = 3
-
-[node name="VSepA" type="VSeparator" parent="HUD/BottomBar/V/ActionRow"]
-
-[node name="MapFilters" type="HBoxContainer" parent="HUD/BottomBar/V/ActionRow"]
-unique_name_in_owner = true
-theme_override_constants/separation = 4
 
 [node name="VSepZ" type="VSeparator" parent="HUD/BottomBar/V/ActionRow"]
 
