@@ -262,6 +262,110 @@ func _build_world_frame() -> void:
 	add_child(outer)
 
 # ── TELA DE CARREGAMENTO ──
+# 100 dicas reais de mecânica — uma a cada ~3s enquanto o mundo monta
+const LOAD_TIPS := [
+	"Você tem 3 ações por turno — gaste com estratégia, elas não acumulam.",
+	"Cada turno é 1 mês. A campanha completa atravessa 100 anos: 1200 turnos.",
+	"A espiral de crise é real: estabilidade <30 e apoio <35 se retroalimentam até o colapso.",
+	"Uma crise ignorada derruba um governo em ~14 meses. Aja rápido.",
+	"Autocracias não trocam de líder por impopularidade — só por morte ou golpe.",
+	"Democracias fazem eleições a cada ~5 anos. Impopularidade prolongada custa o cargo.",
+	"Quando um líder cai, o sucessor pode ter outra ideologia — e mudar o rumo do país.",
+	"A ideologia econômica do líder dirige as decisões dos 194 bots.",
+	"Líderes vivem ~100 anos. Ditadores idosos são bombas-relógio de sucessão.",
+	"O rating de crédito (AAA a D) define os juros dos seus empréstimos.",
+	"Dívida acima de 1,5x o PIB freia o crescimento e assusta investidores.",
+	"Calote destrói o rating por décadas. Amortize antes do teto de 2,5x PIB.",
+	"Superávit comercial sustentado acelera o PIB; déficit crônico o corrói.",
+	"Exportar commodity BRUTA rende menos que manufaturar. Industrialize.",
+	"O Upgrade Industrial converte matéria bruta em manufatura: +60% de valor agregado.",
+	"Complexidade econômica alta = crescimento estável e menos exposto a choques.",
+	"Exportadores de commodity bruta sofrem inflação mais volátil. Diversifique.",
+	"A bolsa rende no longo prazo, mas choques globais derrubam o índice.",
+	"Limite prudencial: invista no máximo 40% do caixa em ações.",
+	"A WorldCoin oscila em ciclos. Compre no pânico, venda na euforia.",
+	"Adotar cripto como moeda legal reduz o impacto de sanções em 60%.",
+	"Tesouro zerado por 4 turnos = falência nacional. O FMI cobra caro pelo resgate.",
+	"O resgate do FMI corta seu gasto social pela metade. Soberania tem preço.",
+	"Inflação acima de 15% corrói felicidade, apoio e receita ao mesmo tempo.",
+	"Hiperinflação (80%+) é espiral de morte. Aperto monetário custa PIB, mas salva.",
+	"Gasto militar acima de 5% do PIB pressiona a inflação.",
+	"Corrupção alta rouba o tesouro TODO turno e espanta empresas.",
+	"A Reforma Judicial derruba corrupção em 10 pontos. Cara, mas transforma.",
+	"Confiança do investidor baixa = êxodo de capital. Empresas saem de vez.",
+	"Burocracia eficiente multiplica a receita de impostos.",
+	"Blocos geopolíticos dão bônus comerciais e defesa coletiva.",
+	"Entrar na OTAN protege — mas te arrasta para as guerras do bloco.",
+	"Afinidade ideológica aproxima nações parecidas e afasta opostas, turno a turno.",
+	"Democracias de mercado confiam umas nas outras. Autocracias também.",
+	"Se você dominar demais, o mundo forma uma coalizão de contenção contra você.",
+	"Hegemonia exige PIB de 40% ou mais do líder mundial por 4 anos seguidos — após 2025.",
+	"Sua nemesis te provoca em ciclos. No Brutal, a cada 8 meses.",
+	"Declare guerra com um OBJETIVO: reparações, recursos ou mudança de regime.",
+	"Vitória com objetivo de regime impõe seu sistema político ao derrotado.",
+	"Guerras drenam 12% de eficiência por frente. Três frentes = metade das ações.",
+	"Guerra longa gera crise humanitária — e o mundo lembra.",
+	"DEFCON 1 significa guerra nuclear iminente. Recue ou aperte o botão.",
+	"Espionagem revela segredos; contra-inteligência protege os seus.",
+	"Intel score alto abre operações avançadas: sabotagem, roubo de tech, propaganda.",
+	"Cada ministério tem trilha própria de pesquisa. 57 techs no total.",
+	"Ministério nível 5 executa ações 40% mais fortes.",
+	"Techs concluídas dão bônus permanente de ação: +0,5% cada, até +25%.",
+	"25+ techs libertam seu país da armadilha da renda média.",
+	"O catch-up é real: países pobres com boas instituições crescem mais rápido.",
+	"Na fronteira tecnológica o crescimento desacelera. Inove ou estagne.",
+	"Tratados de livre comércio rendem mais com vizinhos ricos.",
+	"Pacto de não-agressão segura um vizinho hostil por 10 anos.",
+	"Embaixadas melhoram relações e abrem canais de espionagem.",
+	"Sanções machucam mais quem depende de importações.",
+	"Dependência de importação acima de 50% é vulnerabilidade estratégica.",
+	"No filtro Recursos, o mapa mostra a riqueza dominante de cada nação.",
+	"O filtro Economia pinta o mundo por PIB — os azuis fortes mandam.",
+	"O filtro Estabilidade expõe os países à beira do colapso. Oportunidade?",
+	"Satélite = NASA Blue Marble real. Aperte zoom na sua capital.",
+	"Passe o mouse num país: fronteira dourada + dossiê no clique.",
+	"O ticker embaixo mostra 3 emissoras: nacional, regional e global.",
+	"Modo Inspirado: o 11 de Setembro, a crise de 2008 e a COVID virão no tempo real.",
+	"Modo Livre: a história é só sua. Sem âncoras do mundo real.",
+	"Cenário Década Crítica começa em 2020, com o mundo pegando fogo.",
+	"Guerra Fria 2.0: EUA x China, DEFCON 3, corrida tecnológica acelerada.",
+	"Dificuldade Brutal: crises 2,2x mais fundas e rivais implacáveis.",
+	"No Fácil você aprende; no Normal você joga; no Brutal você sobrevive.",
+	"XP ganho vira perks permanentes entre campanhas. Derrota também ensina.",
+	"Propaganda estatal dá apoio rápido — mas o efeito enfraquece se repetir.",
+	"Estímulo fiscal aquece o PIB e o povo. Cuidado com a inflação depois.",
+	"Megaprojetos impressionam (+2,5% PIB) mas desgastam a estabilidade.",
+	"Subsídios setoriais compram crescimento com corrupção. Vale a pena?",
+	"Explorar recursos eleva seu recurso mais escasso em +15%.",
+	"Universidades: pesquisa +8% e PIB +0,5%. O investimento que sempre paga.",
+	"Vacinação em massa: felicidade +6 e população crescendo.",
+	"Rede hospitalar sólida segura a estabilidade em tempos de crise.",
+	"Recrute infantaria barata cedo; navios e aviões custam caro depois.",
+	"Bases militares projetam poder: +10 de poder global cada.",
+	"Poder global = economia (40%) + militar + tech + diplomacia.",
+	"Score é história: tudo que você constrói e sobrevive soma pontos.",
+	"Nações pequenas PODEM virar potência — o poder usa escala comprimida.",
+	"Um Chile bem jogado vale mais que um império mal administrado.",
+	"A elite rouba enquanto você não olha: corrupção cresce sozinha.",
+	"Gasto social melhora felicidade — e felicidade segura eleições.",
+	"O PIB per capita define seu estágio: pobre cresce rápido, rico inova.",
+	"Choque do petróleo dobra o valor de exportação de quem tem energia.",
+	"Recessão global derruba todos os PIBs. Caixa cheio é seguro.",
+	"Pandemias fecham comércio. Saúde alta = recuperação rápida.",
+	"Eventos históricos pedem decisões. Não existe escolha sem custo.",
+	"Storylines secretas se desbloqueiam com suas decisões acumuladas.",
+	"Conquistas rendem XP extra. Colecione-as entre campanhas.",
+	"O jogo salva sozinho a cada turno. Feche sem medo.",
+	"Aliados aparecem em verde no mapa; inimigos pulsam em vermelho.",
+	"A moldura dourada marca o fim do mundo jogável. Não há nada além.",
+	"Zoom out total mostra o planeta inteiro entre as barras.",
+	"Os Andes, o Saara e o Himalaia estão lá de verdade. Olhe de perto.",
+	"Groenlândia e Antártida: brancas, geladas e sem PIB relevante.",
+	"O sucessor herda o país — mas não as suas promessas.",
+	"Cada campanha é única: 195 nações, 195 histórias possíveis.",
+	"O hover acende o país em dourado. O clique abre o dossiê completo.",
+]
+
 var _loading_layer: CanvasLayer = null
 
 func _show_loading_screen() -> void:
@@ -278,13 +382,17 @@ func _show_loading_screen() -> void:
 	_loading_layer.add_child(center)
 	var v := VBoxContainer.new()
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_theme_constant_override("separation", 18)
+	v.add_theme_constant_override("separation", 14)
 	center.add_child(v)
 	var logo := TextureRect.new()
 	logo.texture = load("res://assets/logo.png")
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	logo.custom_minimum_size = Vector2(0, 560)
+	# Caixa EXATA no aspect do logo (1080x1350 = 0.8): sem vazio em volta.
+	# (Antes a caixa tinha largura solta: o logo encolhia p/ a largura do
+	# texto e sobrava um buraco enorme até o "Carregando…")
+	logo.custom_minimum_size = Vector2(576, 720)
+	logo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(logo)
 	var lbl := Label.new()
 	lbl.name = "LoadingLabel"
@@ -300,12 +408,24 @@ func _show_loading_screen() -> void:
 	spin.custom_minimum_size = Vector2(58, 58)
 	spin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(spin)
-	var hint := Label.new()
-	hint.text = "195 nações  ·  2000 → 2100  ·  o século é seu"
-	hint.add_theme_color_override("font_color", Color(0.52, 0.52, 0.55))
-	hint.add_theme_font_size_override("font_size", 11)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(hint)
+	var tip := Label.new()
+	tip.name = "LoadingTip"
+	tip.text = "💡 " + LOAD_TIPS[randi() % LOAD_TIPS.size()]
+	tip.add_theme_color_override("font_color", Color(0.70, 0.67, 0.60))
+	tip.add_theme_font_size_override("font_size", 13)
+	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip.custom_minimum_size = Vector2(680, 0)
+	tip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(tip)
+	# Rotação de dicas: espera → fade-out → troca → fade-in (~3,2s por dica)
+	var tip_tw := tip.create_tween().set_loops()
+	tip_tw.tween_interval(2.6)
+	tip_tw.tween_property(tip, "modulate:a", 0.0, 0.30).set_trans(Tween.TRANS_CUBIC)
+	tip_tw.tween_callback(func():
+		if is_instance_valid(tip):
+			tip.text = "💡 " + LOAD_TIPS[randi() % LOAD_TIPS.size()])
+	tip_tw.tween_property(tip, "modulate:a", 1.0, 0.30).set_trans(Tween.TRANS_CUBIC)
 	# Respiração do texto (vida enquanto carrega)
 	var tw := lbl.create_tween().set_loops()
 	tw.tween_property(lbl, "modulate:a", 0.45, 0.8).set_trans(Tween.TRANS_SINE)
