@@ -579,7 +579,7 @@ func _phase_intel_and_bailout() -> void:
 	var overlay = wm.game_overlay
 	var op_btns: Array = []
 	for b in _find_buttons(overlay.panel_content):
-		if "%" in (b as Button).text and "$" in (b as Button).text:
+		if (b as Button).get_meta("op_card", false) or ("%" in (b as Button).text and "$" in (b as Button).text):
 			op_btns.append(b)
 	_test("Intel: 8 operações são botões clicáveis", op_btns.size() == 8)
 	if op_btns.size() > 0:

@@ -511,6 +511,10 @@ func end_turn() -> void:
 				if vb > 0.0:
 					n.add_ministry_xp(pasta, vb * 0.05)   # XP/turno /3 (ritmo mensal)
 
+	# Feitos automáticos do gabinete do JOGADOR (a cada ~ano): crises viram
+	# feitos ruins do ministro responsável; bons resultados viram feitos bons.
+	if player_nation != null and current_turn % 12 == 0:
+		_evaluate_cabinet_deeds(player_nation)
 	# IA: nações estrategicamente decidem (declarar guerra, propor paz, espionar)
 	_run_ai_turn()
 	# Custos contínuos de guerra
@@ -2464,6 +2468,33 @@ func get_cabinet_snapshot() -> Array:
 		})
 	return out
 
+# Avalia o desempenho do gabinete e registra feitos (bom/ruim) por ministro.
+# Chamado ~1×/ano para o jogador — os feitos aparecem no dossiê do Gabinete.
+func _evaluate_cabinet_deeds(n) -> void:
+	if not n.has_method("minister_deed"): return
+	var ano: int = date_year
+	# FAZENDA (economia): inflação/dívida
+	if n.inflacao > 25.0:
+		n.minister_deed("fazenda", "Deixou a inflação disparar a %.0f%% (%d)" % [n.inflacao, ano], false)
+	elif n.inflacao < 6.0 and n.pib_bilhoes_usd > n.pib_inicial * 1.2:
+		n.minister_deed("fazenda", "Manteve inflação baixa com crescimento (%d)" % ano, true)
+	# CASA CIVIL: corrupção/estabilidade
+	if n.corrupcao > 60.0:
+		n.minister_deed("casa_civil", "Corrupção fora de controle: %.0f%% (%d)" % [n.corrupcao, ano], false)
+	elif n.corrupcao < 25.0 and n.estabilidade_politica > 60.0:
+		n.minister_deed("casa_civil", "Governo estável e íntegro (%d)" % ano, true)
+	# SAÚDE: felicidade
+	if n.felicidade < 35.0:
+		n.minister_deed("saude", "População insatisfeita: felicidade %.0f (%d)" % [n.felicidade, ano], false)
+	elif n.felicidade > 70.0:
+		n.minister_deed("saude", "Povo feliz e bem cuidado (%d)" % ano, true)
+	# EDUCAÇÃO: pesquisa
+	if n.tecnologias_concluidas.size() >= 10:
+		n.minister_deed("educacao", "%d tecnologias dominadas (%d)" % [n.tecnologias_concluidas.size(), ano], true)
+	# SEGURANÇA: guerra
+	if n.em_guerra.size() >= 2:
+		n.minister_deed("seguranca", "Nação em %d frentes de guerra (%d)" % [n.em_guerra.size(), ano], false)
+
 # Demite o ministro de uma pasta e nomeia substituto. Consome 1 ação.
 # A rotatividade abala a estabilidade; o novo ministro pode ser melhor ou pior.
 func player_fire_minister(pasta: String) -> Dictionary:
@@ -2784,6 +2815,10 @@ func _apply_panel_action(n, action_id: String) -> String:
 	var mult: float = n.get_action_multiplier()
 	if pasta != "" and n.has_method("ministry_action_mult"):
 		mult *= n.ministry_action_mult(pasta)
+		# COMPETÊNCIA do ministro: 50 = neutro; 100 → +25%; 0 → -25%. Um
+		# ministro competente executa melhor; demitir um ruim vale a pena.
+		if n.has_method("minister_competence"):
+			mult *= 1.0 + (float(n.minister_competence(pasta)) - 50.0) / 200.0
 	match action_id:
 		# ── GOVERNO ──
 		"propaganda":

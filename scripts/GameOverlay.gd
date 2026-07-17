@@ -379,7 +379,7 @@ func _render_saude() -> void:
 	else:
 		fala = "O SUS vai bem. Com mais verba, alcançamos cada cidadão."
 		expr = "feliz" if n.felicidade > 65.0 else "neutro"
-	_add_advisor_header("saude", "MIN. DA SAÚDE  ·  Nível %d" % lvl, fala, expr, Color(0.5, 0.85, 0.9))
+	_add_advisor_header("saude", "MIN. DA SAÚDE  ·  Nível %d" % lvl, fala, expr, ministry_color("saude"))
 	_add_section_title("INDICADORES DE SAÚDE")
 	_add_bar("Felicidade", n.felicidade, true)
 	_add_data_row("População", _fmt_thousands(n.populacao))
@@ -397,7 +397,7 @@ func _render_educacao() -> void:
 	var lvl: int = n.ministry_level("educacao")
 	var fala: String = "Educação é o motor da nação, Presidente. Cada real investido volta em ciência."
 	var expr: String = "feliz" if n.velocidade_pesquisa > 1.3 else "neutro"
-	_add_advisor_header("educacao", "MIN. DA EDUCAÇÃO  ·  Nível %d" % lvl, fala, expr, Color(0.5, 0.65, 0.95))
+	_add_advisor_header("educacao", "MIN. DA EDUCAÇÃO  ·  Nível %d" % lvl, fala, expr, ministry_color("educacao"))
 	_add_section_title("INDICADORES DE ENSINO")
 	_add_data_row("Velocidade de pesquisa", "%.2f×" % n.velocidade_pesquisa, Color(0.5, 0.85, 1))
 	_add_data_row("Techs concluídas", "%d de %d" % [n.tecnologias_concluidas.size(), GameEngine.tech.tech_index.size() if GameEngine.tech else 0])
@@ -528,23 +528,48 @@ func _render_militar() -> void:
 	else:
 		g_fala = "Ordem interna e forças prontas, Presidente. Aguardo suas ordens."
 		g_expr = "neutro"
-	_add_advisor_header("seguranca", "MIN. DA JUSTIÇA & SEGURANÇA  ·  Nível %d" % lvl, g_fala, g_expr, Color(0.55, 0.62, 0.72))
-	_add_section_title("SEGURANÇA INTERNA")
+	_add_advisor_header("seguranca", "MIN. DA JUSTIÇA & SEGURANÇA  ·  Nível %d" % lvl, g_fala, g_expr, ministry_color("militar"))
+	var mil_c: Color = ministry_color("militar")
+	var m: Dictionary = n.militar
+	var u: Dictionary = m.get("unidades", {})
+	# ── WAR ROOM: frentes ativas em destaque ──
+	if em_guerra:
+		var frentes := PanelContainer.new()
+		frentes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var fsb := _make_card_style(Color(1.0, 0.35, 0.30), 1.0)
+		fsb.bg_color = Color(0.16, 0.05, 0.05, 0.95)
+		frentes.add_theme_stylebox_override("panel", fsb)
+		var fl := Label.new()
+		var alvos: Array = []
+		for code in n.em_guerra:
+			alvos.append(GameEngine.nations[code].nome if GameEngine.nations.has(code) else code)
+		fl.text = "⚔ EM GUERRA — %d frente(s): %s" % [n.em_guerra.size(), ", ".join(alvos)]
+		fl.add_theme_color_override("font_color", Color(1, 0.6, 0.55))
+		fl.add_theme_font_size_override("font_size", 12)
+		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		frentes.add_child(fl)
+		panel_content.add_child(frentes)
+	else:
+		_add_hint_label("✓ Nenhuma frente de guerra ativa. Forças em prontidão.")
+	# ── ORDEM DE BATALHA: unidades em tiles + poder ──
+	_add_section_title("ORDEM DE BATALHA", mil_c)
+	_add_kpi_grid([
+		["PODER MILITAR", "%d" % int(m.get("poder_militar_global", 0)), "índice global", mil_c],
+		["ORÇAMENTO", "$%dB" % int(m.get("orcamento_militar_bilhoes", 0)), "por ano", Color(0.30, 0.92, 0.62)],
+		["🪖 INFANTARIA", _fmt_thousands(u.get("infantaria", 0)), "soldados", Color(0.75, 0.80, 0.88)],
+		["🛡 TANQUES", _fmt_thousands(u.get("tanques", 0)), "blindados", Color(0.75, 0.80, 0.88)],
+		["✈ AVIÕES", _fmt_thousands(u.get("avioes", 0)), "aeronaves", Color(0.75, 0.80, 0.88)],
+		["⚓ NAVIOS", _fmt_thousands(u.get("navios", 0)), "embarcações", Color(0.75, 0.80, 0.88)],
+	])
+	var nukes: int = int(m.get("armas_nucleares", 0))
+	if nukes > 0:
+		_add_data_row("☢ Armas Nucleares", "%d ogivas" % nukes, Color(1, 0.7, 0.3))
+	_add_separator()
+	_add_section_title("SEGURANÇA INTERNA", mil_c)
 	_add_bar("Estabilidade", n.estabilidade_politica, true)
 	_add_bar("Corrupção", n.corrupcao, false)
 	_add_data_row("Intel Score", "%.0f" % n.intel_score, Color(0, 0.823, 1))
 	_add_data_row("Segurança Intel", "%.0f" % n.seguranca_intel, Color(0.4, 1, 0.6))
-	_add_separator()
-	_add_section_title("CAPACIDADE MILITAR")
-	var m: Dictionary = n.militar
-	var u: Dictionary = m.get("unidades", {})
-	_add_data_row("Poder Militar", "%d" % int(m.get("poder_militar_global", 0)))
-	_add_data_row("Orçamento Militar", "$%dB/ano" % int(m.get("orcamento_militar_bilhoes", 0)))
-	_add_data_row("Armas Nucleares", "%d ogivas" % int(m.get("armas_nucleares", 0)))
-	_add_data_row("Infantaria", _fmt_thousands(u.get("infantaria", 0)))
-	_add_data_row("Tanques", _fmt_thousands(u.get("tanques", 0)))
-	_add_data_row("Aviões", _fmt_thousands(u.get("avioes", 0)))
-	_add_data_row("Navios", _fmt_thousands(u.get("navios", 0)))
 	_add_separator()
 	_add_section_title("AÇÕES DE JUSTIÇA & SEGURANÇA")
 	for a in GameEngine.get_panel_actions("seguranca"):
@@ -591,14 +616,24 @@ func _render_economia() -> void:
 	else:
 		m_fala = "As contas fecham, Presidente. Podemos pensar em investir no futuro."
 		m_expr = "feliz" if n.tesouro > n.pib_bilhoes_usd * 0.1 else "neutro"
-	_add_advisor_header("economia", "MIN. DA FAZENDA  ·  Nível %d" % n.ministry_level("fazenda"), m_fala, m_expr, Color(0.9, 0.55, 0.65))
+	_add_advisor_header("economia", "MIN. DA FAZENDA  ·  Nível %d" % n.ministry_level("fazenda"), m_fala, m_expr, ministry_color("economia"))
+	# ── DASHBOARD: 4 KPIs-herói no topo (número grande + nota) ──
+	var econ_c: Color = ministry_color("economia")
+	var infl_cor := Color(0.30, 0.92, 0.62) if n.inflacao < 8.0 else (Color(1, 0.5, 0.4) if n.inflacao > 20.0 else Color(1, 0.82, 0.3))
+	var infl_nota := "controlada" if n.inflacao < 8.0 else ("ALTA ↗" if n.inflacao > 20.0 else "vigiar")
+	var div_ratio: float = n.divida_publica / maxf(1.0, n.pib_bilhoes_usd)
+	var div_cor := Color(0.30, 0.92, 0.62) if div_ratio < 0.6 else (Color(1, 0.5, 0.4) if div_ratio > 1.5 else Color(1, 0.82, 0.3))
+	var rating_letra: String = n.rating_letra() if n.has_method("rating_letra") else "—"
+	var tes_nota := "confortável" if n.tesouro > n.pib_bilhoes_usd * 0.1 else ("apertado" if n.tesouro < n.pib_bilhoes_usd * 0.03 else "estável")
+	_add_kpi_grid([
+		["PIB ANUAL", _money(n.pib_bilhoes_usd), "escala mundial", econ_c],
+		["TESOURO", _money(n.tesouro), tes_nota, Color(0.30, 0.92, 0.62)],
+		["DÍVIDA", _money(n.divida_publica), "rating %s · %.0f%% PIB" % [rating_letra, div_ratio * 100.0], div_cor],
+		["INFLAÇÃO", "%.1f%%" % n.inflacao, infl_nota, infl_cor],
+	])
 	_add_ministry_rd_controls("fazenda")
 	_add_separator()
-	_add_section_title("INDICADORES ECONÔMICOS")
-	_add_data_row("PIB Anual", _money(n.pib_bilhoes_usd))
-	_add_data_row("Tesouro", _money(n.tesouro))
-	_add_data_row("Dívida Pública", _money(n.divida_publica))
-	_add_data_row("Inflação", "%.1f%%" % n.inflacao)
+	_add_section_title("DETALHAMENTO", econ_c)
 	_add_data_row("População", _fmt_thousands(n.populacao))
 	# Confiança do investidor / IED — o elo corrupção → empresas → PIB
 	var conf: float = n.confianca_investidor
@@ -1252,7 +1287,7 @@ func _render_intel() -> void:
 		i_fala = "%d operações no histórico, Presidente. Escolha o alvo — o resto é comigo." % n.spy_ops_log.size()
 	else:
 		i_fala = "Aguardo suas ordens nas sombras. Aponte o alvo no mapa."
-	_add_advisor_header("seguranca", "MIN. DA JUSTIÇA & SEGURANÇA · Inteligência", i_fala, "neutro", Color(0.55, 0.6, 0.7))
+	_add_advisor_header("seguranca", "MIN. DA JUSTIÇA & SEGURANÇA · Inteligência", i_fala, "neutro", ministry_color("intel"))
 	_add_section_title("INTELIGÊNCIA")
 	_add_data_row("Intel Score", "%.1f" % n.intel_score, Color(0, 0.823, 1))
 	_add_data_row("Segurança Intel", "%.1f" % n.seguranca_intel, Color(0.4, 1, 0.6))
@@ -1268,14 +1303,10 @@ func _render_intel() -> void:
 	if GameEngine.espionage:
 		for op_id in GameEngine.espionage.OPS:
 			var op: Dictionary = GameEngine.espionage.OPS[op_id]
-			var btn := Button.new()
-			btn.text = "%s %s — $%dB (%d%%)\n%s" % [op["icon"], op["nome"], int(op["custo"]), int(float(op["base_success"]) * 100), op["descricao"]]
-			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			btn.custom_minimum_size = Vector2(0, 52)
-			btn.add_theme_font_size_override("font_size", 11)
-			btn.clip_text = true
-			btn.pressed.connect(_on_intel_op_pressed)
-			panel_content.add_child(btn)
+			# Cartão de operação (título+custo+% / descrição com autowrap) na cor Intel
+			var titulo := "%s %s · %d%%" % [op["icon"], op["nome"], int(float(op["base_success"]) * 100)]
+			panel_content.add_child(_make_op_card(titulo, int(op["custo"]),
+				String(op["descricao"]), ministry_color("intel"), _on_intel_op_pressed))
 	_add_separator()
 	_add_section_title("ÚLTIMAS OPERAÇÕES")
 	if n.spy_ops_log.is_empty():
@@ -1312,19 +1343,53 @@ func _render_situacao() -> void:
 	GameEngine._refresh_world_maxima()
 	var my_rank: int = GameEngine.get_power_rank(n.codigo_iso)
 	var bd: Dictionary = GameEngine.get_power_breakdown(n)
-	_add_section_title("PODER GLOBAL — MÉTRICA DE VITÓRIA")
+	_add_section_title("PODER GLOBAL — MÉTRICA DE VITÓRIA", ministry_color("situacao"))
 
-	# Headline: posição com cor por faixa
-	var rank_color: Color
-	if my_rank == 1: rank_color = Color(1, 0.85, 0.2)        # ouro: líder
-	elif my_rank <= 5: rank_color = Color(0.4, 1, 0.6)       # verde: top-5 (Potência do Século)
-	elif my_rank <= 20: rank_color = Color(0, 0.823, 1)      # ciano: relevante
-	else: rank_color = Color(0.9, 0.95, 1)
-	var head := Label.new()
-	head.text = "🌍 #%d POTÊNCIA MUNDIAL  —  %.1f pts" % [my_rank, bd["total"]]
-	head.add_theme_color_override("font_color", rank_color)
-	head.add_theme_font_size_override("font_size", 19)
-	panel_content.add_child(head)
+	# ── MEDALHÃO central: posição no mundo em moldura ouro/prata/bronze ──
+	var medal: Color   # cor da moldura conforme a faixa
+	var faixa: String
+	if my_rank == 1: medal = Color(1, 0.84, 0.25); faixa = "LÍDER MUNDIAL"
+	elif my_rank <= 5: medal = Color(0.85, 0.87, 0.92); faixa = "POTÊNCIA DO SÉCULO"   # prata
+	elif my_rank <= 20: medal = Color(0.80, 0.52, 0.28); faixa = "POTÊNCIA RELEVANTE"   # bronze
+	else: medal = Color(0.55, 0.62, 0.72); faixa = "EM ASCENSÃO"
+	var med_wrap := CenterContainer.new()
+	med_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var med := PanelContainer.new()
+	med.custom_minimum_size = Vector2(200, 92)
+	var msb := StyleBoxFlat.new()
+	msb.bg_color = Color(0.05, 0.06, 0.08, 0.95)
+	msb.border_color = medal
+	msb.set_border_width_all(2)
+	msb.set_corner_radius_all(12)
+	msb.shadow_color = Color(medal.r, medal.g, medal.b, 0.30)
+	msb.shadow_size = 8
+	msb.content_margin_top = 8; msb.content_margin_bottom = 8
+	med.add_theme_stylebox_override("panel", msb)
+	var mv := VBoxContainer.new()
+	mv.alignment = BoxContainer.ALIGNMENT_CENTER
+	med.add_child(mv)
+	var rank_big := Label.new()
+	rank_big.text = "#%d" % my_rank
+	rank_big.add_theme_color_override("font_color", medal)
+	rank_big.add_theme_font_size_override("font_size", 40)
+	rank_big.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mv.add_child(rank_big)
+	var faixa_lbl := Label.new()
+	faixa_lbl.text = "🌍 " + faixa
+	faixa_lbl.add_theme_color_override("font_color", Color(0.92, 0.94, 0.98))
+	faixa_lbl.add_theme_font_size_override("font_size", 11)
+	faixa_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mv.add_child(faixa_lbl)
+	var pts_lbl := Label.new()
+	pts_lbl.text = "%.1f pts de poder" % bd["total"]
+	pts_lbl.add_theme_color_override("font_color", Color(0.60, 0.66, 0.74))
+	pts_lbl.add_theme_font_size_override("font_size", 9)
+	pts_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mv.add_child(pts_lbl)
+	med_wrap.add_child(med)
+	panel_content.add_child(med_wrap)
+	var sp := Control.new(); sp.custom_minimum_size = Vector2(0, 4)
+	panel_content.add_child(sp)
 
 	# Tendência (compara com ~2 anos atrás)
 	var hist: Array = GameEngine.player_power_rank_history
@@ -1359,13 +1424,13 @@ func _render_situacao() -> void:
 		hbox.add_child(lbl)
 		var spark := SparklineWidget.new()
 		spark.values = inv
-		spark.line_color = rank_color
+		spark.line_color = medal
 		spark.custom_minimum_size = Vector2(120, 28)
 		spark.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hbox.add_child(spark)
 		var v_lbl := Label.new()
 		v_lbl.text = "#%d" % my_rank
-		v_lbl.add_theme_color_override("font_color", rank_color)
+		v_lbl.add_theme_color_override("font_color", medal)
 		v_lbl.add_theme_font_size_override("font_size", 11)
 		v_lbl.custom_minimum_size = Vector2(40, 0)
 		hbox.add_child(v_lbl)
@@ -1654,13 +1719,59 @@ func _add_news_card(ev: Dictionary) -> void:
 # HELPERS DE UI
 # ─────────────────────────────────────────────────────────────────
 
-func _add_section_title(text: String) -> void:
+func _add_section_title(text: String, accent: Color = Color(0.85, 0.70, 0.34, 0.95)) -> void:
 	var lbl := Label.new()
 	lbl.text = "■ " + text
-	# Dourado premium — chrome do jogo; o ciano fica para DADOS/valores
-	lbl.add_theme_color_override("font_color", Color(0.85, 0.70, 0.34, 0.95))
+	lbl.add_theme_color_override("font_color", accent)
 	lbl.add_theme_font_size_override("font_size", 11)
 	panel_content.add_child(lbl)
+
+## Header temático do painel: retrato do ministro + cargo/fala na COR do
+## ministério (puxa do MINISTRY_META automaticamente). Padrão único p/ todos.
+func _add_panel_header(panel_id: String, role: String, cargo: String, fala: String, expr: String = "neutro") -> void:
+	_add_advisor_header(role, cargo, fala, expr, ministry_color(panel_id))
+
+## Tile de KPI: rótulo pequeno + número grande + nota (subtítulo). Bloco
+## reutilizável para dashboards (Economia, Situação, Militar).
+func _make_kpi_tile(rotulo: String, valor: String, nota: String, cor: Color) -> Control:
+	var box := PanelContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_stylebox_override("panel", _make_card_style(cor, 0.45))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 1)
+	box.add_child(v)
+	var r := Label.new()
+	r.text = rotulo
+	r.add_theme_color_override("font_color", Color(0.55, 0.62, 0.72))
+	r.add_theme_font_size_override("font_size", 9)
+	v.add_child(r)
+	var val := Label.new()
+	val.text = valor
+	val.add_theme_color_override("font_color", cor)
+	val.add_theme_font_size_override("font_size", 19)
+	val.clip_text = true
+	val.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	v.add_child(val)
+	if nota != "":
+		var nt := Label.new()
+		nt.text = nota
+		nt.add_theme_color_override("font_color", Color(0.60, 0.66, 0.74))
+		nt.add_theme_font_size_override("font_size", 9)
+		nt.clip_text = true
+		nt.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		v.add_child(nt)
+	return box
+
+## Grid de KPI-tiles (2 colunas). tiles = Array de [rotulo, valor, nota, cor].
+func _add_kpi_grid(tiles: Array, columns: int = 2) -> void:
+	var grid := GridContainer.new()
+	grid.columns = columns
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for t in tiles:
+		grid.add_child(_make_kpi_tile(t[0], t[1], t[2], t[3]))
+	panel_content.add_child(grid)
 
 func _add_subtitle(text: String) -> void:
 	var lbl := Label.new()
@@ -1733,10 +1844,9 @@ func _add_data_row(key: String, value: String, color: Color = Color(1, 1, 1)) ->
 	v.text = value
 	v.add_theme_color_override("font_color", color)
 	v.add_theme_font_size_override("font_size", 11)
-	# Valor alinhado à direita; se ainda for muito longo, encolhe sem clipar
+	# Valor alinhado à direita, largura natural (NÃO quebra por caractere).
+	# A chave é quem cede espaço (clip_text acima); o valor fica inteiro.
 	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	v.size_flags_horizontal = Control.SIZE_SHRINK_END
-	v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hbox.add_child(v)
 	panel_content.add_child(hbox)
 
@@ -1841,13 +1951,19 @@ static func _make_card_style(accent: Color, bg_alpha: float = 0.55) -> StyleBoxF
 	return sb
 
 func _add_action_button(_action_id: String, label: String, cost: int, desc: String, callback: Callable) -> void:
-	# Botão de ação com layout REAL (título+custo numa linha, descrição com
-	# autowrap na outra) — o texto de 2 linhas com clip_text cortava a desc.
-	# Estilo na cor de acento do painel atual (fim do ciano hardcoded).
-	var accent: Color = ministry_color(current_panel)
+	# Estilo na cor do painel atual (fim do ciano hardcoded)
+	var btn := _make_op_card(label, cost, desc, ministry_color(current_panel), callback)
+	btn.set_meta("action_btn", true)  # marcador p/ testes
+	panel_content.add_child(btn)
+
+## Cartão-botão de ação/operação: título + custo numa linha, descrição com
+## autowrap na outra, estilo na cor `accent`. Retornável — usado por ações
+## de painel, operações de Intel, etc. (fim do texto de 2 linhas com clip).
+func _make_op_card(label: String, cost: int, desc: String, accent: Color, callback: Callable) -> Button:
 	var btn := Button.new()
+	btn.set_meta("op_card", true)  # marcador p/ testes (custo/label viraram filhos)
 	btn.custom_minimum_size = Vector2(0, 52)
-	btn.set_meta("action_btn", true)  # marcador p/ testes (o custo agora é um Label filho)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn.add_theme_stylebox_override("normal", _make_card_style(accent, 0.45))
 	var sb_h := _make_card_style(accent, 1.0)
@@ -1858,7 +1974,6 @@ func _add_action_button(_action_id: String, label: String, cost: int, desc: Stri
 	btn.add_theme_stylebox_override("pressed", sb_p)
 	btn.add_theme_stylebox_override("focus", sb_h)
 	btn.pressed.connect(callback)
-	# Conteúdo do botão (mouse ignora → o clique vai pro botão)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 1)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1873,11 +1988,12 @@ func _add_action_button(_action_id: String, label: String, cost: int, desc: Stri
 	name_lbl.clip_text = true
 	name_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	top.add_child(name_lbl)
-	var cost_lbl := Label.new()
-	cost_lbl.text = "$%dB" % cost
-	cost_lbl.add_theme_color_override("font_color", accent)
-	cost_lbl.add_theme_font_size_override("font_size", 12)
-	top.add_child(cost_lbl)
+	if cost > 0:
+		var cost_lbl := Label.new()
+		cost_lbl.text = "$%dB" % cost
+		cost_lbl.add_theme_color_override("font_color", accent)
+		cost_lbl.add_theme_font_size_override("font_size", 12)
+		top.add_child(cost_lbl)
 	v.add_child(top)
 	var desc_lbl := Label.new()
 	desc_lbl.text = desc
@@ -1886,7 +2002,7 @@ func _add_action_button(_action_id: String, label: String, cost: int, desc: Stri
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(desc_lbl)
 	btn.add_child(v)
-	panel_content.add_child(btn)
+	return btn
 
 func _money(value: float) -> String:
 	if abs(value) >= 1000.0:
