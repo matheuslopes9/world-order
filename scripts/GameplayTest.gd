@@ -99,11 +99,13 @@ func _topup() -> void:
 	GameEngine.player_nation.tesouro = 100000.0
 	GameEngine.player_actions_remaining = 5
 
-# Botões de ação do painel atual (frescos — o re-render os recria)
+# Botões de ação do painel atual (frescos — o re-render os recria).
+# Detecta pelo marcador set_meta("action_btn") — o custo virou Label filho
+# no redesign, então "$" no .text não pega mais.
 func _panel_action_buttons(overlay) -> Array:
 	var out: Array = []
 	for b in _find_buttons(overlay.panel_content):
-		if "$" in (b as Button).text:
+		if (b as Button).get_meta("action_btn", false) or "$" in (b as Button).text:
 			out.append(b)
 	return out
 

@@ -1343,23 +1343,50 @@ const ACTION_BUTTONS := [
 	{"id": "noticias",   "icon": "📡", "label": "News"},
 ]
 
+const GameOverlayScript = preload("res://scripts/GameOverlay.gd")
+
 func _build_action_bar() -> void:
 	if action_bar == null: return
 	for c in action_bar.get_children(): c.queue_free()
-	# Botão "selecionar nação" (apenas se ainda não há jogador)
 	for entry in ACTION_BUTTONS:
-		var b := Button.new()
-		b.text = "%s  %s" % [entry["icon"], entry["label"]]
-		# ELÁSTICO: divide a largura disponível (a soma fixa antiga passava de
-		# 2300px e cortava a barra em QUALQUER monitor). clip_text garante que
-		# o mínimo é pequeno; em telas estreitas o tooltip conta o resto.
-		b.custom_minimum_size = Vector2(60, 44)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.clip_text = true
-		b.add_theme_font_size_override("font_size", 12)
-		b.tooltip_text = entry["label"]
 		var pid: String = entry["id"]
+		var accent: Color = GameOverlayScript.ministry_color(pid)
+		# Botão EMPILHADO: ícone vetorial único em cima, label curto embaixo.
+		# Fim do texto cortado — o rótulo tem sua própria linha com autowrap.
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(64, 56)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.tooltip_text = entry["label"]
+		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		b.pressed.connect(func(): _open_overlay_modal(pid))
+		# Realce dourado no hover/pressed
+		var sb_h := StyleBoxFlat.new()
+		sb_h.bg_color = Color(accent.r * 0.20, accent.g * 0.20, accent.b * 0.20, 0.9)
+		sb_h.border_color = accent
+		sb_h.set_border_width_all(1)
+		sb_h.set_corner_radius_all(7)
+		b.add_theme_stylebox_override("hover", sb_h)
+		b.add_theme_stylebox_override("pressed", sb_h)
+		# Conteúdo empilhado (ignora mouse → clique vai pro botão)
+		var vb := VBoxContainer.new()
+		vb.alignment = BoxContainer.ALIGNMENT_CENTER
+		vb.add_theme_constant_override("separation", 2)
+		vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		var ico := GameOverlayScript.make_ministry_icon(pid, 22.0)
+		ico.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		vb.add_child(ico)
+		var lbl := Label.new()
+		lbl.text = entry["label"]
+		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.add_theme_color_override("font_color", Color(0.80, 0.83, 0.88))
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.clip_text = true
+		lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		vb.add_child(lbl)
+		b.add_child(vb)
 		action_bar.add_child(b)
 
 func _show_action_bar(visible_state: bool) -> void:

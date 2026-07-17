@@ -14,6 +14,51 @@ var activated: bool = false
 var current_panel: String = "governo"
 var endgame_triggered: bool = false  # trava múltiplos modais de fim
 
+# ── IDENTIDADE VISUAL POR PAINEL (Fase 1 do redesign de menus) ──
+# Cor de acento + ícone vetorial próprio de cada ministério/painel.
+# Uma fonte única de verdade: barra inferior, tabs, headers e cards
+# puxam daqui — fim dos "9 emojis quase idênticos" e do azul genérico.
+# Ícone: res://icons/ministries/<id>.svg (branco → tingível por modulate).
+const MINISTRY_META := {
+	"gabinete":   {"color": Color(0.90, 0.74, 0.36), "icon": "gabinete"},
+	"governo":    {"color": Color(0.45, 0.78, 1.00), "icon": "governo"},
+	"militar":    {"color": Color(1.00, 0.48, 0.42), "icon": "militar"},
+	"seguranca":  {"color": Color(0.98, 0.60, 0.45), "icon": "seguranca"},
+	"economia":   {"color": Color(0.30, 0.92, 0.62), "icon": "economia"},
+	"diplomacia": {"color": Color(0.60, 0.80, 1.00), "icon": "diplomacia"},
+	"tech":       {"color": Color(0.55, 0.80, 1.00), "icon": "tech"},
+	"intel":      {"color": Color(0.95, 0.42, 0.42), "icon": "intel"},
+	"situacao":   {"color": Color(0.45, 0.85, 0.95), "icon": "situacao"},
+	"historico":  {"color": Color(0.82, 0.72, 0.50), "icon": "historico"},
+	"noticias":   {"color": Color(1.00, 0.82, 0.36), "icon": "noticias"},
+	"saude":      {"color": Color(0.55, 0.92, 0.85), "icon": "saude"},
+	"educacao":   {"color": Color(0.70, 0.75, 1.00), "icon": "educacao"},
+	"exterior":   {"color": Color(0.60, 0.80, 1.00), "icon": "exterior"},
+}
+
+# Cor de acento do painel (fallback dourado do tema)
+static func ministry_color(id: String) -> Color:
+	return MINISTRY_META.get(id, {}).get("color", Color(0.85, 0.70, 0.34))
+
+# Caminho do ícone vetorial do painel ("" se não houver)
+static func ministry_icon_path(id: String) -> String:
+	var key: String = MINISTRY_META.get(id, {}).get("icon", "")
+	if key == "": return ""
+	var path: String = "res://icons/ministries/%s.svg" % key
+	return path if ResourceLoader.exists(path) else ""
+
+# TextureRect pronto com o ícone do ministério, tingido pela cor de acento
+static func make_ministry_icon(id: String, px: float = 22.0) -> TextureRect:
+	var tr := TextureRect.new()
+	var path: String = ministry_icon_path(id)
+	if path != "":
+		tr.texture = load(path)
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.custom_minimum_size = Vector2(px, px)
+	tr.modulate = ministry_color(id)
+	return tr
+
 const PANELS := [
 	{"id": "governo",    "icon": "🏛", "label": "Governo"},
 	{"id": "militar",    "icon": "⚔", "label": "Militar"},
@@ -56,24 +101,52 @@ func _build_tabs() -> void:
 	if panel_tabs == null: return
 	for c in panel_tabs.get_children(): c.queue_free()
 	for p in PANELS:
+		var pid: String = p["id"]
+		var accent: Color = ministry_color(pid)
 		var btn := Button.new()
 		btn.toggle_mode = true
-		btn.button_pressed = (p["id"] == current_panel)
-		btn.set_meta("panel_id", p["id"])
-		btn.text = p["icon"]
+		btn.button_pressed = (pid == current_panel)
+		btn.set_meta("panel_id", pid)
 		btn.tooltip_text = p["label"]
-		btn.custom_minimum_size = Vector2(0, 36)
+		btn.custom_minimum_size = Vector2(0, 38)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.add_theme_font_size_override("font_size", 14)
 		btn.focus_mode = Control.FOCUS_NONE
-		btn.pressed.connect(_on_tab_pressed.bind(p["id"]))
+		# Ícone vetorial ÚNICO por ministério (no lugar do emoji genérico)
+		var icon_path: String = ministry_icon_path(pid)
+		if icon_path != "":
+			var ico := TextureRect.new()
+			ico.texture = load(icon_path)
+			ico.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ico.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			ico.custom_minimum_size = Vector2(20, 20)
+			ico.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+			ico.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			ico.set_meta("tab_icon", true)
+			ico.modulate = accent if pid == current_panel else Color(0.60, 0.64, 0.70)
+			btn.add_child(ico)
+		else:
+			btn.text = p["icon"]
+			btn.add_theme_font_size_override("font_size", 14)
+		# Aba selecionada acende com a cor do ministério
+		var sb_sel := StyleBoxFlat.new()
+		sb_sel.bg_color = Color(accent.r * 0.22, accent.g * 0.22, accent.b * 0.22, 0.9)
+		sb_sel.border_color = accent
+		sb_sel.border_width_bottom = 2
+		sb_sel.set_corner_radius_all(6)
+		btn.add_theme_stylebox_override("pressed", sb_sel)
+		btn.pressed.connect(_on_tab_pressed.bind(pid))
 		panel_tabs.add_child(btn)
 
 func _on_tab_pressed(panel_id: String) -> void:
 	current_panel = panel_id
 	for child in panel_tabs.get_children():
 		if child is Button:
-			child.button_pressed = (child.get_meta("panel_id", "") == panel_id)
+			var is_sel: bool = child.get_meta("panel_id", "") == panel_id
+			child.button_pressed = is_sel
+			# Re-tinge o ícone da aba: ativo na cor do ministério, resto cinza
+			for sub in child.get_children():
+				if sub is TextureRect and sub.get_meta("tab_icon", false):
+					sub.modulate = ministry_color(panel_id) if is_sel else Color(0.60, 0.64, 0.70)
 	_render_panel(panel_id)
 
 func _refresh_header() -> void:
@@ -1549,11 +1622,18 @@ func _add_data_row(key: String, value: String, color: Color = Color(1, 1, 1)) ->
 	k.add_theme_color_override("font_color", Color(0.5, 0.65, 0.85))
 	k.add_theme_font_size_override("font_size", 11)
 	k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# A chave nunca empurra o valor pra fora: trunca com reticências
+	k.clip_text = true
+	k.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	hbox.add_child(k)
 	var v := Label.new()
 	v.text = value
 	v.add_theme_color_override("font_color", color)
 	v.add_theme_font_size_override("font_size", 11)
+	# Valor alinhado à direita; se ainda for muito longo, encolhe sem clipar
+	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	v.size_flags_horizontal = Control.SIZE_SHRINK_END
+	v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hbox.add_child(v)
 	panel_content.add_child(hbox)
 
@@ -1643,35 +1723,66 @@ func _add_resource_row(res_key: String, valor: float) -> void:
 	hbox.add_child(v_lbl)
 	panel_content.add_child(hbox)
 
-func _add_action_button(_action_id: String, label: String, cost: int, desc: String, callback: Callable) -> void:
-	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(0, 56)
-	btn.text = "%s   $%dB\n%s" % [label, cost, desc]
-	btn.add_theme_font_size_override("font_size", 11)
-	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	btn.clip_text = true
-	# Estilo: bordas/margens SIMÉTRICAS pra hitbox bater com visual
+# StyleBox de card temático reutilizável: fundo carvão + borda na cor de
+# acento. Usado por botões de ação e (futuramente) cards de painel.
+static func _make_card_style(accent: Color, bg_alpha: float = 0.55) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.04, 0.075, 0.115, 0.9)
-	sb.border_color = Color(0.0, 0.55, 0.78, 0.55)
+	sb.bg_color = Color(0.055, 0.060, 0.075, 0.92)
+	sb.border_color = Color(accent.r, accent.g, accent.b, bg_alpha)
 	sb.set_border_width_all(1)
-	sb.set_corner_radius_all(6)
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
 	sb.content_margin_top = 8
 	sb.content_margin_bottom = 8
-	var sb_h := sb.duplicate() as StyleBoxFlat
-	sb_h.bg_color = Color(0.0, 0.40, 0.60, 0.85)
-	sb_h.border_color = Color(0.0, 0.95, 1, 1)
-	var sb_p := sb.duplicate() as StyleBoxFlat
-	sb_p.bg_color = Color(0.0, 0.30, 0.48, 0.95)
-	btn.add_theme_stylebox_override("normal", sb)
+	return sb
+
+func _add_action_button(_action_id: String, label: String, cost: int, desc: String, callback: Callable) -> void:
+	# Botão de ação com layout REAL (título+custo numa linha, descrição com
+	# autowrap na outra) — o texto de 2 linhas com clip_text cortava a desc.
+	# Estilo na cor de acento do painel atual (fim do ciano hardcoded).
+	var accent: Color = ministry_color(current_panel)
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(0, 52)
+	btn.set_meta("action_btn", true)  # marcador p/ testes (o custo agora é um Label filho)
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn.add_theme_stylebox_override("normal", _make_card_style(accent, 0.45))
+	var sb_h := _make_card_style(accent, 1.0)
+	sb_h.bg_color = Color(accent.r * 0.22, accent.g * 0.22, accent.b * 0.22, 0.95)
 	btn.add_theme_stylebox_override("hover", sb_h)
+	var sb_p := _make_card_style(accent, 1.0)
+	sb_p.bg_color = Color(accent.r * 0.30, accent.g * 0.30, accent.b * 0.30, 0.98)
 	btn.add_theme_stylebox_override("pressed", sb_p)
 	btn.add_theme_stylebox_override("focus", sb_h)
-	btn.add_theme_color_override("font_color", Color(0.92, 0.96, 1))
-	btn.add_theme_color_override("font_hover_color", Color(1, 1, 1))
 	btn.pressed.connect(callback)
+	# Conteúdo do botão (mouse ignora → o clique vai pro botão)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 1)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var top := HBoxContainer.new()
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var name_lbl := Label.new()
+	name_lbl.text = label
+	name_lbl.add_theme_color_override("font_color", Color(0.95, 0.97, 1))
+	name_lbl.add_theme_font_size_override("font_size", 12)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.clip_text = true
+	name_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	top.add_child(name_lbl)
+	var cost_lbl := Label.new()
+	cost_lbl.text = "$%dB" % cost
+	cost_lbl.add_theme_color_override("font_color", accent)
+	cost_lbl.add_theme_font_size_override("font_size", 12)
+	top.add_child(cost_lbl)
+	v.add_child(top)
+	var desc_lbl := Label.new()
+	desc_lbl.text = desc
+	desc_lbl.add_theme_color_override("font_color", Color(0.60, 0.66, 0.74))
+	desc_lbl.add_theme_font_size_override("font_size", 10)
+	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(desc_lbl)
+	btn.add_child(v)
 	panel_content.add_child(btn)
 
 func _money(value: float) -> String:
