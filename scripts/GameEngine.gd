@@ -1888,17 +1888,21 @@ func _seed_bloc_relations() -> void:
 # Aplica os bônus de ser membro de bloco(s), 1×/turno. Defesa coletiva reduz custo
 # militar e dá poder de defesa; blocos econômicos dão um leve empurrão de PIB/comércio.
 func _process_bloc_benefits() -> void:
-	for code in nations.keys():
-		var n = nations[code]
-		for alliance in _alliances_of(code):
-			var bonus: Dictionary = alliance.get("bonus_membro", {})
-			# Redução de custo de defesa → alivia despesa militar (via orçamento efetivo)
-			# Modelado como pequeno alívio de estabilidade/tesouro por pertencer a bloco forte.
-			if alliance.get("artigo_defesa", false):
+	# Itera POR BLOCO (12) × membros — bem mais barato que por nação × todos os blocos.
+	for alliance in alliances_data:
+		var membros: Array = alliance.get("membros", [])
+		var defesa: bool = alliance.get("artigo_defesa", false)
+		var econ: bool = alliance.get("bonus_membro", {}).get("bonus_comercio", false) or String(alliance.get("tipo", "")) == "economico"
+		if not defesa and not econ:
+			continue
+		for code in membros:
+			if not nations.has(code):
+				continue
+			var n = nations[code]
+			if defesa:
 				n.estabilidade_politica = minf(100.0, n.estabilidade_politica + 0.05)  # segurança coletiva
-			# Blocos econômicos (livre comércio interno) → leve bônus de PIB
-			if bonus.get("bonus_comercio", false) or String(alliance.get("tipo", "")) == "economico":
-				n.pib_bilhoes_usd *= 1.0002
+			if econ:
+				n.pib_bilhoes_usd *= 1.0002  # livre comércio interno
 
 # Blocos abertos ao jogador entrar (por afinidade): precisa de relação média positiva
 # com os membros. Retorna a lista de blocos elegíveis (para a UI).
