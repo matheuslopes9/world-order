@@ -13,8 +13,8 @@ const MAP_HEIGHT: float = 1000.0
 # Cores Plague-Inc style
 # NEUTRO = quase-branco: o shader de biomas pinta o terreno REAL e o
 # self_modulate apenas TINGE (jogador ciano, inimigo vermelho, filtros).
-const COUNTRY_FILL    := Color(0.93, 0.93, 0.90)
-const COUNTRY_STROKE  := Color(0.10, 0.11, 0.12, 0.85)
+const COUNTRY_FILL    := Color(1.0, 1.0, 1.0)
+const COUNTRY_STROKE  := Color(0.72, 0.76, 0.82, 0.50)
 
 # Material de TERRENO compartilhado por TODOS os Polygon2D dos países.
 # Uma única instância → o batcher agrupa; o relevo vem do shader em world
@@ -25,13 +25,16 @@ static func _get_country_terrain_mat() -> ShaderMaterial:
 	if _country_terrain_mat == null:
 		_country_terrain_mat = ShaderMaterial.new()
 		_country_terrain_mat.shader = load("res://shaders/country_fill.gdshader")
+		# Satélite REAL: NASA Blue Marble (domínio público) — projeção idêntica
+		_country_terrain_mat.set_shader_parameter("earth_tex", load("res://assets/earth_blue_marble.jpg"))
 	return _country_terrain_mat
 # Tintas multiplicativas sobre o terreno realista (mantêm a textura visível)
-const COUNTRY_HOVER   := Color(1.0, 1.0, 1.0)
-const COUNTRY_PREVIEW := Color(0.55, 0.78, 1.0)
-const COUNTRY_PLAYER  := Color(0.35, 0.85, 1.0)
-const COUNTRY_ENEMY   := Color(1.0, 0.40, 0.38)
-const COUNTRY_ALLY    := Color(0.50, 1.0, 0.62)
+# HDR 2D ligado: componentes >1.0 BRILHAM (glow) — destaque real sobre satélite
+const COUNTRY_HOVER   := Color(1.25, 1.25, 1.25)
+const COUNTRY_PREVIEW := Color(0.80, 1.05, 1.45)
+const COUNTRY_PLAYER  := Color(0.55, 1.10, 1.50)
+const COUNTRY_ENEMY   := Color(1.60, 0.50, 0.45)
+const COUNTRY_ALLY    := Color(0.62, 1.35, 0.78)
 
 @onready var camera: Camera2D = $MapCamera
 @onready var countries_root: Node2D = $Countries
@@ -1418,8 +1421,8 @@ func _create_country(feature: Dictionary) -> void:
 		ring_size = maxf(rmax.x - rmin.x, rmax.y - rmin.y)
 		var shelf := Line2D.new()
 		shelf.points = ring_closed
-		shelf.width = 7.0 if ring_size > 14.0 else 2.5
-		shelf.default_color = Color(0.62, 0.83, 0.96, 0.14)
+		shelf.width = 4.5 if ring_size > 14.0 else 2.0
+		shelf.default_color = Color(0.62, 0.83, 0.96, 0.10)
 		shelf.joint_mode = Line2D.LINE_JOINT_ROUND
 		shelf.antialiased = false
 		country_node.add_child(shelf)

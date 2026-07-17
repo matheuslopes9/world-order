@@ -147,5 +147,5 @@ text = "🔧 DIAGNÓSTICO DE HARDWARE"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.42, 0.42, 0.44, 1)
 theme_override_font_sizes/font_size = 10
-text = "Godot 4.6  •  195 nações  •  238 países renderizados em Vulkan"
+text = "Godot 4.6  •  195 nações  •  Terra: NASA Blue Marble  •  Vulkan"
 horizontal_alignment = 1

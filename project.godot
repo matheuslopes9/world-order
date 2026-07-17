@@ -100,3 +100,4 @@ game_zoom_out={
 [rendering]
 
 environment/defaults/default_clear_color=Color(0.039, 0.055, 0.102, 1)
+viewport/hdr_2d=true
