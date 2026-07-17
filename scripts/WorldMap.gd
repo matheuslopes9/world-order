@@ -1403,6 +1403,26 @@ func _create_country(feature: Dictionary) -> void:
 	var first := true
 	for ring in rings:
 		if ring.size() < 3: continue
+		var ring_closed := PackedVector2Array(ring)
+		ring_closed.append(ring[0])
+		# PLATAFORMA COSTEIRA: linha larga azul-clara translúcida POR BAIXO do
+		# polígono — a metade interna some sob a terra, a externa vira aquele
+		# brilho de água rasa ao redor das costas (marca dos mapas bonitos).
+		# Ilhotas minúsculas ganham shelf fino (senão viram "blobs" de glow)
+		var ring_size: float = 0.0
+		var rmin := ring[0]
+		var rmax := ring[0]
+		for pt in ring:
+			rmin = Vector2(minf(rmin.x, pt.x), minf(rmin.y, pt.y))
+			rmax = Vector2(maxf(rmax.x, pt.x), maxf(rmax.y, pt.y))
+		ring_size = maxf(rmax.x - rmin.x, rmax.y - rmin.y)
+		var shelf := Line2D.new()
+		shelf.points = ring_closed
+		shelf.width = 7.0 if ring_size > 14.0 else 2.5
+		shelf.default_color = Color(0.62, 0.83, 0.96, 0.14)
+		shelf.joint_mode = Line2D.LINE_JOINT_ROUND
+		shelf.antialiased = false
+		country_node.add_child(shelf)
 		var poly := Polygon2D.new()
 		poly.polygon = ring
 		# Base BRANCA: a cor visível vem de self_modulate (modular não
@@ -1413,8 +1433,6 @@ func _create_country(feature: Dictionary) -> void:
 		poly.material = _get_country_terrain_mat()
 		country_node.add_child(poly)
 		var line := Line2D.new()
-		var ring_closed := PackedVector2Array(ring)
-		ring_closed.append(ring[0])
 		line.points = ring_closed
 		line.width = 0.6
 		line.default_color = COUNTRY_STROKE

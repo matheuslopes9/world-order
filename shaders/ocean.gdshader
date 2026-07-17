@@ -6,7 +6,7 @@ shader_type canvas_item;
 uniform vec3 deep_color : source_color = vec3(0.040, 0.095, 0.185);
 uniform vec3 shallow_color : source_color = vec3(0.095, 0.215, 0.360);
 uniform float wave_strength : hint_range(0.0, 1.0) = 0.60;
-uniform float grid_alpha : hint_range(0.0, 0.3) = 0.045;
+uniform float grid_alpha : hint_range(0.0, 0.3) = 0.026;
 uniform float grid_step = 250.0;
 
 varying vec2 wpos;
