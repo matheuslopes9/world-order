@@ -695,6 +695,128 @@ func get_power_rank(code: String) -> int:
 	return rank
 
 # ─────────────────────────────────────────────────────────────────
+# BRIEFING — diagnóstico honesto da nação para o onboarding (#14)
+# Lê o estado REAL (indicadores, tier, poder) e devolve dados estruturados:
+# uma leitura da situação, forças, riscos e primeiros passos SUGERIDOS.
+# NÃO dá o caminho da vitória — só ajuda o jogador a não se sentir perdido.
+# ─────────────────────────────────────────────────────────────────
+func generate_briefing(n) -> Dictionary:
+	if n == null:
+		return {}
+	var tier: String = n.tier_dificuldade
+	var rank: int = get_power_rank(n.codigo_iso)
+	var total_nations: int = nations.size()
+
+	# Rótulos legíveis de tier
+	var tier_label: String = {
+		"FACIL": "Fácil", "NORMAL": "Normal", "DIFICIL": "Difícil",
+		"MUITO_DIFICIL": "Muito Difícil", "QUASE_IMPOSSIVEL": "Quase Impossível",
+	}.get(tier, tier)
+
+	# Leitura da situação — combina tier + rank de poder em uma frase honesta.
+	var stance: String
+	if tier == "FACIL":
+		stance = "Você herdou uma nação forte e estável (%dº em poder mundial). Sua tarefa é não desperdiçar essa vantagem: consolide a liderança sem provocar o mundo contra você." % rank
+	elif tier == "NORMAL":
+		stance = "Você comanda uma potência de porte médio, com bases sólidas (%dº de %d). Há espaço para crescer — o jogo é de escolhas, não de sobrevivência." % [rank, total_nations]
+	elif tier == "DIFICIL":
+		stance = "Sua nação parte de trás (%dº de %d): recursos limitados e margens apertadas. Cada turno conta. O caminho existe, mas exige disciplina fiscal e boas alianças." % [rank, total_nations]
+	else:
+		stance = "Você aceitou um desafio brutal (%dº de %d): instabilidade, cofres frágeis e mundo hostil. Sobreviver já é vitória; prosperar é lendário." % [rank, total_nations]
+
+	# Forças — o que a nação tem de bom (só entra se for genuinamente um trunfo).
+	var strengths: Array = []
+	if n.pib_bilhoes_usd >= 1000.0:
+		strengths.append("Economia gigante ($%s bi de PIB) — peso no mundo e receita robusta." % _fmt_short(n.pib_bilhoes_usd))
+	elif n.pib_bilhoes_usd >= 200.0:
+		strengths.append("Economia relevante ($%s bi de PIB) para financiar suas ambições." % _fmt_short(n.pib_bilhoes_usd))
+	if n.estabilidade_politica >= 65.0:
+		strengths.append("Estabilidade alta (%d%%) — baixo risco de golpe, você governa com folga." % int(n.estabilidade_politica))
+	if n.apoio_popular >= 65.0:
+		strengths.append("Povo do seu lado (%d%% de apoio) — margem para reformas impopulares." % int(n.apoio_popular))
+	if n.complexidade_economica >= 60.0:
+		strengths.append("Economia complexa (ECS %d) — você exporta valor agregado, não só matéria-prima." % int(n.complexidade_economica))
+	if n.tesouro >= n.pib_bilhoes_usd * 0.15 and n.tesouro > 20.0:
+		strengths.append("Tesouro confortável ($%s bi) — capital para agir já nos primeiros turnos." % _fmt_short(n.tesouro))
+	if n.get_military_power() >= _world_max_mil * 0.5:
+		strengths.append("Força militar de primeira linha — poucos ousam te atacar.")
+	if strengths.is_empty():
+		strengths.append("Poucos trunfos de partida — sua maior arma será a boa gestão turno a turno.")
+
+	# Riscos — o que pode te derrubar (ordenado por urgência real).
+	var risks: Array = []
+	if n.tesouro < 0.0:
+		risks.append({"sev": 3, "txt": "Tesouro NEGATIVO ($%s bi) — risco de falência. Corte gastos ou tome empréstimo já." % _fmt_short(n.tesouro)})
+	elif n.tesouro < n.pib_bilhoes_usd * 0.03:
+		risks.append({"sev": 2, "txt": "Tesouro apertado — pouco fôlego para imprevistos. Priorize receita antes de gastar."})
+	if n.inflacao >= 15.0:
+		risks.append({"sev": 3, "txt": "Inflação alta (%d%%) — corrói o apoio popular. Aperto monetário na Fazenda ajuda." % int(n.inflacao)})
+	elif n.inflacao >= 10.0:
+		risks.append({"sev": 1, "txt": "Inflação subindo (%d%%) — de olho antes que passe de 15%%." % int(n.inflacao)})
+	if n.estabilidade_politica < 40.0:
+		risks.append({"sev": 3, "txt": "Estabilidade crítica (%d%%) — risco de golpe. Segurança e ordem são prioridade." % int(n.estabilidade_politica)})
+	elif n.estabilidade_politica < 55.0:
+		risks.append({"sev": 1, "txt": "Estabilidade frágil (%d%%) — evite decisões que dividam o país." % int(n.estabilidade_politica)})
+	if n.apoio_popular < 40.0:
+		risks.append({"sev": 3, "txt": "Apoio baixo (%d%%) — revolução se prolongar. Invista no bem-estar do povo." % int(n.apoio_popular)})
+	elif n.apoio_popular < 55.0:
+		risks.append({"sev": 1, "txt": "Apoio morno (%d%%) — uma crise mal conduzida pode virar contra você." % int(n.apoio_popular)})
+	if n.corrupcao >= 50.0:
+		risks.append({"sev": 2, "txt": "Corrupção alta (%d%%) — rouba o tesouro e afasta investidores. Justiça & Segurança combate isso." % int(n.corrupcao)})
+	if n.em_guerra.size() > 0:
+		risks.append({"sev": 2, "txt": "Você está em GUERRA (%d frente(s)) — isso drena eficiência e cofres. Busque a paz ou vença rápido." % n.em_guerra.size()})
+	risks.sort_custom(func(a, b): return a["sev"] > b["sev"])
+	var risk_texts: Array = []
+	for r in risks:
+		risk_texts.append(r["txt"])
+	if risk_texts.is_empty():
+		risk_texts.append("Nenhum incêndio imediato — aproveite a calmaria para construir vantagem de longo prazo.")
+
+	# Primeiros passos — 3 sugestões concretas ligadas aos painéis, na ordem certa.
+	var steps: Array = []
+	if n.tesouro < 0.0 or n.tesouro < n.pib_bilhoes_usd * 0.03:
+		steps.append("🏦 Estabilize o caixa: painel Fazenda → reveja gastos e considere um empréstimo enquanto o rating permite.")
+	if n.estabilidade_politica < 55.0 or n.apoio_popular < 55.0:
+		steps.append("🏛 Segure a base: painel Governo → ações de ordem e bem-estar sobem estabilidade e apoio.")
+	if n.corrupcao >= 45.0:
+		steps.append("⚖ Combata a corrupção: painel Justiça & Segurança → cada ponto a menos protege o tesouro.")
+	if steps.size() < 3:
+		steps.append("🤝 Faça amigos: clique num vizinho no mapa → envie embaixada e considere aderir a um BLOCO (painel Diplomacia).")
+	if steps.size() < 3:
+		steps.append("🎓 Pense no futuro: painel Educação → a pesquisa científica destrava vantagens permanentes.")
+	if steps.size() < 3:
+		steps.append("🏭 Agregue valor: painel Economia → Upgrade Industrial eleva seu ECS e faz cada exportação render mais.")
+	steps = steps.slice(0, 3)
+
+	return {
+		"nome": n.nome,
+		"regime": _regime_label(n.regime_politico),
+		"tier": tier,
+		"tier_label": tier_label,
+		"rank": rank,
+		"total": total_nations,
+		"stance": stance,
+		"strengths": strengths,
+		"risks": risk_texts,
+		"steps": steps,
+	}
+
+# Abreviação curta de números grandes para o briefing (1.2k = 1200 bi = 1,2 tri).
+func _fmt_short(v: float) -> String:
+	var a: float = abs(v)
+	if a >= 1000.0:
+		return "%s%.1fk" % ["-" if v < 0 else "", a / 1000.0]
+	return "%s%d" % ["-" if v < 0 else "", int(round(a))]
+
+# Rótulo legível do regime (o campo cru vem em MAIÚSCULA_COM_UNDERSCORE).
+func _regime_label(r: String) -> String:
+	return {
+		"DEMOCRACIA": "Democracia", "DEMOCRACIA_PLENA": "Democracia plena",
+		"REGIME_HIBRIDO": "Regime híbrido", "AUTORITARISMO": "Autoritarismo",
+		"DITADURA": "Ditadura", "TEOCRACIA": "Teocracia", "MONARQUIA": "Monarquia",
+	}.get(r, r.capitalize().replace("_", " "))
+
+# ─────────────────────────────────────────────────────────────────
 # ENDGAME — vitória/derrota avaliadas no motor
 # (a UI escuta endgame_reached e apenas apresenta o modal)
 #

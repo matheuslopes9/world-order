@@ -1484,6 +1484,22 @@ const RESOURCE_FIELDS := [
 	{"id": "tech",     "icon": "🔬", "label": "Tech",     "color": Color(0.6, 0.85, 1)},
 ]
 
+# Ajuda dos parâmetros (#14) — explicação em linguagem simples de cada indicador,
+# mostrada ao passar o mouse. Diz O QUE É, a FAIXA boa/ruim e O QUE O AFETA.
+# Também alimenta o glossário da Central de Ajuda.
+const PARAM_HELP := {
+	"poder":     "Sua POSIÇÃO no ranking mundial de poder (1º = líder do mundo).\nSoma de economia (40%), militar (25%), tecnologia (20%) e diplomacia (15%). Subir aqui é o caminho para a hegemonia.",
+	"score":     "Pontuação geral do seu governo — mistura PIB, estabilidade, tecnologia, tesouro e tempo no poder.\nÉ um placar do seu desempenho, não uma condição de vitória.",
+	"pib":       "PRODUTO INTERNO BRUTO — o tamanho da sua economia.\nGera receita e peso no mundo. Cresce com estabilidade, educação/tech e complexidade econômica (ECS). O maior fator de poder.",
+	"tesouro":   "O CAIXA do governo — dinheiro disponível para agir.\nCada ação custa daqui. Se ficar NEGATIVO por muito tempo, é falência. Alimente-o com receita (impostos, exportação) e empréstimos.",
+	"militar":   "PODER MILITAR efetivo — orçamento, tropas e arsenal.\nDefende de invasões e pesa nas guerras e na diplomacia. Alto demais assusta vizinhos; baixo demais te faz alvo fácil.",
+	"populacao": "Quantidade de habitantes.\nMais gente = mais mão de obra e mercado, mas também mais para cuidar (saúde, educação, emprego). Cresce devagar ao longo dos anos.",
+	"estab":     "ESTABILIDADE POLÍTICA (0-100%) — o quão firme é o seu governo.\nBom acima de 65%. Abaixo de ~35% o risco de GOLPE dispara. Cai com crises, guerra e decisões divisivas; sobe com ordem e bons resultados.",
+	"apoio":     "APOIO POPULAR (0-100%) — o quanto o povo te aprova.\nBom acima de 65%. Abaixo de ~35% por muito tempo = REVOLUÇÃO. Sobe com bem-estar (saúde, educação, emprego) e cai com inflação e escândalos.",
+	"inflacao":  "INFLAÇÃO — a alta geral de preços (% ao ano).\nSaudável abaixo de 8%; perigosa acima de 15%; catastrófica acima de 50% (hiperinflação). Sobe com déficit e gasto excessivo; Aperto Monetário (Fazenda) a reduz.",
+	"tech":      "TECNOLOGIAS concluídas — sua pesquisa científica.\nSão 57 techs em 6 trilhas (uma por ministério). Cada uma dá vantagem permanente. Invista em Educação para pesquisar mais rápido e destravar trilhas.",
+}
+
 func _build_resource_bar() -> void:
 	if resource_bar == null: return
 	var hbox: HBoxContainer = resource_bar.get_node_or_null("HBox")
@@ -1494,7 +1510,9 @@ func _build_resource_bar() -> void:
 		var cell := VBoxContainer.new()
 		cell.alignment = BoxContainer.ALIGNMENT_CENTER
 		cell.custom_minimum_size = Vector2(110, 0)
-		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# STOP (não IGNORE) para o tooltip nativo aparecer no hover do indicador.
+		cell.mouse_filter = Control.MOUSE_FILTER_STOP
+		cell.tooltip_text = PARAM_HELP.get(entry["id"], "")
 		# Linha 1: ícone + label
 		var top := HBoxContainer.new()
 		top.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -2140,6 +2158,124 @@ func _show_options_modal() -> void:
 	wrap.add_child(btn_save_cfg)
 	modal_ref[0] = _open_modal(wrap, "⚙ OPÇÕES", Vector2(560, 640))
 
+# ─────────────────────────────────────────────────────────────────
+# CENTRAL DE AJUDA (#14) — consulta sempre acessível (Opções → Ajuda).
+# 4 abas: Como jogar · Parâmetros (glossário vivo do HUD) · Vitória & Derrota
+# · Glossário de termos. Não é intrusiva: o jogador abre quando quiser.
+# ─────────────────────────────────────────────────────────────────
+func _show_help_center() -> void:
+	var tabs := TabContainer.new()
+	tabs.custom_minimum_size = Vector2(600, 500)
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.add_child(_help_tab_como_jogar())
+	tabs.add_child(_help_tab_parametros())
+	tabs.add_child(_help_tab_vitoria())
+	tabs.add_child(_help_tab_glossario())
+	tabs.set_tab_title(0, "🎮 Como jogar")
+	tabs.set_tab_title(1, "📊 Parâmetros")
+	tabs.set_tab_title(2, "🏆 Vitória & Derrota")
+	tabs.set_tab_title(3, "📖 Glossário")
+	_open_modal(tabs, "❓ CENTRAL DE AJUDA", Vector2(640, 600))
+
+# Container de aba de ajuda: ScrollContainer > VBox (retorna o VBox).
+func _help_tab(tab_name: String) -> ScrollContainer:
+	var sc := ScrollContainer.new()
+	sc.name = tab_name
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var v := VBoxContainer.new()
+	v.name = "V"
+	v.add_theme_constant_override("separation", 12)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.custom_minimum_size = Vector2(560, 0)
+	sc.add_child(v)
+	return sc
+
+# Bloco título+corpo dentro de uma aba de ajuda.
+func _help_block(v: VBoxContainer, titulo: String, corpo: String, cor: Color = Color(0.86, 0.72, 0.38)) -> void:
+	var h := Label.new()
+	h.text = titulo
+	h.add_theme_color_override("font_color", cor)
+	h.add_theme_font_size_override("font_size", 15)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(h)
+	var b := Label.new()
+	b.text = corpo
+	b.add_theme_color_override("font_color", Color(0.82, 0.86, 0.92))
+	b.add_theme_font_size_override("font_size", 12)
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	b.custom_minimum_size = Vector2(540, 0)
+	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(b)
+
+func _help_tab_como_jogar() -> ScrollContainer:
+	var sc := _help_tab("Como jogar")
+	var v: VBoxContainer = sc.get_node("V")
+	_help_block(v, "🌍 O objetivo",
+		"Você governa uma das 195 nações reais, de 2000 a 2100 (cada turno = 1 mês). A meta é levar seu país à HEGEMONIA mundial — ou, sendo realista com nações difíceis, simplesmente SOBREVIVER e prosperar. Não há um único caminho certo: economia, guerra, diplomacia e tecnologia são rotas válidas.")
+	_help_block(v, "🎯 O ciclo de cada turno",
+		"1. Olhe seus indicadores (barra de baixo) e as notícias (rodapé).\n2. Tome até 3 ações nos painéis dos ministérios (barra de baixo).\n3. Clique num país no mapa para diplomacia (embaixada, tratado, sanção, guerra).\n4. Aperte ▶ PRÓXIMO TURNO (ou ESPAÇO) para avançar o mês.\nO mundo então reage: as outras 194 nações jogam, eventos históricos disparam.")
+	_help_block(v, "🏛 Os ministérios",
+		"Cada painel na barra inferior é um ministério com ações próprias: Governo (ordem, apoio), Fazenda (dinheiro, impostos, empréstimos), Justiça & Segurança (corrupção, crime), Saúde e Educação (bem-estar e pesquisa), Exterior (diplomacia). O ministro de cada pasta tem competência que afeta a força das ações.")
+	_help_block(v, "🤝 Diplomacia & blocos",
+		"Nações de ideologia parecida se aproximam e formam BLOCOS (como OTAN, BRICS). Aderir a um bloco onde você é bem-quisto traz aliados e comércio. Mas cuidado: se você virar o país mais poderoso, o mundo pode se unir contra você numa coalizão de contenção.")
+	_help_block(v, "💡 Dica de ouro",
+		"Não tente fazer tudo de uma vez. Estabilize o essencial primeiro (caixa positivo, apoio e estabilidade acima de 50%), depois construa vantagem de longo prazo (tecnologia, economia complexa, alianças). O CONSELHEIRO vai te avisar quando algo entrar em zona de perigo.")
+	return sc
+
+func _help_tab_parametros() -> ScrollContainer:
+	var sc := _help_tab("Parâmetros")
+	var v: VBoxContainer = sc.get_node("V")
+	var intro := Label.new()
+	intro.text = "Cada indicador da barra inferior explicado. Dica: no jogo, passe o mouse sobre qualquer indicador para ver isto na hora."
+	intro.add_theme_color_override("font_color", Color(0.62, 0.68, 0.76))
+	intro.add_theme_font_size_override("font_size", 11)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.custom_minimum_size = Vector2(540, 0)
+	intro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(intro)
+	v.add_child(HSeparator.new())
+	# Reaproveita o MESMO texto dos tooltips do HUD (fonte única de verdade).
+	for entry in RESOURCE_FIELDS:
+		var id: String = entry["id"]
+		if PARAM_HELP.has(id):
+			_help_block(v, "%s %s" % [entry["icon"], String(entry["label"]).to_upper()], PARAM_HELP[id], entry["color"])
+	return sc
+
+func _help_tab_vitoria() -> ScrollContainer:
+	var sc := _help_tab("Vitória & Derrota")
+	var v: VBoxContainer = sc.get_node("V")
+	_help_block(v, "⚖ Como o PODER é medido",
+		"Seu poder mundial soma quatro pesos: Economia (40%), Militar (25%), Tecnologia (20%) e Diplomacia (15%). É por isso que uma economia forte pesa mais que um exército enorme — mas os quatro contam.", Color(0.60, 0.80, 1.0))
+	_help_block(v, "🏆 HEGEMONIA (a grande vitória)",
+		"Ser o nº 1 do ranking mundial por 4 anos seguidos, com o país estável e economia de pelo menos 40% da maior do mundo (a partir de 2025). É o auge — e o mundo vai resistir a você chegar lá.", Color(0.95, 0.82, 0.35))
+	_help_block(v, "🏛 POTÊNCIA DO SÉCULO",
+		"Chegar ao ano 2100 entre as 5 maiores potências. Uma vitória sólida para quem construiu com consistência sem dominar o mundo.", Color(0.55, 0.85, 0.60))
+	_help_block(v, "📜 LEGADO DO SÉCULO",
+		"Simplesmente sobreviver aos 100 anos com sua nação de pé. Para nações difíceis, isso já é uma grande conquista.", Color(0.70, 0.80, 0.90))
+	_help_block(v, "💀 As derrotas (o que evitar)",
+		"REVOLUÇÃO: apoio popular baixo por tempo demais.\nGOLPE: estabilidade política no chão.\nFALÊNCIA: tesouro negativo sem recuperação.\nHIPERINFLAÇÃO: inflação descontrolada (>50%).\nAtenção à ESPIRAL DE CRISE: um problema ignorado piora sozinho e pode colapsar seu governo em cerca de 14 meses. Reaja cedo.", Color(0.92, 0.45, 0.40))
+	return sc
+
+func _help_tab_glossario() -> ScrollContainer:
+	var sc := _help_tab("Glossário")
+	var v: VBoxContainer = sc.get_node("V")
+	var termos := [
+		["DEFCON", "Nível de alerta militar mundial, de 5 (paz) a 1 (guerra iminente). Cai quando há guerras perto de você ou envolvendo armas nucleares. DEFCON baixo = mundo tenso."],
+		["ECS (Complexidade Econômica)", "Nota de 0 a 100 do quão sofisticada é sua economia. Exportar matéria-prima bruta (petróleo, minério) rende pouco; exportar manufatura e alta tecnologia rende muito. A ação Upgrade Industrial (Economia) aumenta seu ECS."],
+		["Tier de dificuldade", "Cada nação nasce com uma dificuldade (Fácil → Quase Impossível) conforme PIB, estabilidade e regime. Nações difíceis ganham um bônus na força das ações para compensar."],
+		["Rating de crédito", "Nota da sua saúde fiscal (AAA = ótimo, D = calote). Quanto pior, mais caros seus empréstimos. Cai com dívida alta e inflação."],
+		["Bloco geopolítico", "Aliança de nações com ideologia parecida (OTAN, BRICS...). Dá defesa coletiva e bônus de comércio entre membros."],
+		["Coalizão de contenção", "Quando uma nação fica poderosa demais, as outras se unem contra ela. É o preço de mirar a hegemonia."],
+		["Espiral de crise", "Mecanismo em que um problema não resolvido piora sozinho a cada turno, acelerando rumo ao colapso. O antídoto é agir cedo."],
+		["Corrupção", "Percentual do tesouro roubado a cada turno e que afugenta investidores. Combatida no painel Justiça & Segurança."],
+	]
+	for t in termos:
+		_help_block(v, "◆ " + String(t[0]), String(t[1]), Color(0.86, 0.72, 0.38))
+	return sc
+
 # Persiste TODAS as configurações (settings.cfg + audio.cfg) de uma vez.
 # As opções já salvam ao mudar, mas o botão dá segurança/feedback ao usuário.
 func _persist_all_settings() -> void:
@@ -2292,6 +2428,26 @@ func _build_tab_jogo(modal_ref: Array) -> ScrollContainer:
 		_close_modal(modal_ref[0])
 		_open_decisions_history_modal())
 	v.add_child(btn_history)
+	v.add_child(HSeparator.new())
+	_opt_section(v, "AJUDA & APRENDIZADO")
+	var btn_help := _make_modal_button("❓ CENTRAL DE AJUDA", true)
+	btn_help.custom_minimum_size = Vector2(0, 42)
+	btn_help.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_show_help_center())
+	v.add_child(btn_help)
+	var btn_brief := _make_modal_button("📋 REVER BRIEFING DA NAÇÃO", false)
+	btn_brief.custom_minimum_size = Vector2(0, 38)
+	btn_brief.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_show_nation_briefing(GameEngine.player_nation, false))
+	v.add_child(btn_brief)
+	var btn_tut := _make_modal_button("🎓 REVER TUTORIAL", false)
+	btn_tut.custom_minimum_size = Vector2(0, 38)
+	btn_tut.pressed.connect(func():
+		_close_modal(modal_ref[0])
+		_show_tutorial())
+	v.add_child(btn_tut)
 	return sc
 
 # ── ABA: VÍDEO ──
@@ -3585,14 +3741,13 @@ func _finalize_takeover() -> void:
 	if elapsed < 500:
 		await get_tree().create_timer((500 - elapsed) / 1000.0).timeout
 	_hide_spinner()
-	# Tutorial se primeira partida
+	# Onboarding (#14): TODA partida abre com o BRIEFING da nação (diagnóstico
+	# real: forças, riscos, primeiros passos). Na PRIMEIRA partida, ao fechar o
+	# briefing encadeia o tutorial genérico de mecânicas.
 	var cfg = ConfigFile.new()
-	if cfg.load("user://settings.cfg") != OK:
-		_show_tutorial()
-		cfg.set_value("tutorial", "shown", true)
-		cfg.save("user://settings.cfg")
-	elif not cfg.get_value("tutorial", "shown", false):
-		_show_tutorial()
+	var first_game: bool = (cfg.load("user://settings.cfg") != OK) or (not cfg.get_value("tutorial", "shown", false))
+	_show_nation_briefing(n, first_game)
+	if first_game:
 		cfg.set_value("tutorial", "shown", true)
 		cfg.save("user://settings.cfg")
 
@@ -3700,6 +3855,173 @@ func _apply_first_step(n, step_id: String) -> void:
 		"infra":
 			n.apply_pib_multiplier(1.01)
 			n.estabilidade_politica = clamp(n.estabilidade_politica + 3.0, 0.0, 100.0)
+
+# ─────────────────────────────────────────────────────────────────
+# BRIEFING DA NAÇÃO (#14) — abre TODA partida: diagnóstico honesto do país
+# que o jogador acabou de assumir (situação, forças, riscos, primeiros passos).
+# `chain_tutorial`: se true, ao fechar encadeia o tutorial genérico (1ª partida).
+# ─────────────────────────────────────────────────────────────────
+func _show_nation_briefing(n, chain_tutorial: bool = false) -> void:
+	var b: Dictionary = GameEngine.generate_briefing(n)
+	if b.is_empty():
+		if chain_tutorial:
+			_show_tutorial()
+		return
+
+	var modal := Control.new()
+	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	modal.mouse_filter = Control.MOUSE_FILTER_STOP
+	modal.z_index = 100
+	if modal_layer != null:
+		modal_layer.visible = true
+		modal_layer.add_child(modal)
+	else:
+		add_child(modal)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.03, 0.05, 0.90)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	modal.add_child(bg)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	modal.add_child(center)
+
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(680, 0)
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	var card_style := StyleBoxFlat.new()
+	card_style.bg_color = Color(0.045, 0.050, 0.065, 0.99)
+	card_style.set_border_width_all(2)
+	card_style.border_color = Color(0.86, 0.69, 0.30, 0.85)  # dourado
+	card_style.set_corner_radius_all(14)
+	card_style.content_margin_left = 34
+	card_style.content_margin_right = 34
+	card_style.content_margin_top = 26
+	card_style.content_margin_bottom = 22
+	card.add_theme_stylebox_override("panel", card_style)
+	center.add_child(card)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	v.mouse_filter = Control.MOUSE_FILTER_PASS
+	card.add_child(v)
+
+	# Cabeçalho: emissora fictícia + nome + regime + tier/rank
+	var cap := Label.new()
+	cap.text = "◆ BRIEFING DE GOVERNO  •  DIA 1"
+	cap.add_theme_color_override("font_color", Color(0.86, 0.72, 0.38, 0.85))
+	cap.add_theme_font_size_override("font_size", 11)
+	cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(cap)
+
+	var title := Label.new()
+	title.text = "🏛 %s" % String(b["nome"]).to_upper()
+	title.add_theme_color_override("font_color", Color(0.98, 0.96, 0.90))
+	title.add_theme_font_size_override("font_size", 27)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(title)
+
+	var sub := Label.new()
+	sub.text = "%s  •  Dificuldade: %s  •  %dº em poder mundial (de %d)" % [
+		b["regime"], b["tier_label"], int(b["rank"]), int(b["total"])]
+	sub.add_theme_color_override("font_color", Color(0.70, 0.74, 0.80))
+	sub.add_theme_font_size_override("font_size", 13)
+	sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(sub)
+
+	var deco := ColorRect.new()
+	deco.color = Color(0.80, 0.65, 0.30, 0.50)
+	deco.custom_minimum_size = Vector2(0, 2)
+	deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(deco)
+
+	# Leitura da situação (o "stance")
+	var stance := Label.new()
+	stance.text = String(b["stance"])
+	stance.add_theme_color_override("font_color", Color(0.90, 0.92, 0.96))
+	stance.add_theme_font_size_override("font_size", 14)
+	stance.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	stance.custom_minimum_size = Vector2(600, 0)
+	stance.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(stance)
+
+	# Três seções lado a lado: Forças ✅ / Riscos ⚠ / Primeiros passos ▶
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 14)
+	cols.mouse_filter = Control.MOUSE_FILTER_PASS
+	cols.custom_minimum_size = Vector2(0, 190)
+	v.add_child(cols)
+	cols.add_child(_briefing_section("✅ SUAS FORÇAS", b["strengths"], Color(0.55, 0.85, 0.55)))
+	cols.add_child(_briefing_section("⚠ ATENÇÃO", b["risks"], Color(0.92, 0.72, 0.40)))
+	cols.add_child(_briefing_section("▶ POR ONDE COMEÇAR", b["steps"], Color(0.86, 0.72, 0.38)))
+
+	var note := Label.new()
+	note.text = "Isto é uma leitura da situação — não um roteiro para vencer. As decisões (e os erros) são seus. Você encontra este briefing de novo em ? Ajuda."
+	note.add_theme_color_override("font_color", Color(0.58, 0.62, 0.68))
+	note.add_theme_font_size_override("font_size", 11)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(600, 0)
+	note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(note)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_END
+	btn_row.add_theme_constant_override("separation", 10)
+	btn_row.mouse_filter = Control.MOUSE_FILTER_PASS
+	v.add_child(btn_row)
+
+	var btn := _make_modal_button("✓ ASSUMIR O COMANDO" if not chain_tutorial else "PRÓXIMO: COMO JOGAR ▶", true)
+	btn.pressed.connect(func():
+		modal.queue_free()
+		if chain_tutorial:
+			_show_tutorial())
+	btn_row.add_child(btn)
+
+	# Fade-in (não anima posição pra não bagunçar hitbox dos botões)
+	card.modulate = Color(1, 1, 1, 0)
+	var tw := create_tween()
+	tw.tween_property(card, "modulate", Color(1, 1, 1, 1), 0.24).set_trans(Tween.TRANS_CUBIC)
+
+# Uma coluna do briefing: título colorido + lista de itens (bullets).
+func _briefing_section(header: String, items: Array, accent: Color) -> Control:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.02, 0.025, 0.035, 0.85)
+	st.set_border_width_all(1)
+	st.border_color = Color(accent.r, accent.g, accent.b, 0.35)
+	st.set_corner_radius_all(10)
+	st.content_margin_left = 14
+	st.content_margin_right = 14
+	st.content_margin_top = 12
+	st.content_margin_bottom = 12
+	panel.add_theme_stylebox_override("panel", st)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(col)
+
+	var h := Label.new()
+	h.text = header
+	h.add_theme_color_override("font_color", accent)
+	h.add_theme_font_size_override("font_size", 12)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(h)
+
+	for it in items:
+		var row := Label.new()
+		row.text = "•  %s" % String(it)
+		row.add_theme_color_override("font_color", Color(0.82, 0.86, 0.90))
+		row.add_theme_font_size_override("font_size", 12)
+		row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		row.custom_minimum_size = Vector2(180, 0)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(row)
+	return panel
 
 # ─────────────────────────────────────────────────────────────────
 # TUTORIAL
@@ -4465,12 +4787,12 @@ func _open_bailout_modal(terms: Dictionary) -> void:
 # (Satélite/Político = neutro; Economia azul; Militar vermelho;
 #  Estabilidade verde; Recursos dourado — a mesma lógica de _filter_color.)
 const MAP_FILTERS := [
-	{"id": "SATELITE",     "label": "Satélite",     "glifo": "🛰", "cor": Color(0.55, 0.75, 0.95)},
-	{"id": "POLITICO",     "label": "Político",     "glifo": "🏛", "cor": Color(0.70, 0.75, 0.85)},
-	{"id": "ECONOMIA",     "label": "Economia",     "glifo": "💰", "cor": Color(0.30, 0.62, 0.98)},
-	{"id": "MILITAR",      "label": "Militar",      "glifo": "⚔",  "cor": Color(0.95, 0.38, 0.32)},
-	{"id": "ESTABILIDADE", "label": "Estabilidade", "glifo": "🏛", "cor": Color(0.35, 0.90, 0.55)},
-	{"id": "RECURSOS",     "label": "Recursos",     "glifo": "⛏", "cor": Color(0.92, 0.76, 0.36)},
+	{"id": "SATELITE",     "label": "Satélite",     "glifo": "🛰", "cor": Color(0.55, 0.75, 0.95), "tip": "Satélite — a Terra real (NASA), sem colorir dados. A visão padrão e mais bonita."},
+	{"id": "POLITICO",     "label": "Político",     "glifo": "🏛", "cor": Color(0.70, 0.75, 0.85), "tip": "Político — cada país colorido pelo REGIME (democracia, ditadura, teocracia...). Veja o mapa de aliados e rivais ideológicos."},
+	{"id": "ECONOMIA",     "label": "Economia",     "glifo": "💰", "cor": Color(0.30, 0.62, 0.98), "tip": "Economia — países pintados pelo tamanho do PIB. Azul forte = economia grande. Encontre parceiros comerciais ricos."},
+	{"id": "MILITAR",      "label": "Militar",      "glifo": "⚔",  "cor": Color(0.95, 0.38, 0.32), "tip": "Militar — intensidade de vermelho = poder de fogo. Saiba quem você pode enfrentar e de quem se defender."},
+	{"id": "ESTABILIDADE", "label": "Estabilidade", "glifo": "🏛", "cor": Color(0.35, 0.90, 0.55), "tip": "Estabilidade — verde = governo firme, vermelho = à beira do colapso. Vizinhos instáveis podem virar oportunidade ou ameaça."},
+	{"id": "RECURSOS",     "label": "Recursos",     "glifo": "⛏", "cor": Color(0.92, 0.76, 0.36), "tip": "Recursos — dourado = rico em matérias-primas (petróleo, minérios). Alvos de comércio e de objetivos de guerra por recurso."},
 ]
 
 func _build_map_filters() -> void:
@@ -4490,7 +4812,7 @@ func _build_map_filters() -> void:
 		btn.set_meta("filter_cor", cor)
 		btn.text = f["glifo"]
 		btn.custom_minimum_size = Vector2(34, 32)
-		btn.tooltip_text = f["label"]
+		btn.tooltip_text = f.get("tip", f["label"])
 		btn.add_theme_font_size_override("font_size", 15)
 		btn.focus_mode = Control.FOCUS_NONE
 		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -4863,6 +5185,7 @@ func _on_turn_advanced(_t: int) -> void:
 	_decay_event_markers()
 	_maybe_autosave()
 	_maybe_show_contextual_tip()
+	_maybe_show_advisor_alert()
 
 # Tooltip-toast contextual nos primeiros turnos. Aparece no canto superior por 6s,
 # não bloqueia gameplay. Persiste turnos mostrados em user://settings.cfg.
@@ -4898,6 +5221,89 @@ func _maybe_show_contextual_tip() -> void:
 	shown_turns.append(t)
 	cfg.set_value("tips", "shown_turns", shown_turns)
 	cfg.save("user://settings.cfg")
+
+# ─────────────────────────────────────────────────────────────────
+# CONSELHEIRO REATIVO (#14) — diferente das dicas fixas por turno: reage ao
+# ESTADO da nação do jogador. Quando um indicador cruza um limiar de perigo,
+# avisa E ENSINA a reagir (qual painel/ação). Cooldown por tipo de problema
+# pra não repetir todo turno. Só 1 alerta por turno (o mais grave).
+# ─────────────────────────────────────────────────────────────────
+const ADVISOR_COOLDOWN: int = 10  # turnos antes de repetir o MESMO tipo de alerta
+var _advisor_last: Dictionary = {}  # issue_key -> turno do último alerta
+
+func _maybe_show_advisor_alert() -> void:
+	if GameEngine == null or GameEngine.player_nation == null:
+		return
+	var n = GameEngine.player_nation
+	var t: int = GameEngine.current_turn
+	if t < 2:
+		return  # deixa o jogador respirar no 1º mês
+
+	# Candidatos: (severidade, chave, texto). Só dispara o mais grave elegível.
+	var cands: Array = []
+	if n.tesouro < 0.0:
+		cands.append([3, "falencia", "🚨 CONSELHEIRO: o tesouro está NEGATIVO. Se não reagir, é falência. Vá à Fazenda 🏦, corte gastos ou tome um empréstimo enquanto o rating permite."])
+	if n.inflacao >= 18.0:
+		cands.append([3, "inflacao", "🚨 CONSELHEIRO: inflação em %d%% corrói o poder de compra do povo. Fazenda 🏦 → Aperto Monetário reduz a inflação (custa um pouco de PIB)." % int(n.inflacao)])
+	elif n.inflacao >= 12.0:
+		cands.append([1, "inflacao", "💬 CONSELHEIRO: inflação em %d%% e subindo. Vale acompanhar — acima de 15%% ela começa a derrubar seu apoio." % int(n.inflacao)])
+	if n.estabilidade_politica < 35.0:
+		cands.append([3, "estabilidade", "🚨 CONSELHEIRO: estabilidade em %d%% — o risco de GOLPE é real. Governo 🏛 e Justiça & Segurança ⚖ ajudam a restaurar a ordem." % int(n.estabilidade_politica)])
+	elif n.estabilidade_politica < 48.0:
+		cands.append([2, "estabilidade", "⚠ CONSELHEIRO: estabilidade caindo (%d%%). Evite decisões que dividam o país e reforce a ordem antes que vire crise." % int(n.estabilidade_politica)])
+	if n.apoio_popular < 35.0:
+		cands.append([3, "apoio", "🚨 CONSELHEIRO: apoio popular em %d%% — se durar, vem REVOLUÇÃO. Invista em bem-estar (Saúde 🏥, Educação 🎓) e mostre resultados." % int(n.apoio_popular)])
+	elif n.apoio_popular < 48.0:
+		cands.append([2, "apoio", "⚠ CONSELHEIRO: seu apoio está morno (%d%%). Uma crise mal conduzida agora pode virar o povo contra você." % int(n.apoio_popular)])
+	if n.corrupcao >= 60.0:
+		cands.append([2, "corrupcao", "⚠ CONSELHEIRO: corrupção em %d%% drena seu tesouro e espanta investidores. Justiça & Segurança ⚖ tem ações que a combatem." % int(n.corrupcao)])
+	if n.divida_publica > n.pib_bilhoes_usd * 0.9:
+		cands.append([2, "divida", "⚠ CONSELHEIRO: sua dívida passou de 90%% do PIB. Juros pesam no orçamento — evite novos empréstimos e reforce a receita."])
+
+	if cands.is_empty():
+		return
+	# Ordena por severidade desc; dispara o 1º que não está em cooldown.
+	cands.sort_custom(func(a, b): return a[0] > b[0])
+	for c in cands:
+		var key: String = c[1]
+		var last: int = int(_advisor_last.get(key, -999))
+		if t - last < ADVISOR_COOLDOWN:
+			continue
+		_advisor_last[key] = t
+		_show_advisor_toast(String(c[2]), int(c[0]))
+		return
+
+# Toast do conselheiro — distinto da dica de tutorial (borda vermelha p/ grave,
+# âmbar p/ atenção). Aparece abaixo do topo por ~7s e some.
+func _show_advisor_toast(text: String, severity: int) -> void:
+	var toast := PanelContainer.new()
+	toast.name = "AdvisorToast_%d" % Time.get_ticks_msec()
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.08, 0.06, 0.05, 0.97)
+	st.set_border_width_all(2)
+	st.border_color = Color(0.90, 0.35, 0.30, 0.95) if severity >= 3 else Color(0.92, 0.72, 0.35, 0.95)
+	st.set_corner_radius_all(10)
+	st.content_margin_left = 16
+	st.content_margin_right = 16
+	st.content_margin_top = 12
+	st.content_margin_bottom = 12
+	toast.add_theme_stylebox_override("panel", st)
+	toast.custom_minimum_size = Vector2(490, 0)
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_color_override("font_color", Color(1, 0.93, 0.85))
+	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	toast.add_child(lbl)
+	add_child(toast)
+	toast.position = Vector2(get_viewport_rect().size.x * 0.5 - 245, 150)
+	toast.modulate = Color(1, 1, 1, 0)
+	var tw := create_tween()
+	tw.tween_property(toast, "modulate:a", 1.0, 0.4)
+	tw.tween_interval(7.5)
+	tw.tween_property(toast, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(func():
+		if is_instance_valid(toast): toast.queue_free())
 
 # Detecta se está em viewport compacto (laptop 1366x768) e ajusta layout
 func _detect_compact_mode() -> void:

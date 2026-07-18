@@ -66,6 +66,29 @@ func _ready() -> void:
 	wm._refresh_top_bar()
 	await _shot("mapa_em_jogo")
 
+	# 4b — ONBOARDING (#14): briefing da nação + central de ajuda
+	# Garante que o spinner/loading do takeover não esteja mais na frente.
+	if wm.has_method("_hide_spinner"): wm._hide_spinner()
+	if wm.has_method("_hide_loading_screen"): wm._hide_loading_screen()
+	await get_tree().process_frame
+	if wm.has_method("_show_nation_briefing"):
+		wm._show_nation_briefing(GameEngine.player_nation, false)
+		await get_tree().create_timer(0.5).timeout
+		await _shot("onboarding_briefing")
+		# O briefing é um Control no modal_layer (não no _modal_stack); remove direto.
+		if wm.modal_layer:
+			for c in wm.modal_layer.get_children():
+				c.queue_free()
+		await get_tree().process_frame
+		await get_tree().process_frame
+	if wm.has_method("_show_help_center"):
+		wm._show_help_center()
+		await get_tree().create_timer(0.4).timeout
+		await _shot("onboarding_ajuda")
+		while not wm._modal_stack.is_empty():
+			wm._close_top_modal()
+			await get_tree().process_frame
+
 	# Gabinete com níveis/verba/pesquisa p/ os painéis mostrarem conteúdo rico
 	var pn = GameEngine.player_nation
 	pn.tesouro = 3000.0
