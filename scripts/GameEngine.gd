@@ -580,7 +580,7 @@ func end_turn() -> void:
 	# Recuperação de DEFCON: 4 turnos sem nova guerra → tensão mundial alivia
 	# (antes o DEFCON só descia — o mundo travava em alerta nuclear permanente)
 	_turns_since_war += 1
-	if _turns_since_war >= 12 and defcon < 5:   # ~1 ano sem guerra (ritmo mensal)
+	if _turns_since_war >= 6 and defcon < 5:   # ~6 meses sem guerra relevante
 		defcon += 1
 		_turns_since_war = 0
 		_log_news({
@@ -1820,6 +1820,42 @@ func _apply_personality_action(n, categoria: String, mult: float) -> void:
 		_:  # "apoio"
 			n.apoio_popular = minf(100.0, n.apoio_popular + 10.0 * mult)
 
+# Uma guerra "importa" ao alerta DEFCON do jogador se ele é parte, um aliado
+# dele é parte, ou acontece no continente dele. Guerras distantes entre bots
+# não devem cravar o DEFCON do jogador em 1.
+func _war_is_relevant_to_player(a: String, b: String) -> bool:
+	if player_nation == null:
+		return true  # sem jogador (MegaSim bot puro) → mantém tensão global
+	var pc: String = player_nation.codigo_iso
+	if a == pc or b == pc:
+		return true
+	# Aliado do jogador envolvido?
+	for code in [a, b]:
+		if _are_allies(pc, code):
+			return true
+	# Mesmo continente do jogador?
+	var cont: String = player_nation.continente
+	if nations.has(a) and nations[a].continente == cont: return true
+	if nations.has(b) and nations[b].continente == cont: return true
+	return false
+
+# Guerra envolvendo potência nuclear é sempre alarme máximo (-2 no DEFCON)
+func _war_touches_nuclear(a: String, b: String) -> bool:
+	for code in [a, b]:
+		if nations.has(code) and int(nations[code].militar.get("armas_nucleares", 0)) > 0:
+			return true
+	return false
+
+# Helper de aliança (via tratados ativos) — reusa a lógica de blocos
+func _are_allies(a: String, b: String) -> bool:
+	if diplomacy == null:
+		return false
+	for t in diplomacy.treaties:
+		var sigs: Array = t.get("signatories", [])
+		if a in sigs and b in sigs:
+			return true
+	return false
+
 func _declare_war(from_code: String, to_code: String) -> void:
 	if not nations.has(from_code) or not nations.has(to_code):
 		return
@@ -1837,8 +1873,15 @@ func _declare_war(from_code: String, to_code: String) -> void:
 		defender.em_guerra.append(from_code)
 	attacker.relacoes[to_code] = -100
 	defender.relacoes[from_code] = -100
-	defcon = max(1, defcon - 2)
-	_turns_since_war = 0
+	# DEFCON só reage a guerras RELEVANTES ao jogador — senão, com 195 nações
+	# guerreando o tempo todo, o alerta ficava cravado em DEFCON 1 o século
+	# inteiro (medido: média 1.12). Guerra distante entre bots vira notícia,
+	# não alarme nuclear. Relevante = jogador é parte, ou aliado dele, ou é no
+	# continente do jogador (ou nuclear em qualquer lugar).
+	if _war_is_relevant_to_player(from_code, to_code):
+		var drop: int = 2 if _war_touches_nuclear(from_code, to_code) else 1
+		defcon = max(1, defcon - drop)
+		_turns_since_war = 0
 	_war_started[_war_key(from_code, to_code)] = current_turn
 
 	# Reação de alianças (defesa coletiva)
