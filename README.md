@@ -1,208 +1,155 @@
-# 🌍 WORLD ORDER (Godot 4.6)
+# 🌍 Nations: New Dawn
 
-Simulador geopolítico de estratégia em tempo real (turnos trimestrais). Comande qualquer uma das 195 nações do mundo e tente levar seu país à hegemonia global — ou pelo menos sobreviver.
+Simulador geopolítico de estratégia em **Godot 4 (GDScript)**, PT-BR, alvo Steam.
+Comande uma das **195 nações reais** do mundo e leve-a à hegemonia global — ou
+apenas sobreviva. Campanha **2000 → 2100** com **1 turno = 1 mês** (~1200 turnos,
+8-12h de jogo). Mapa de **satélite real da Terra** (NASA Blue Marble) renderizado
+em Vulkan.
 
-Porte nativo do jogo HTML/JS para Godot 4.6 com renderização Vulkan e UI inspirada em Plague Inc.
-
----
-
-## 🎮 Como Jogar
-
-1. Abra o Godot, importe o projeto (`project.godot`)
-2. Aperte **F5**
-3. Clique **▶ INICIAR JOGO**
-4. Selecione uma nação na lista esquerda (filtre por busca, ordene por dificuldade)
-5. **⚡ ASSUMIR COMANDO**
-6. Use o painel esquerdo (9 abas) e o dossiê do país (direita) para tomar decisões
-7. Clique **▶ PRÓXIMO TURNO** (botão circular grande no canto inferior direito)
+> Repositório: `https://github.com/matheuslopes9/world-order` (nome antigo do
+> projeto; o jogo se chama **Nations: New Dawn** desde o commit `f7c7219`).
 
 ---
 
-## ⚙️ Recursos Implementados
+## 🎮 Como jogar
 
-### 🏛 9 Painéis Temáticos (acessíveis via tabs)
-- **Governo** — 5 indicadores + 8 ações de governo
-- **Militar** — capacidade militar + 6 operações (recrutar 4 unidades, base, orçamento)
-- **Economia** — finanças trimestrais + recursos naturais + 4 ações econômicas
-- **Diplomacia** — propostas pendentes, tratados ativos, alianças, top relações
-- **Tech** — pesquisa ativa, filtros por categoria, lista de 100+ techs
-- **Intel** — 8 operações de espionagem + log de operações
-- **Situação** — rankings globais (PIB, militar) com posição do jogador
-- **Histórico** — legado nacional + sparklines de 7 indicadores
-- **Notícias** — descrição (eventos no rodapé)
-
-### 🤝 Diplomacia Completa
-- 6 tipos de tratado: Aliança Militar, Pacto de Não-Agressão, Livre Comércio, Parceria Tecnológica, Desarmamento, Acordo Climático
-- Propostas com decisão automática pela IA (baseado em personalidade + relação)
-- Notificação ao jogador para propostas dirigidas
-- Aceitar/Rejeitar com efeitos imediatos
-- Detecção automática de violações (signatários em guerra)
-- Penalidades de relação ao romper tratado
-
-### ⚔️ Sistema de Guerra
-- Declarar guerra: custo proporcional (max $20B ou 2% PIB)
-- Defesa coletiva: aliados podem entrar em guerra junto
-- Custos contínuos por turno (atrito militar, tesouro, apoio)
-- Capitulação automática quando exausto
-- Propor paz quando em guerra
-
-### 🕵 Espionagem (8 operações)
-1. Infiltrar Governo
-2. Infiltrar Forças Armadas
-3. Roubo de Tecnologia
-4. Desinformação
-5. Fomentar Protestos
-6. Sabotagem Industrial
-7. Neutralização de Líder
-8. Apoiar Golpe de Estado
-
-Taxa de sucesso ajustada por Intel Score vs Segurança do alvo. Falha causa crise diplomática.
-
-### 🔬 Pesquisa Tecnológica
-- 100+ tecnologias em 5 categorias (Militar, Digital, Energia, Social, Espacial)
-- 4 tiers (Básico → Elite)
-- Pré-requisitos, custo, tempo, requisitos de PIB/estabilidade
-- Pesquisa ativa com barra de progresso
-- Efeitos aplicados ao concluir (PIB, militar, intel, ciência, etc.)
-
-### 📰 Notícias Procedurais
-- 8 categorias temáticas (Tecnologia, Medicina, Militar, Social, Economia, Política, Clima, Descoberta)
-- 130+ templates com tokens dinâmicos ({PAIS}, {N})
-- 3-5 notícias por turno
-- Peso militar aumenta em DEFCON baixo
-- Aparecem no ticker do rodapé
-
-### 💾 Save/Load
-- Salvar a qualquer momento (Ctrl+S ou OPÇÕES)
-- Carregar continua exatamente de onde parou
-- Botão CONTINUAR no MainMenu detecta save automaticamente
-- Save inclui nações, tratados, propostas, settings
-
-### ⚙️ Configurações
-- Dificuldade: easy / normal / hard / brutal (afeta multiplicador de tesouro inicial e IA)
-- Velocidade IA: 4 / 8 / 15 ações por turno
-- Configurações persistem via `user://settings.cfg`
-
-### 🎓 Tutorial
-- 5 telas explicativas na primeira partida
-- Skip/Anterior/Próximo
-- Reaparece se necessário (controle por settings)
-
-### 🗺 Mapa Vivo
-- 238 países com 548k vértices renderizados em Vulkan
-- 4 modos de visualização: Político, Economia, Militar, Estabilidade
-- Zoom (+/-/↺) com clamp aos bounds do mapa
-- Pan com drag (arrastar)
-- Click para selecionar país
-- Hover destaca país
-- Cores dinâmicas: Jogador (ciano), Aliados (verde), Em guerra (vermelho)
-
-### 🎯 Sistema de Tier de Dificuldade
-- 195 nações classificadas em 5 tiers (calibrado via playtest)
-- 🟢 FÁCIL (68 nações) — superpotências
-- 🔵 NORMAL (25) — emergentes médios
-- 🟡 DIFÍCIL (59) — emergentes pequenos
-- 🟠 MUITO DIFÍCIL (25) — em crise
-- 🔴 QUASE IMPOSSÍVEL (18) — situações catastróficas
-- Multiplicador de eficácia de ações compensa: tier difícil ganha bônus
-
-### ⌨️ Atalhos de Teclado
-- **ESPAÇO** — Avançar Turno
-- **ESC** — Abrir Opções (save/load/settings)
-- **Ctrl+S** — Salvar Progresso
-- **Roda do mouse** — Zoom in/out
-- **Arrastar com botão esquerdo** — Pan no mapa
+1. Baixe o **Godot 4.7.x (console)** e coloque o executável na raiz do projeto.
+2. `Godot_*_console.exe --headless --path . --import` (1ª vez, gera o cache).
+3. Rode: `Godot_*.exe --path .` (janela) ou `--fullscreen`.
+4. **▶ INICIAR JOGO** → **tela de início**: escolha a nação, monte seu líder
+   (nome, idade, background, lema — tudo obrigatório), o regime, a doutrina
+   econômica e os primeiros 100 dias. → **⚡ INICIAR GOVERNO**.
+5. Use a **barra inferior** (ministérios) e o **mapa** para governar; clique em
+   **▶ PRÓXIMO TURNO** para avançar um mês.
 
 ---
 
-## 🏆 Condições de Vitória/Derrota
+## ⚙️ Sistemas implementados
 
-O jogo mede seu lugar no MUNDO através do **ranking de poder composto**:
-economia 40% · militar 25% · tecnologia 20% · diplomacia 15%.
+### 🏛 Gabinete de 6 ministérios
+Casa Civil, Fazenda, Justiça & Segurança, Saúde, Educação, Exterior — cada um com
+**ministro nomeado** (nome, idade, **competência** que afeta a força das ações),
+nível 1-5, XP, **feitos bons/ruins** acumulados, e opção de **demitir e nomear
+substituto**. Retratos procedurais determinísticos (o "elenco") por nação e cargo.
 
-**🏆 HEGEMONIA GLOBAL** — seja o **#1 do ranking mundial de poder** por 16
-turnos consecutivos (4 anos), com país estável (apoio/estab ≥ 55) e economia
-relevante (≥ 50% da maior do mundo). Disponível a partir do turno 60.
+### 💰 Economia em 4 fases + complexidade
+1. **Balança comercial** (import/export por setor, com damping e cap)
+2. **Dívida e crédito** (rating AAA→D, juros dinâmicos, empréstimos, calote)
+3. **Bolsa de valores** (índice que reage a paz/crise)
+4. **Cripto WorldCoin** (ciclos de alta/colapso, moeda legal reduz sanções)
 
-**🏛 POTÊNCIA DO SÉCULO** — chegue ao ano 2100 entre as **5 maiores
-potências mundiais**. A campanha inteira importa.
+Mais **complexidade econômica**: cada nação tem um **Economic Complexity Score**
+(0-100). Exportar commodity **bruta** rende menos que **manufatura**; a ação
+**🏭 Upgrade Industrial** agrega valor; exportadores de bruto sofrem inflação mais
+volátil. Crescimento por **modelo de convergência** (catch-up): país pobre bem
+administrado pode virar potência em 100 anos.
 
-**🌟 NAÇÃO MODELO** (marco, não encerra o jogo) — 20 turnos consecutivos com
-Apoio ≥ 65%, Estabilidade ≥ 65%, Inflação ≤ 15% e Tesouro > 0.
+### 🎭 Líderes, ideologia e rotatividade de poder
+Cada nação tem um líder com **ideologia** (que dirige as decisões dos 194 bots),
+idade e ~100 anos de vida. Líder impopular/velho **cai e é substituído** — o país
+muda de rumo. Democracias trocam por eleição/impopularidade; **autocracias só por
+morte ou golpe** (ex: Rússia).
 
-**📜 LEGADO DO SÉCULO** — sobreviveu aos 100 anos sem entrar no top-5:
-fim neutro com avaliação de legado (XP de meta-progressão mantido).
+### 🌐 Geopolítica viva
+**Afinidade ideológica** (nações parecidas se aproximam), **12 blocos
+geopolíticos** com defesa coletiva e bônus de comércio, **coalizão de contenção**
+(o mundo se une contra um hegemon), e **guerra com objetivos** (reparações,
+recurso, mudança de regime — a vitória impõe o regime do vencedor).
 
-**Derrotas** (após 5 turnos de "lua de mel"):
-- 💀 **Revolução**: Apoio Popular < 20% por 3 turnos
-- 💀 **Falência Nacional**: Tesouro = 0 por 4 turnos
-- 💀 **Golpe de Estado**: Estabilidade < 8%
-- 💀 **Hiperinflação**: Inflação > 80% (contra-ataque: ação 🏦 Aperto Monetário)
+### 🕵 Espionagem, tech e diplomacia
+8 operações de espionagem, **57 techs em 6 trilhas paralelas** (uma por
+ministério), tratados multilaterais, embaixadas, sanções.
 
-### 📈 Economia de convergência
-O crescimento usa o modelo real de **catch-up**: países longe da fronteira
-tecnológica mundial crescem mais rápido — SE tiverem instituições decentes
-(estabilidade, burocracia, baixa corrupção). Um país pobre bem administrado
-pode crescer >10%/ano por décadas (China 1990-2020) e **genuinamente virar
-potência mundial em 100 anos**. Economias maduras desaceleram. Validado por
-simulação massiva: Vietnã ativo sobe do rank 76 → 19; Nigéria 58 → 14.
+### 🗺 Mapa realista
+- **Satélite real da NASA (Blue Marble)** — Amazônia, Saara, Himalaia, gelo polar
+- **Oceano com batimetria real** + correntes animadas
+- **Filtros de dados** (Satélite / Político por regime / Economia / Militar /
+  Estabilidade / Recursos) — coropléticos limpos com cor consistente
+- Mundo fechado por moldura, sem "mundo infinito"; efeito de guerra pulsante
+
+### 🎨 Interface premium
+- **Menu inicial + loading** com o logo do brasão e fundo texturizado (100 dicas
+  rotativas no loading, spinner fluido a 60 FPS via carregamento em Thread)
+- **Painéis temáticos** por ministério (cor + ícone únicos): Economia como
+  dashboard de KPIs, Situação com medalhão de ranking, Militar como war room
+- **Opções em 4 abas**: Jogo · Vídeo (janela/resolução/VSync/FPS/brilho) ·
+  Áudio (música/SFX/mudo) · Sistema (salvar/carregar/sair)
+- Modo de dificuldade (Fácil/Normal/Difícil/Brutal), acessibilidade (daltonismo,
+  tamanho de fonte)
+
+### 📰 3 emissoras de notícias
+🏛 National (país) · 📡 Regional (continente) · 🌍 Global (mundo) — a âncora do
+telejornal anuncia a emissora conforme o escopo.
 
 ---
 
-## 🛠️ Estrutura Técnica
+## 🏆 Vitória e derrota
+
+Poder = **economia 40% · militar 25% · tecnologia 20% · diplomacia 15%**.
+
+- **🏆 HEGEMONIA** — #1 do ranking mundial por 4 anos, país estável, economia ≥40%
+  da maior (a partir de 2025).
+- **🏛 POTÊNCIA DO SÉCULO** — chegar a 2100 entre as 5 maiores.
+- **📜 LEGADO DO SÉCULO** — sobreviver aos 100 anos.
+- **Derrotas**: Revolução (apoio baixo prolongado), Falência (tesouro zerado),
+  Golpe (estabilidade baixa), Hiperinflação. A **espiral de crise** faz uma crise
+  ignorada colapsar o governo em ~14 meses.
+
+---
+
+## 🧪 Testes e simulação
 
 ```
-world-order/
-├── project.godot           # configuração Godot
-├── theme/
-│   └── game_theme.tres     # tema cyberpunk global
-├── scenes/
-│   ├── MainMenu.tscn
-│   ├── WorldMap.tscn        # cena principal (mapa + UI)
-│   └── PlaytestSim.tscn     # simulação automatizada
-├── scripts/
-│   ├── GameEngine.gd        # autoload, estado global
-│   ├── Nation.gd            # classe Nação
-│   ├── DiplomacyManager.gd  # tratados
-│   ├── NewsManager.gd       # notícias procedurais
-│   ├── TechManager.gd       # pesquisa tecnológica
-│   ├── EspionageManager.gd  # 8 ops espionagem
-│   ├── SaveSystem.gd        # save/load JSON
-│   ├── WorldMap.gd          # mapa + UI principal
-│   ├── GameOverlay.gd       # HUD do jogador (9 painéis)
-│   ├── MainMenu.gd          # tela inicial
-│   └── PlaytestSim.gd       # simulação massiva (todas as nações)
-├── data/
-│   ├── world.json (9.8 MB)        # geometria 238 países
-│   ├── nations.json (197 KB)      # 195 nações com dados de 2024
-│   ├── difficulty-tiers.json      # tier por nação (calibrado)
-│   ├── alliances.json             # alianças reais
-│   ├── events.json                # eventos com escolhas
-│   ├── tech.json                  # 100+ tecnologias
-│   ├── personalities.json         # personalidades de IA
-│   ├── conflicts.json
-│   └── treaty-types.json
-└── icon.svg
+# Amarração dos sistemas (152 checks)
+Godot_*_console.exe --headless --path . res://scenes/SystemsCheck.tscn
+
+# UI por clique real (82 checks — pressiona cada botão)
+Godot_*_console.exe --headless --path . res://scenes/GameplayTest.tscn
+
+# Simulação de massa (valida balanceamento)
+Godot_*_console.exe --headless --path . res://scenes/MegaSim.tscn -- --shard=0 --shards=4 --games=250 --active=1
+```
+
+**Validação massiva** (1000 jogos completos): 0 crashes, 0 anomalias, curva de
+tier justa (27% de vitória nos tiers jogáveis), nenhuma nação injogável, PIB sem
+runaway. Análise: `analyze_health.py` (roda sobre os resultados do MegaSim).
+
+---
+
+## 🛠 Arquitetura
+
+```
+scripts/
+├── GameEngine.gd        # autoload — o coração (estado, end_turn, PANEL_ACTIONS,
+│                        #   economia, guerra, FMI, choques, vitória/derrota)
+├── Nation.gd            # uma nação (economia, política, gabinete, tech, líder)
+├── BotPlayer.gd         # IA que joga com a MESMA API do jogador (4 personas)
+├── TechManager.gd       # 57 techs em 6 trilhas
+├── DiplomacyManager / EspionageManager / EventTimeline / StorylineManager
+├── WorldMap.gd          # tela principal (mapa, HUD, modais, setup)
+├── GameOverlay.gd       # painéis dos ministérios + feed
+├── PortraitGen.gd       # retratos procedurais (o "elenco")
+├── SaveSystem.gd        # serialização
+├── AudioManager / Accessibility / MetaProgression / AchievementManager
+└── MegaSim / SystemsCheck / GameplayTest / ScreenTour   # harnesses
+shaders/  ocean · country_fill (satélite) · menu_bg
+assets/   logo.png · loading_bg.png (fundo) · earth_blue_marble.jpg (NASA)
+icons/    resources/ (18 SVG) · ministries/ (14 SVG)
+data/     world.json · nations.json · tech · alliances · scenarios · …
+docs/archive/   planos já concluídos (histórico)
 ```
 
 ---
 
 ## 📊 Performance
-
-- **Renderer**: Forward+ (Vulkan)
-- **FPS**: 60+ (Intel Iris Xe Graphics integrado)
-- **Carga inicial**: ~400-600ms
-- **End_turn**: <100ms (processa 195 nações + IA + eventos + tratados + tech + notícias)
-- **Save/Load**: <50ms (JSON local)
+- Vulkan (Forward+), 60 FPS
+- ~36 ms/turno constante (195 nações + IA + eventos + economia), sem gargalo tardio
+- Carregamento do mundo em Thread (spinner fluido)
 
 ---
 
-## 🔄 Versão Atual
+## 🔄 Versão
 
-**v0.4.0-godot** (Abril 2026)
+**v0.5.0** — Doutrina Geopolítica em Tempo Real.
 
-### Changelog
-- v0.4.0: Tutorial, sparklines, save/load, opções, atalhos de teclado
-- v0.3.0: TechManager, EspionageManager (8 ops), DiplomacyManager (6 tipos tratado), NewsManager (notícias procedurais)
-- v0.2.0: GameOverlay com 9 painéis funcionais, layout estilo Plague Inc
-- v0.1.0: WorldMap com 238 países em Vulkan, GameEngine, Nation
+Convenção de commits: PT-BR, `feat:/fix:/test:/chore:`.

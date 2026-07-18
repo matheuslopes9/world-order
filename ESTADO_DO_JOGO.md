@@ -1,12 +1,47 @@
 # 🌍 Nations: New Dawn — Estado do Jogo
 
 > **Documento vivo** — retrato completo do que existe no jogo hoje + lacunas e
-> oportunidades de melhoria. Gerado por auditoria de código em 2026-07-16.
-> Godot 4.7.1 · GDScript · PT-BR (+EN parcial) · versão interna `v0.5.0`.
+> oportunidades de melhoria. Base: auditoria de 2026-07-16, com adendo de
+> 2026-07-18 abaixo. Godot 4.7.x · GDScript · PT-BR (+EN parcial) · `v0.5.0`.
 
 **O que é:** simulador geopolítico de **195 nações**, campanha **2000→2100**,
 **1 turno = 1 mês** (~1.200 turnos, ~10h de campanha). Você governa uma nação rumo
 à hegemonia — ou à sobrevivência.
+
+---
+
+## 🆕 Adendo 2026-07-18 — o que foi feito desde a auditoria
+
+Muita coisa foi implementada depois do retrato original (que segue abaixo, útil
+como referência das lacunas então priorizadas). O que já está pronto:
+
+- **Economia — complexidade** (raw vs processed): Economic Complexity Score por
+  nação, grau de processamento por setor, ação 🏭 Upgrade Industrial, volatilidade
+  de commodity, ECS realimenta o crescimento. O bot também industrializa.
+- **Modo de dificuldade** selecionável (Fácil/Normal/Difícil/Brutal) que escala
+  tesouro inicial, espiral de crise e agressividade dos rivais (`threat_mult`).
+- **Gabinete rico**: ministros com nome/idade/**competência** (afeta força das
+  ações ±25%), feitos bons/ruins automáticos, e **demitir/nomear** substituto.
+- **Mapa realista**: satélite NASA Blue Marble + batimetria real do oceano;
+  filtros coropléticos (satélite/político-por-regime/economia/militar/estab/
+  recursos) com cor consistente; mundo fechado por moldura; glow 2D (HDR).
+- **UI premium**: tema dourado global; menu inicial + loading com logo grande,
+  fundo texturizado, 100 dicas rotativas e spinner a 60 FPS (carga em Thread);
+  painéis temáticos por ministério (KPIs na Economia, medalhão na Situação, war
+  room no Militar); barra inferior com ícones por ministério; filtros só-glifo
+  na barra superior; HUD com letras limpas.
+- **Opções em 4 abas**: Jogo · Vídeo (janela/resolução/VSync/FPS/brilho do mapa/
+  acessibilidade) · Áudio (música/SFX/mudo) · Sistema (salvar/carregar/confirmar-
+  sair/sair); botão Salvar fixo em todas as abas.
+- **Tela de início**: seleção de nação + wizard (identidade/regime/doutrina/100
+  dias) sobre o fundo texturizado (mapa oculto), com **tudo obrigatório** — sem
+  auto-fill silencioso.
+- **Validação de 1000 jogos** (2000→2100): 0 crashes, 0 anomalias, curva de tier
+  justa (27% de vitória nos tiers jogáveis), nenhuma nação injogável, PIB sem
+  runaway. Ferramenta: `analyze_health.py`. Único fix: **DEFCON** deixou de ficar
+  cravado em 1 (só reage a guerras relevantes ao jogador; média 1.12 → 4.68).
+
+Testes atuais: **SystemsCheck 152** · **GameplayTest 82**.
 
 ---
 
