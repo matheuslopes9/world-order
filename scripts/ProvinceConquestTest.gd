@@ -1,9 +1,18 @@
 extends Node
-## Teste headless do Bloco 2: confirma que TERRITÓRIO muda de dono na guerra.
-## Roda: Godot_console.exe --headless --path . res://scenes/ProvinceConquestTest.tscn
+## Teste headless dos Blocos 2+3: TERRITÓRIO muda de dono na guerra E persiste
+## no save/load. Roda: Godot_console.exe --headless --path . res://scenes/ProvinceConquestTest.tscn
+
+const SAVE_PATH := "user://world_order_save.json"
+var _save_backup: String = ""
+var _had_save: bool = false
 
 func _ready() -> void:
 	await get_tree().process_frame
+	# Backup do save real do jogador (padrão dos harness — nunca apagar dados)
+	_had_save = FileAccess.file_exists(SAVE_PATH)
+	if _had_save:
+		var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
+		if f: _save_backup = f.get_as_text(); f.close()
 	var E = GameEngine
 	print("\n=== TESTE DE CONQUISTA TERRITORIAL (Bloco 2) ===")
 	print("Províncias carregadas: %d | nações com província: %d" % [E.provinces.size(), E.provinces_of.size()])
@@ -57,6 +66,46 @@ func _ready() -> void:
 	var br_after: int = E.provinces_of.get("BR", []).size()
 	_t.call("BR conquistou território de AR na guerra (%d→%d províncias)" % [br_before, br_after], br_after > br_before)
 	_t.call("sinal province_conquered disparou (%d vezes)" % conquered.size(), conquered.size() > 0)
+
+	# 4. SAVE/LOAD do território (Bloco 3): salva com território conquistado,
+	# zera o estado, carrega, e confirma que as províncias voltam ao dono certo.
+	var SaveSys = load("res://scripts/SaveSystem.gd")
+	# garante uma guerra ATIVA com placar pra testar a persistência do placar
+	if not ("AR" in br.em_guerra):
+		br.em_guerra.append("AR")
+	if not ("BR" in ar.em_guerra):
+		ar.em_guerra.append("BR")
+	E._war_score[E._war_key("BR", "AR")] = 42.0
+	# snapshot de quem é dono de cada província conquistada por BR
+	var br_owned_ids: Array = E.provinces_of.get("BR", []).duplicate()
+	var br_owned_count: int = br_owned_ids.size()
+	E.player_nation = E.nations["BR"]  # save exige player_nation
+	var saved: bool = SaveSys.save_game(E)
+	_t.call("save_game com território devolve true", saved)
+	# "estraga" o estado: devolve todas as províncias de BR pra AR na marra
+	for pid2 in br_owned_ids:
+		if E.provinces.has(pid2) and String(E.provinces[pid2].get("core_iso","")) == "AR":
+			E.provinces[pid2]["owner_iso"] = "AR"
+	E.provinces_of["BR"] = []
+	E.provinces_of["AR"] = []
+	for pid2 in E.provinces:
+		var ow: String = String(E.provinces[pid2]["owner_iso"])
+		if not E.provinces_of.has(ow): E.provinces_of[ow] = []
+		E.provinces_of[ow].append(pid2)
+	# carrega
+	var loaded: bool = SaveSys.load_game(E)
+	_t.call("load_game devolve true", loaded)
+	var br_after_load: int = E.provinces_of.get("BR", []).size()
+	_t.call("território restaurado após load (%d→estragou→%d)" % [br_owned_count, br_after_load], br_after_load == br_owned_count)
+	# guerra também restaurada?
+	_t.call("placar de guerra (_war_score) restaurado", E._war_score.size() > 0)
+
+	# Restaura o save real do jogador (backup/restore obrigatório)
+	if _had_save:
+		var fw := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+		if fw: fw.store_string(_save_backup); fw.close()
+	elif FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
 
 	print("\n╔══════════════════════════════════════╗")
 	print("║  RESULTADO: %d PASS  /  %d FAIL  (total %d)" % [tally[0], tally[1], tally[0] + tally[1]])

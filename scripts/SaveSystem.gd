@@ -24,6 +24,9 @@ static func save_game(engine) -> bool:
 		"player_actions_remaining": engine.player_actions_remaining,
 		"alliances_data": engine.alliances_data,  # membership de blocos muda no jogo (#11)
 		"war_objectives": engine._war_objectives,  # objetivo de cada guerra em andamento
+		"war_score": engine._war_score,             # placar de cada frente em andamento
+		"war_started": engine._war_started,         # turno de início (fadiga de guerra)
+		"provinces_owned": _serialize_provinces(engine),  # só as províncias que MUDARAM de dono
 		"active_sanctions": engine.active_sanctions,
 		"active_trades": engine.active_trades,
 		"storyline_active_arcs": engine.storylines.active_arcs if engine.storylines else [],
@@ -97,8 +100,14 @@ static func load_game(engine) -> bool:
 	if data.has("alliances_data"):
 		engine.alliances_data = data.get("alliances_data", engine.alliances_data)
 	engine._war_objectives = data.get("war_objectives", {})
+	# Restaura o placar/início das guerras em andamento (evita perder progresso)
+	engine._war_score = data.get("war_score", {})
+	engine._war_started = data.get("war_started", {})
 	# Restaura nações
 	_deserialize_nations(engine.nations, data.get("nations", {}))
+	# Restaura território conquistado (migração: save antigo sem províncias → mantém
+	# o dono original do provinces.json, já carregado no _load_all_data)
+	_deserialize_provinces(engine, data.get("provinces_owned", {}))
 	# Restaura jogador
 	var player_code: String = data.get("player_code", "")
 	if player_code != "" and engine.nations.has(player_code):
@@ -174,6 +183,45 @@ static func delete_save() -> bool:
 # ─────────────────────────────────────────────────────────────────
 # SERIALIZAÇÃO INTERNA
 # ─────────────────────────────────────────────────────────────────
+
+# PROVÍNCIAS: só salva as que MUDARAM de dono (owner_iso != core_iso, o dono
+# histórico). A geometria/adjacência vem sempre do provinces.json (imutável),
+# então o save fica pequeno mesmo com centenas de províncias.
+static func _serialize_provinces(engine) -> Dictionary:
+	var out := {}
+	if not engine.has_method("province_owner"):
+		return out
+	for pid in engine.provinces:
+		var p: Dictionary = engine.provinces[pid]
+		var owner: String = String(p.get("owner_iso", ""))
+		var core: String = String(p.get("core_iso", owner))
+		if owner != core:  # só o que foi conquistado
+			out[pid] = owner
+	return out
+
+# Restaura o dono das províncias conquistadas. Migração: save antigo sem esse
+# campo → dicionário vazio → províncias ficam no dono original (já carregado).
+static func _deserialize_provinces(engine, src: Dictionary) -> void:
+	if src == null or src.is_empty() or engine.provinces.is_empty():
+		return
+	for pid in src:
+		if not engine.provinces.has(pid):
+			continue
+		var new_owner: String = String(src[pid])
+		if not engine.nations.has(new_owner):
+			continue
+		# usa a porta oficial pra manter provinces_of consistente (sem mover
+		# pop/PIB de novo — isso já está refletido no save das nações)
+		var p: Dictionary = engine.provinces[pid]
+		var old_owner: String = String(p.get("owner_iso", ""))
+		if old_owner == new_owner:
+			continue
+		p["owner_iso"] = new_owner
+		if engine.provinces_of.has(old_owner):
+			engine.provinces_of[old_owner].erase(pid)
+		if not engine.provinces_of.has(new_owner):
+			engine.provinces_of[new_owner] = []
+		engine.provinces_of[new_owner].append(pid)
 
 static func _serialize_nations(nations: Dictionary) -> Dictionary:
 	var out := {}
