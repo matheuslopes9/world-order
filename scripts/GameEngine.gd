@@ -2531,6 +2531,94 @@ func player_propose_peace(target_code: String) -> bool:
 	_propose_peace(player_nation.codigo_iso, target_code)
 	return true
 
+# ─────────────────────────────────────────────────────────────────
+# AÇÕES DE GUERRA PILOTÁVEIS (Bloco 1 do grand strategy)
+# Antes a guerra era só "declarar e esperar o _war_score chegar a 100
+# automaticamente". Agora o jogador EMPURRA o placar com decisões que têm
+# trade-off real. As 3 ações usam a MESMA porta do _consume_action (gastam
+# 1 ação-de-turno + custo), e mexem no _war_score no sentido do jogador.
+# Catálogo p/ a UI e o BotPlayer (mesma API — o bot também vai pilotar guerra).
+# ─────────────────────────────────────────────────────────────────
+const WAR_ACTIONS := {
+	"war_ofensiva": {
+		"label": "⚔ OFENSIVA TOTAL", "cost_pib_frac": 0.03, "cost_min": 30,
+		"push": 22.0, "apoio": -6.0, "estab": -3.0,
+		"desc": "Grande avanço no placar da frente. Custa apoio e estabilidade — guerra é cara em vidas e política.",
+	},
+	"war_cerco": {
+		"label": "🛡 CERCO / ATRITO", "cost_pib_frac": 0.01, "cost_min": 12,
+		"push": 9.0, "apoio": -1.0, "estab": 0.0,
+		"desc": "Avanço lento e barato. Desgasta o inimigo sem sangrar seu apoio.",
+	},
+	"war_fortificar": {
+		"label": "🏰 FORTIFICAR LINHA", "cost_pib_frac": 0.015, "cost_min": 15,
+		"push": 4.0, "apoio": 2.0, "estab": 3.0, "defensive": true,
+		"desc": "Segura a frente e recompõe a retaguarda: pequeno avanço, mas devolve apoio e estabilidade.",
+	},
+}
+
+# Executa uma ação de guerra do jogador contra um inimigo específico.
+# Retorna {ok, msg, cost} no mesmo formato de player_panel_action.
+func player_war_action(action_id: String, enemy_code: String) -> Dictionary:
+	var n = player_nation
+	if n == null:
+		return {"ok": false, "reason": "Sem nação"}
+	if not WAR_ACTIONS.has(action_id):
+		return {"ok": false, "reason": "Ação de guerra desconhecida: %s" % action_id}
+	if not (enemy_code in n.em_guerra):
+		return {"ok": false, "reason": "Você não está em guerra com esse país"}
+	var meta: Dictionary = WAR_ACTIONS[action_id]
+	var cost: int = int(max(float(meta.get("cost_min", 10)), n.pib_bilhoes_usd * float(meta.get("cost_pib_frac", 0.01))))
+	if n.tesouro < cost:
+		return {"ok": false, "reason": "Fundos insuficientes: $%dB necessários" % cost}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno (limite: %d)" % PLAYER_ACTIONS_PER_TURN}
+	n.tesouro -= cost
+	# Empurra o placar da frente no sentido do JOGADOR. O sinal de _war_score
+	# segue a convenção do _war_key (a<b → positivo favorece 'a'); get_war_score_for
+	# já normaliza para a perspectiva do dono. Aqui empurro no sentido do jogador.
+	var key: String = _war_key(n.codigo_iso, enemy_code)
+	var push: float = float(meta.get("push", 0.0))
+	# competência militar do gabinete amplifica ±25% (mesma lógica das outras ações)
+	var mult: float = 1.0
+	if n.has_method("minister_competence"):
+		mult = 1.0 + (float(n.minister_competence("seguranca")) - 50.0) / 200.0
+	push *= mult
+	var signed_push: float = push if n.codigo_iso < enemy_code else -push
+	_war_score[key] = float(_war_score.get(key, 0.0)) + signed_push
+	# Efeitos políticos (trade-off): ofensiva sangra apoio/estabilidade
+	n.apoio_popular = clamp(n.apoio_popular + float(meta.get("apoio", 0.0)), 0.0, 100.0)
+	n.estabilidade_politica = clamp(n.estabilidade_politica + float(meta.get("estab", 0.0)), 0.0, 100.0)
+	# Fortificar/atrito também empurra o inimigo um pouco pra trás (retarda o avanço dele)
+	if meta.get("defensive", false):
+		# nada extra — o push defensivo já é pequeno e positivo
+		pass
+	# Vitória decisiva pode sair de uma ofensiva forte
+	if abs(float(_war_score[key])) >= WAR_DECISIVE_SCORE:
+		var winner = n if (float(_war_score[key]) > 0.0) == (n.codigo_iso < enemy_code) else nations[enemy_code]
+		var loser = nations[enemy_code] if winner == n else n
+		_end_war_with_spoils(winner, loser, "ofensiva decisiva")
+		return {"ok": true, "msg": "VITÓRIA DECISIVA sobre %s!" % nations[enemy_code].nome, "cost": cost, "decisive": true}
+	var enemy_name: String = nations[enemy_code].nome if nations.has(enemy_code) else enemy_code
+	return {"ok": true, "msg": "%s: frente avança contra %s" % [String(meta.get("label","")), enemy_name], "cost": cost}
+
+# Status da frente contra um inimigo, pronto para a UI: placar 0-100 do lado do
+# jogador, quem lidera, e o alvo decisivo. score01 = 0.5 é empate.
+func war_front_status(enemy_code: String) -> Dictionary:
+	if player_nation == null:
+		return {}
+	var raw: float = get_war_score_for(player_nation.codigo_iso, enemy_code)  # + = jogador vencendo
+	var score01: float = clamp(0.5 + raw / (WAR_DECISIVE_SCORE * 2.0), 0.0, 1.0)
+	var lead: String = "empate"
+	if raw > 6.0: lead = "vencendo"
+	elif raw < -6.0: lead = "perdendo"
+	return {
+		"enemy": enemy_code,
+		"enemy_name": nations[enemy_code].nome if nations.has(enemy_code) else enemy_code,
+		"raw": raw, "score01": score01, "lead": lead,
+		"decisive": WAR_DECISIVE_SCORE,
+	}
+
 # Diplomacia: player propõe tratado
 func player_propose_treaty(target_code: String, treaty_type: String) -> Dictionary:
 	if diplomacy == null or player_nation == null:

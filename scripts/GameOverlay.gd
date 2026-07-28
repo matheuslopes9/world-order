@@ -542,23 +542,11 @@ func _render_militar() -> void:
 	var mil_c: Color = ministry_color("militar")
 	var m: Dictionary = n.militar
 	var u: Dictionary = m.get("unidades", {})
-	# ── WAR ROOM: frentes ativas em destaque ──
+	# ── WAR ROOM: uma FRENTE PILOTÁVEL por inimigo (placar + ações de guerra) ──
 	if em_guerra:
-		var frentes := PanelContainer.new()
-		frentes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var fsb := _make_card_style(Color(1.0, 0.35, 0.30), 1.0)
-		fsb.bg_color = Color(0.16, 0.05, 0.05, 0.95)
-		frentes.add_theme_stylebox_override("panel", fsb)
-		var fl := Label.new()
-		var alvos: Array = []
+		_add_section_title("⚔ WAR ROOM — FRENTES ATIVAS", Color(1.0, 0.42, 0.36))
 		for code in n.em_guerra:
-			alvos.append(GameEngine.nations[code].nome if GameEngine.nations.has(code) else code)
-		fl.text = "⚔ EM GUERRA — %d frente(s): %s" % [n.em_guerra.size(), ", ".join(alvos)]
-		fl.add_theme_color_override("font_color", Color(1, 0.6, 0.55))
-		fl.add_theme_font_size_override("font_size", 12)
-		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		frentes.add_child(fl)
-		panel_content.add_child(frentes)
+			_add_war_front(code)
 	else:
 		_add_hint_label("✓ Nenhuma frente de guerra ativa. Forças em prontidão.")
 	# ── ORDEM DE BATALHA: unidades em tiles + poder ──
@@ -586,6 +574,93 @@ func _render_militar() -> void:
 		_add_action_button(a.id, a.label, a.cost, a.desc, _run_panel_action.bind(a.id, "seguranca", Color(0.6, 0.7, 0.9)))
 	_add_separator()
 	_add_hint_label("🕵 Operações de espionagem ficam na aba Intel — o mesmo ministério as comanda.")
+
+# Uma FRENTE de guerra pilotável: cabeçalho com o inimigo + barra de placar
+# (perdendo ↔ vencendo) + as 3 ações de guerra + propor paz. É o coração da
+# guerra deixar de ser "declarar e esperar um número invisível".
+func _add_war_front(enemy_code: String) -> void:
+	var st: Dictionary = GameEngine.war_front_status(enemy_code)
+	if st.is_empty(): return
+	var card := PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var lead: String = String(st.get("lead", "empate"))
+	var accent: Color = Color(0.45, 0.90, 0.55) if lead == "vencendo" else (Color(1.0, 0.42, 0.36) if lead == "perdendo" else Color(0.92, 0.80, 0.40))
+	var csb := _make_card_style(accent, 0.9)
+	csb.bg_color = Color(0.12, 0.06, 0.06, 0.95)
+	card.add_theme_stylebox_override("panel", csb)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	card.add_child(box)
+	# Cabeçalho: contra quem + estado da frente
+	var head := Label.new()
+	var lead_txt: String = {"vencendo": "▲ VENCENDO", "perdendo": "▼ PERDENDO", "empate": "≈ EQUILIBRADA"}.get(lead, "")
+	head.text = "⚔ Frente contra %s  —  %s" % [String(st.get("enemy_name", enemy_code)), lead_txt]
+	head.add_theme_color_override("font_color", accent)
+	head.add_theme_font_size_override("font_size", 13)
+	box.add_child(head)
+	# Barra de placar: 0 (derrota) → 1 (vitória decisiva), 0.5 = empate
+	var track := PanelContainer.new()
+	track.custom_minimum_size = Vector2(0, 18)
+	var tsb := StyleBoxFlat.new()
+	tsb.bg_color = Color(0.08, 0.08, 0.10, 1.0)
+	tsb.set_corner_radius_all(4)
+	track.add_theme_stylebox_override("panel", tsb)
+	var s01: float = float(st.get("score01", 0.5))
+	# HBox com dois pesos simula o preenchimento proporcional do placar
+	var fbox := HBoxContainer.new()
+	fbox.custom_minimum_size = Vector2(0, 18)
+	var filled := ColorRect.new()
+	filled.color = accent
+	filled.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	filled.size_flags_stretch_ratio = maxf(0.001, s01)
+	fbox.add_child(filled)
+	var empty := Control.new()
+	empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	empty.size_flags_stretch_ratio = maxf(0.001, 1.0 - s01)
+	fbox.add_child(empty)
+	track.add_child(fbox)
+	box.add_child(track)
+	var scale_lbl := Label.new()
+	scale_lbl.text = "derrota ◄  placar da frente  ► vitória decisiva (%d)" % int(st.get("decisive", 100))
+	scale_lbl.add_theme_color_override("font_color", Color(0.60, 0.64, 0.70))
+	scale_lbl.add_theme_font_size_override("font_size", 9)
+	box.add_child(scale_lbl)
+	# Ações de guerra (empurram o placar) — mesma porta que o BotPlayer usará
+	for aid in GameEngine.WAR_ACTIONS:
+		var meta: Dictionary = GameEngine.WAR_ACTIONS[aid]
+		var cost: int = int(max(float(meta.get("cost_min", 10)), GameEngine.player_nation.pib_bilhoes_usd * float(meta.get("cost_pib_frac", 0.01))))
+		var op := _make_op_card(String(meta.get("label", aid)), cost, String(meta.get("desc", "")),
+			Color(1.0, 0.55, 0.45), _run_war_action.bind(aid, enemy_code))
+		op.set_meta("action_btn", true)
+		box.add_child(op)
+	# Propor paz
+	var peace := _make_op_card("🕊 PROPOR PAZ", 20, "Encerra a guerra por acordo (o inimigo pode recusar se estiver vencendo).",
+		Color(0.55, 0.80, 0.95), _run_peace_action.bind(enemy_code))
+	peace.set_meta("action_btn", true)
+	box.add_child(peace)
+	panel_content.add_child(card)
+
+func _run_war_action(action_id: String, enemy_code: String) -> void:
+	var res: Dictionary = GameEngine.player_war_action(action_id, enemy_code)
+	if not res.get("ok", false):
+		_log_global_news("⚠ AÇÃO INDISPONÍVEL", String(res.get("reason", "")), Color(1, 0.6, 0.4))
+		_spawn_action_floater("✕ " + String(res.get("reason", "indisponível")), Color(1, 0.55, 0.45))
+		return
+	var col: Color = Color(1.0, 0.55, 0.45)
+	if res.get("decisive", false): col = Color(0.45, 0.95, 0.55)
+	_log_global_news("⚔ GUERRA", String(res.get("msg", "")) + "  •  -$%dB" % int(res.get("cost", 0)), col)
+	_spawn_action_floater("✓ %s  −$%dB" % [String(res.get("msg", "")).left(36), int(res.get("cost", 0))], col)
+	_render_panel("militar")
+	_refresh_top_bar_external()
+
+func _run_peace_action(enemy_code: String) -> void:
+	if GameEngine.player_propose_peace(enemy_code):
+		_log_global_news("🕊 PAZ", "Proposta de paz enviada a %s." % (GameEngine.nations[enemy_code].nome if GameEngine.nations.has(enemy_code) else enemy_code), Color(0.55, 0.80, 0.95))
+		_spawn_action_floater("🕊 Proposta de paz enviada", Color(0.55, 0.80, 0.95))
+		_render_panel("militar")
+		_refresh_top_bar_external()
+	else:
+		_spawn_action_floater("✕ Não foi possível propor paz", Color(1, 0.55, 0.45))
 
 # ─────────────────────────────────────────────────────────────────
 # PAINEL: ECONOMIA

@@ -398,31 +398,64 @@ func _generate_military_actions(n) -> Array:
 				"score": 70.0 + (45.0 - stab) * 1.5, "category": "military",
 				"reason": "Propor paz — stab=%.0f%%, tesouro=%.0fB" % [stab, tesouro]
 			})
+		else:
+			# PILOTAR A FRENTE: com fôlego (estab/tesouro ok), empurra o placar.
+			# Ofensiva quando forte; cerco quando quer economizar; fortificar se apoio baixo.
+			var enemy: String = String(n.em_guerra[0])
+			var st: Dictionary = _engine.war_front_status(enemy) if _engine.has_method("war_front_status") else {}
+			var lead: String = String(st.get("lead", "empate"))
+			var war_id: String = "war_cerco"
+			var reason: String = "Cerco — desgastar %s barato" % enemy
+			if float(n.apoio_popular) < 40.0:
+				war_id = "war_fortificar"
+				reason = "Fortificar — recompor apoio (%.0f%%)" % n.apoio_popular
+			elif lead == "vencendo" or (tesouro >= 120 and personality == "military"):
+				war_id = "war_ofensiva"
+				reason = "Ofensiva total — pressionar a vitória sobre %s" % enemy
+			out.append({
+				"type": "war_action", "target": enemy, "war_id": war_id,
+				"score": 55.0 if lead == "vencendo" else 38.0, "category": "military",
+				"reason": reason
+			})
 
-	# GUERRA OFENSIVA (persona military): alvo muito mais fraco + rival declarado.
-	# Com a resolução de guerra, vencer rende espólios — guerra virou investimento.
-	if personality == "military" and n.em_guerra.is_empty() and tesouro >= 150:
+	# GUERRA OFENSIVA — oportunismo territorial. Antes era só persona 'military'
+	# com ratio 2.5x E rel<=-50 (raríssimo → wars=0 nas sims). Agora:
+	#  • 'military' ataca com vantagem 1.6x rival (rel<=-30) ou 2.2x qualquer vizinho fraco;
+	#  • 'balanced' ataca rival muito fraco (2.0x, rel<=-40);
+	#  • 'diplomat'/'economic' evitam guerra (mantêm o perfil).
+	# Vencer toma território/espólios — guerra virou investimento com o placar pilotável.
+	var war_capable: bool = personality == "military" or personality == "balanced"
+	if war_capable and n.em_guerra.is_empty() and tesouro >= 120:
 		var my_power: float = n.get_military_power()
+		var min_ratio: float = 1.6 if personality == "military" else 2.0
+		var rel_gate: float = -30.0 if personality == "military" else -40.0
+		var same_cont_only: bool = personality != "military"  # balanced só ataca vizinho de continente
 		var best_target: String = ""
 		var best_sc: float = 0.0
 		for code in _engine.nations:
 			if code == n.codigo_iso:
 				continue
-			var rel: float = float(n.relacoes.get(code, 0))
-			if rel > -50:
-				continue  # só ataca rivais declarados
 			var t = _engine.nations[code]
+			if same_cont_only and t.continente != n.continente:
+				continue
+			var rel: float = float(n.relacoes.get(code, 0))
 			var ratio: float = my_power / max(1.0, t.get_military_power())
-			if ratio >= 2.5:
-				var sc: float = ratio * 8.0 - rel * 0.2
-				if sc > best_sc:
-					best_sc = sc
-					best_target = code
+			# Casus belli: ou é rival (rel baixa) OU é uma presa fácil (vantagem esmagadora)
+			var is_rival: bool = rel <= rel_gate
+			var is_prey: bool = ratio >= min_ratio + 0.6
+			if not (is_rival or is_prey):
+				continue
+			if ratio < min_ratio:
+				continue
+			var sc: float = ratio * 8.0 - rel * 0.15
+			if sc > best_sc:
+				best_sc = sc
+				best_target = code
 		if best_target != "":
 			out.append({
 				"type": "war", "target": best_target,
-				"score": 25.0 + minf(best_sc * 0.3, 30.0), "category": "military",
-				"reason": "GUERRA: esmagar %s (vantagem militar 2.5x+, rival)" % (_engine.nations[best_target].nome if _engine.nations.has(best_target) else best_target)
+				"score": 24.0 + minf(best_sc * 0.3, 30.0), "category": "military",
+				"reason": "GUERRA: conquistar %s (vantagem %.1fx)" % [(_engine.nations[best_target].nome if _engine.nations.has(best_target) else best_target), my_power / max(1.0, _engine.nations[best_target].get_military_power())]
 			})
 
 	# Construir base se poder militar baixo e tem dinheiro (custo 40)
@@ -512,6 +545,13 @@ func _execute_action(action: Dictionary) -> bool:
 		"war":
 			if not _engine.player_declare_war(String(action.get("target", ""))):
 				_think("  ✗ Declaração de guerra falhou")
+				return false
+			return true
+		"war_action":
+			# Pilotar uma frente ativa (Ofensiva/Cerco/Fortificar) — mesma API do jogador
+			var wres: Dictionary = _engine.player_war_action(String(action.get("war_id", "war_cerco")), String(action.get("target", "")))
+			if not bool(wres.get("ok", false)):
+				_think("  ✗ Ação de guerra falhou: %s" % String(wres.get("reason", "")))
 				return false
 			return true
 		"embassy":

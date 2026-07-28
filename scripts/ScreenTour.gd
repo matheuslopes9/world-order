@@ -111,6 +111,15 @@ func _ready() -> void:
 	pn.tesouro_desviado_total = 23.5
 	# (valores de demonstração — a espiral real é dirigida pela corrupção em jogo)
 
+	# Estado de GUERRA de demonstração p/ o War Room mostrar frentes pilotáveis
+	if GameEngine.nations.has("AR") and not ("AR" in pn.em_guerra):
+		pn.em_guerra.append("AR")
+		if not GameEngine.nations["AR"].em_guerra.has(pn.codigo_iso):
+			GameEngine.nations["AR"].em_guerra.append(pn.codigo_iso)
+		# placar da frente levemente a favor do jogador, pra barra aparecer preenchida
+		var wk: String = GameEngine._war_key(pn.codigo_iso, "AR")
+		GameEngine._war_score[wk] = 18.0 if pn.codigo_iso < "AR" else -18.0
+
 	# 5 — Painéis
 	for panel_id in ["gabinete", "governo", "economia", "seguranca", "saude", "educacao", "diplomacia", "tech", "intel", "situacao", "historico"]:
 		wm._open_overlay_modal(panel_id)
