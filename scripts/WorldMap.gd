@@ -211,6 +211,9 @@ func _ready() -> void:
 	resource_icons_layer.z_index = 4
 	resource_icons_layer.visible = false
 	add_child(resource_icons_layer)
+	# Camada de PROVÍNCIAS (grand strategy) — invisível por default; um toggle
+	# a liga. Fica ACIMA dos países (z 3) mas abaixo de markers/recursos.
+	_load_provinces_layer()
 	# Contador de ações por turno (FASE 7)
 	if GameEngine and GameEngine.has_signal("player_actions_changed"):
 		GameEngine.player_actions_changed.connect(_refresh_actions_label)
@@ -1843,6 +1846,93 @@ func _ring_to_packed(ring: Array) -> PackedVector2Array:
 		var y: float = (90.0 - pt[1]) * (MAP_HEIGHT / 180.0)
 		arr[i] = Vector2(x, y)
 	return arr
+
+# ─────────────────────────────────────────────────────────────────
+# PROVÍNCIAS (grand strategy) — camada de subdivisões, invisível por default.
+# Um toggle a liga; a cor de cada província vem do DONO (owner_iso), então
+# quando território muda de dono (blocos futuros) basta recolorir a província.
+# ─────────────────────────────────────────────────────────────────
+var provinces_root: Node2D = null
+var _province_nodes: Dictionary = {}   # id -> {poly, line, owner_iso}
+var provinces_visible: bool = false
+
+func _load_provinces_layer() -> void:
+	var file := FileAccess.open("res://data/provinces.json", FileAccess.READ)
+	if file == null:
+		return  # sem dados de província (opcional) — jogo segue normal
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) != OK:
+		push_warning("provinces.json inválido")
+		return
+	var data: Dictionary = json.data
+	var list: Array = data.get("provinces", [])
+	provinces_root = Node2D.new()
+	provinces_root.name = "Provinces"
+	provinces_root.z_index = 3   # acima dos países (base), abaixo de recursos/markers
+	provinces_root.visible = false
+	add_child(provinces_root)
+	for pr in list:
+		var poly_lonlat: Array = pr.get("polygon", [])
+		if poly_lonlat.size() < 3:
+			continue  # província sintética sem geometria (FR/NO) — não renderiza
+		var owner_iso: String = String(pr.get("owner_iso", ""))
+		var ring := _ring_to_packed(poly_lonlat)
+		if ring.size() < 3:
+			continue
+		var col: Color = _province_color(owner_iso)
+		var poly := Polygon2D.new()
+		poly.polygon = ring
+		poly.color = Color.WHITE
+		poly.self_modulate = col
+		provinces_root.add_child(poly)
+		# contorno interno fino (fronteira de província)
+		var ring_closed := ring
+		ring_closed.append(ring[0])
+		var line := Line2D.new()
+		line.points = ring_closed
+		line.width = 0.7
+		line.default_color = Color(0.0, 0.0, 0.0, 0.35)
+		line.antialiased = true
+		provinces_root.add_child(line)
+		_province_nodes[String(pr.get("id", ""))] = {"poly": poly, "line": line, "owner_iso": owner_iso}
+
+# Cor determinística e estável por DONO — tons distintos por país para a
+# subdivisão saltar aos olhos. HSV pelo hash do ISO (mesma nação = mesma cor).
+func _province_color(owner_iso: String) -> Color:
+	if owner_iso == "":
+		return COUNTRY_FILL
+	var h: float = float(abs(owner_iso.hash()) % 360) / 360.0
+	var s: float = 0.45 + float(abs((owner_iso + "s").hash()) % 30) / 100.0
+	var v: float = 0.72 + float(abs((owner_iso + "v").hash()) % 22) / 100.0
+	return Color.from_hsv(h, s, v, 1.0)
+
+# Liga/desliga a camada de províncias. Recolore/repinta os países por baixo
+# ficam ocultos quando províncias estão visíveis (a camada as cobre).
+func toggle_provinces() -> void:
+	set_provinces_visible(not provinces_visible)
+
+func set_provinces_visible(on: bool) -> void:
+	provinces_visible = on
+	if provinces_root != null:
+		provinces_root.visible = on
+	# Ocultar o preenchimento dos países quando províncias estão visíveis evita
+	# cor dupla; a moldura/contorno nacional continua legível por cima delas.
+	if countries_root != null:
+		countries_root.modulate = Color(1, 1, 1, 0.15) if on else Color(1, 1, 1, 1)
+	_log_ticker("🗺 MAPA", "Províncias %s" % ("ATIVADAS" if on else "desativadas"), Color(0.7, 0.85, 1))
+
+# Repinta a província (chamado quando o dono muda — blocos futuros de conquista).
+func repaint_province(prov_id: String) -> void:
+	if not _province_nodes.has(prov_id):
+		return
+	var entry: Dictionary = _province_nodes[prov_id]
+	# o owner pode ter mudado no GameEngine; busca o novo dono se disponível
+	var new_owner: String = String(entry.get("owner_iso", ""))
+	if GameEngine and GameEngine.has_method("province_owner"):
+		new_owner = String(GameEngine.province_owner(prov_id))
+		entry["owner_iso"] = new_owner
+	var poly: Polygon2D = entry["poly"]
+	poly.self_modulate = _province_color(new_owner)
 
 # ─────────────────────────────────────────────────────────────────
 # CÂMERA
@@ -5714,6 +5804,10 @@ func _handle_key(event: InputEvent) -> void:
 			stop_bot_mode()
 		else:
 			start_bot_mode("balanced", 2.0)
+		return
+	# P — toggle camada de PROVÍNCIAS (grand strategy)
+	if event is InputEventKey and event.keycode == KEY_P and event.pressed and not event.echo:
+		toggle_provinces()
 		return
 	# Zoom in/out via teclado ou trigger de gamepad
 	if event.is_action_pressed("game_zoom_in"):

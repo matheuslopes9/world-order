@@ -66,6 +66,21 @@ func _ready() -> void:
 	wm._refresh_top_bar()
 	await _shot("mapa_em_jogo")
 
+	# 4a — MAPA DE PROVÍNCIAS (grand strategy): liga a camada e captura
+	if wm.has_method("set_provinces_visible"):
+		if wm.has_method("_hide_spinner"): wm._hide_spinner()
+		if wm.has_method("_hide_loading_screen"): wm._hide_loading_screen()
+		# fecha qualquer modal órfão do takeover (o briefing) antes de capturar o mapa
+		if wm.modal_layer:
+			for c in wm.modal_layer.get_children():
+				c.queue_free()
+		await get_tree().process_frame
+		wm.set_provinces_visible(true)
+		await get_tree().create_timer(0.6).timeout
+		await _shot("mapa_provincias")
+		wm.set_provinces_visible(false)
+		await get_tree().process_frame
+
 	# 4b — ONBOARDING (#14): briefing da nação + central de ajuda
 	# Garante que o spinner/loading do takeover não esteja mais na frente.
 	if wm.has_method("_hide_spinner"): wm._hide_spinner()
