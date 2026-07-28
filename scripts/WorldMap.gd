@@ -211,9 +211,9 @@ func _ready() -> void:
 	resource_icons_layer.z_index = 4
 	resource_icons_layer.visible = false
 	add_child(resource_icons_layer)
-	# Camada de PROVÍNCIAS (grand strategy) — invisível por default; um toggle
-	# a liga. Fica ACIMA dos países (z 3) mas abaixo de markers/recursos.
-	_load_provinces_layer()
+	# Camada de PROVÍNCIAS (grand strategy) — carregada SOB DEMANDA no 1º toggle
+	# (não no boot), pra não pagar ~500 Polygon2D + triangulação em toda partida
+	# se o jogador nunca ligar. Ver _ensure_provinces_loaded().
 	# Contador de ações por turno (FASE 7)
 	if GameEngine and GameEngine.has_signal("player_actions_changed"):
 		GameEngine.player_actions_changed.connect(_refresh_actions_label)
@@ -1856,13 +1856,23 @@ var provinces_root: Node2D = null
 var _province_nodes: Dictionary = {}   # id -> {poly, line, owner_iso}
 var provinces_visible: bool = false
 
-func _load_provinces_layer() -> void:
+var _provinces_loaded: bool = false
+var _provinces_loading: bool = false
+
+# Carrega a camada SOB DEMANDA (1ª vez que o jogador liga províncias). Fatiada
+# por vértices (cede o frame a cada ~2200) como a camada de países — não trava.
+func _ensure_provinces_loaded() -> void:
+	if _provinces_loaded or _provinces_loading:
+		return
+	_provinces_loading = true
 	var file := FileAccess.open("res://data/provinces.json", FileAccess.READ)
 	if file == null:
+		_provinces_loading = false
 		return  # sem dados de província (opcional) — jogo segue normal
 	var json := JSON.new()
 	if json.parse(file.get_as_text()) != OK:
 		push_warning("provinces.json inválido")
+		_provinces_loading = false
 		return
 	var data: Dictionary = json.data
 	var list: Array = data.get("provinces", [])
@@ -1871,6 +1881,8 @@ func _load_provinces_layer() -> void:
 	provinces_root.z_index = 3   # acima dos países (base), abaixo de recursos/markers
 	provinces_root.visible = false
 	add_child(provinces_root)
+	var headless: bool = DisplayServer.get_name() == "headless"
+	var verts_left: int = 2200
 	for pr in list:
 		var poly_lonlat: Array = pr.get("polygon", [])
 		if poly_lonlat.size() < 3:
@@ -1879,6 +1891,13 @@ func _load_provinces_layer() -> void:
 		var ring := _ring_to_packed(poly_lonlat)
 		if ring.size() < 3:
 			continue
+		# Orçamento de vértices: cede o frame antes de polígonos grandes (só no
+		# cliente; em headless monta tudo síncrono pra não atrasar testes/sims).
+		if not headless:
+			verts_left -= ring.size()
+			if verts_left <= 0:
+				await get_tree().process_frame
+				verts_left = 2200
 		var col: Color = _province_color(owner_iso)
 		var poly := Polygon2D.new()
 		poly.polygon = ring
@@ -1895,6 +1914,8 @@ func _load_provinces_layer() -> void:
 		line.antialiased = true
 		provinces_root.add_child(line)
 		_province_nodes[String(pr.get("id", ""))] = {"poly": poly, "line": line, "owner_iso": owner_iso}
+	_provinces_loaded = true
+	_provinces_loading = false
 
 # Cor determinística e estável por DONO — tons distintos por país para a
 # subdivisão saltar aos olhos. HSV pelo hash do ISO (mesma nação = mesma cor).
@@ -1912,6 +1933,9 @@ func toggle_provinces() -> void:
 	set_provinces_visible(not provinces_visible)
 
 func set_provinces_visible(on: bool) -> void:
+	# Carrega a camada na 1ª vez que é ligada (lazy — não pesa o boot).
+	if on and not _provinces_loaded:
+		await _ensure_provinces_loaded()
 	provinces_visible = on
 	if provinces_root != null:
 		provinces_root.visible = on
