@@ -944,13 +944,18 @@ func evaluate_endgame() -> void:
 	if victory_achieved:
 		return
 	var power_rank: int = get_power_rank(n.codigo_iso)
-	# 35% do líder (era 50% — inalcançável: a China da IA cresce ~200× e
-	# virava um teto impossível; 0 hegemonias em 900 jogos simulados)
-	var econ_relevante: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.40
+	# 35% do PIB do líder (o teto de 40% era inalcançável — validação de 195 jogos:
+	# só os EUA chegavam a #1 e mesmo assim 0 hegemonias). Aplicado o valor que o
+	# comentário sempre prometeu.
+	var econ_relevante: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.35
+	# STREAK TOLERANTE: um soluço (1 mês fora dos critérios) NÃO zera o progresso —
+	# só decrementa. Sustentar 4 anos perfeitos era frágil demais (qualquer guerra
+	# que baixasse a estabilidade por 1 turno reiniciava do zero).
+	var streak: int = int(n.get_meta("hegemony_streak", 0))
 	if power_rank == 1 and econ_relevante and n.apoio_popular >= 55.0 and n.estabilidade_politica >= 55.0:
-		n.set_meta("hegemony_streak", int(n.get_meta("hegemony_streak", 0)) + 1)
+		n.set_meta("hegemony_streak", streak + 1)
 	else:
-		n.set_meta("hegemony_streak", 0)
+		n.set_meta("hegemony_streak", maxi(0, streak - 3))  # tolera soluços; não reinicia do zero
 	if int(n.get_meta("hegemony_streak", 0)) >= 48 and current_turn >= 300:
 		victory_achieved = true
 		if achievements:

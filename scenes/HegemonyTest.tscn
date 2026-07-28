@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://chegemonytest1"]
+
+[ext_resource type="Script" path="res://scripts/HegemonyTest.gd" id="1_hgt"]
+
+[node name="HegemonyTest" type="Node"]
+script = ExtResource("1_hgt")

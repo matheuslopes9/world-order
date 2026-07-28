@@ -148,6 +148,7 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 	var n = E.player_nation
 	var pib0: float = n.pib_bilhoes_usd
 	var rank0: int = _pib_rank(code)
+	var provinces_0: int = E.provinces_of.get(code, []).size() if E.provinces_of.has(code) else 0
 	var bot = load("res://scripts/BotPlayer.gd").new(E, get_tree(), persona)
 	bot.verbose = false
 
@@ -267,6 +268,8 @@ func _run_one(code: String, persona: String, passive: bool) -> void:
 		"crypto_f": snappedf(E.crypto_price, 0.1),
 		"treaties": _count_treaties(code),
 		"wars": wars_player,
+		"provinces_0": provinces_0,
+		"provinces_f": (E.provinces_of.get(code, []).size() if E.provinces_of.has(code) else 0),
 		"decisions": _decisions,
 		"achv": GameEngine.achievements.unlocked.size() if GameEngine.achievements else 0,
 		"max_infl": snappedf(max_infl, 0.1), "max_debt": snappedf(max_debt, 0.1),
