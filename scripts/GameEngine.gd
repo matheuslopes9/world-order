@@ -191,6 +191,17 @@ signal data_loaded
 signal nation_selected(code: String)
 signal player_confirmed(code: String)
 signal turn_advanced(turn: int)
+signal province_conquered(prov_id: String, old_owner: String, new_owner: String)
+
+# ── PROVÍNCIAS (grand strategy) — território conquistável ─────────
+# Carregado de data/provinces.json em runtime. provinces[id] = dados mutáveis
+# (owner_iso, unrest...). O polígono/adjacência são imutáveis (recarregam do
+# JSON). provinces_of[iso] = [ids] é índice reverso cacheado (atualiza no
+# transfer). Fase A: pop/PIB da nação continuam a fonte de verdade; a conquista
+# move uma FATIA entre nações (reusa a lógica de espólios já testada).
+var provinces: Dictionary = {}         # id -> {owner_iso, core_iso, neighbors, pop_frac, pib_frac, is_capital, nome}
+var provinces_of: Dictionary = {}      # owner_iso -> Array[id]
+var _provinces_ready: bool = false
 
 func _ready() -> void:
 	_load_all_data()
@@ -222,6 +233,7 @@ func _load_all_data() -> void:
 			var tier: String = difficulty_tiers.get(code, "")
 			n.from_dict(ns_dict[code], code, tier)
 			nations[code] = n
+	_load_provinces()
 	# Se a campanha começa em 2000, aplica overrides daquele ano
 	if date_year <= 2000:
 		_apply_year_2000_overrides()
@@ -2265,6 +2277,101 @@ func _process_war_fatigue() -> void:
 # RESOLUÇÃO DE GUERRA — vantagem acumula; vitória decisiva = espólios
 # ─────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────
+# PROVÍNCIAS — carga em runtime + conquista de território
+# ─────────────────────────────────────────────────────────────────
+func _load_provinces() -> void:
+	var raw = _load_json("res://data/provinces.json")
+	if raw == null:
+		return
+	var list: Array = raw.get("provinces", [])
+	for pr in list:
+		var pid: String = String(pr.get("id", ""))
+		if pid == "":
+			continue
+		var owner: String = String(pr.get("owner_iso", ""))
+		provinces[pid] = {
+			"owner_iso": owner,
+			"core_iso": String(pr.get("core_iso", owner)),
+			"neighbors": pr.get("neighbors", []),
+			"pop_frac": float(pr.get("pop_frac", 0.0)),
+			"pib_frac": float(pr.get("pib_frac", 0.0)),
+			"is_capital": bool(pr.get("is_capital", false)),
+			"nome": String(pr.get("nome", pid)),
+		}
+		if not provinces_of.has(owner):
+			provinces_of[owner] = []
+		provinces_of[owner].append(pid)
+	_provinces_ready = provinces.size() > 0
+
+# Dono atual de uma província (usado pela UI pra recolorir).
+func province_owner(prov_id: String) -> String:
+	return String(provinces.get(prov_id, {}).get("owner_iso", ""))
+
+# PORTA ÚNICA DE CONQUISTA — guerra, diplomacia e espionagem chamam aqui.
+# Muda o dono, atualiza o índice reverso, move a FATIA de pop/PIB entre as
+# nações (Fase A: nação continua fonte de verdade), e avisa a UI (sinal).
+func transfer_province(prov_id: String, new_owner: String, motivo: String = "conquista") -> bool:
+	if not provinces.has(prov_id) or not nations.has(new_owner):
+		return false
+	var p: Dictionary = provinces[prov_id]
+	var old_owner: String = String(p.get("owner_iso", ""))
+	if old_owner == new_owner or old_owner == "":
+		return false
+	# move a fatia de população e PIB do perdedor para o vencedor (Fase A)
+	if nations.has(old_owner):
+		var loser = nations[old_owner]
+		var winner = nations[new_owner]
+		var frac: float = clampf(float(p.get("pop_frac", 0.0)), 0.0, 1.0)
+		var pop_move: int = int(loser.populacao * frac)
+		var pib_move: float = loser.pib_bilhoes_usd * clampf(float(p.get("pib_frac", 0.0)), 0.0, 1.0)
+		loser.populacao = max(0, loser.populacao - pop_move)
+		winner.populacao += pop_move
+		loser.pib_bilhoes_usd = maxf(1.0, loser.pib_bilhoes_usd - pib_move)
+		winner.pib_bilhoes_usd += pib_move
+	# atualiza índices
+	p["owner_iso"] = new_owner
+	if provinces_of.has(old_owner):
+		provinces_of[old_owner].erase(prov_id)
+	if not provinces_of.has(new_owner):
+		provinces_of[new_owner] = []
+	provinces_of[new_owner].append(prov_id)
+	emit_signal("province_conquered", prov_id, old_owner, new_owner)
+	return true
+
+# Escolhe a próxima província do PERDEDOR a cair para o VENCEDOR numa guerra:
+# a mais fraca na FRONTEIRA (adjacente a alguma província já do vencedor),
+# capital por último. Devolve "" se não houver alvo (perdedor sem território).
+func _pick_frontier_province(winner_iso: String, loser_iso: String) -> String:
+	var loser_provs: Array = provinces_of.get(loser_iso, [])
+	if loser_provs.is_empty():
+		return ""
+	var winner_set: Dictionary = {}
+	for w in provinces_of.get(winner_iso, []):
+		winner_set[w] = true
+	# candidatos fronteiriços = província do perdedor com vizinho do vencedor
+	var frontier: Array = []
+	for pid in loser_provs:
+		var nbrs: Array = provinces.get(pid, {}).get("neighbors", [])
+		for nb in nbrs:
+			if winner_set.has(nb):
+				frontier.append(pid)
+				break
+	# se o vencedor ainda não faz fronteira interna (1ª conquista), qualquer
+	# província não-capital serve (represents desembarque/avanço inicial)
+	var pool: Array = frontier if not frontier.is_empty() else loser_provs
+	# prioriza não-capital; capital só quando é a última que resta
+	var best: String = ""
+	var best_is_cap: bool = true
+	for pid in pool:
+		var is_cap: bool = bool(provinces.get(pid, {}).get("is_capital", false))
+		if best == "" or (best_is_cap and not is_cap):
+			best = pid
+			best_is_cap = is_cap
+			if not is_cap:
+				break
+	return best
+
 func _process_war_resolution() -> void:
 	var seen: Dictionary = {}
 	for code in nations.keys():
@@ -2283,10 +2390,25 @@ func _process_war_resolution() -> void:
 			var econ_diff: float = (a.pib_bilhoes_usd - b.pib_bilhoes_usd) * 0.001
 			var delta: float = clamp(mil_diff * 0.02 + econ_diff * 0.01, -8.0, 8.0)
 			delta += randf_range(-2.0, 2.0)  # fricção/fortuna da guerra
-			_war_score[key] = float(_war_score.get(key, 0.0)) + delta
-			if abs(float(_war_score[key])) >= WAR_DECISIVE_SCORE:
-				var winner = a if float(_war_score[key]) > 0.0 else b
-				var loser = b if float(_war_score[key]) > 0.0 else a
+			var prev_score: float = float(_war_score.get(key, 0.0))
+			_war_score[key] = prev_score + delta
+			var cur_score: float = float(_war_score[key])
+			# FRONTEIRA QUE ANDA: cada limiar de 25 pontos a favor de um lado toma
+			# uma província fronteiriça do outro. Território muda de mão DURANTE a
+			# guerra, não só no fim — o mapa reage mês a mês.
+			if _provinces_ready:
+				var lead = a if cur_score > 0.0 else b
+				var behind = b if cur_score > 0.0 else a
+				var mag: float = abs(cur_score)
+				var prev_mag: float = abs(prev_score) if (prev_score > 0.0) == (cur_score > 0.0) else 0.0
+				var step: float = 25.0
+				if floori(mag / step) > floori(prev_mag / step) and mag < WAR_DECISIVE_SCORE:
+					var target: String = _pick_frontier_province(lead.codigo_iso, behind.codigo_iso)
+					if target != "":
+						transfer_province(target, lead.codigo_iso, "avanço de guerra")
+			if abs(cur_score) >= WAR_DECISIVE_SCORE:
+				var winner = a if cur_score > 0.0 else b
+				var loser = b if cur_score > 0.0 else a
 				_end_war_with_spoils(winner, loser, "vitória decisiva")
 
 # Score da guerra do PONTO DE VISTA de uma nação (pra UI: quem está vencendo)
@@ -2346,7 +2468,26 @@ func _end_war_with_spoils(winner, loser, motivo: String) -> void:
 	# Rancor duradouro
 	winner.relacoes[l_code] = -60
 	loser.relacoes[w_code] = -80
+	# CONQUISTA TERRITORIAL na vitória decisiva: o vencedor abocanha até metade
+	# das províncias fronteiriças restantes do perdedor (a fronteira já andou
+	# durante a guerra; a vitória decisiva consolida o ganho). Capital fica por
+	# último — só cai se o perdedor for reduzido a ela.
+	var provs_taken: int = 0
+	if _provinces_ready:
+		var remaining: Array = provinces_of.get(l_code, []).duplicate()
+		var to_take: int = int(ceil(remaining.size() * 0.5))
+		for _i in range(to_take):
+			var tgt: String = _pick_frontier_province(w_code, l_code)
+			if tgt == "":
+				break
+			# não deixa o perdedor sem NENHUMA província (a menos que já reste 1)
+			if provinces_of.get(l_code, []).size() <= 1:
+				break
+			if transfer_province(tgt, w_code, "espólio de guerra"):
+				provs_taken += 1
 	var spoils_txt: String = "Reparações: $%dB" % int(reparacao)
+	if provs_taken > 0:
+		spoils_txt += " • %d província(s) anexada(s)" % provs_taken
 	if best_res != "":
 		spoils_txt += " • %s +%d" % [best_res.capitalize(), int(take)]
 	var involves_p: bool = player_nation != null and (w_code == player_nation.codigo_iso or l_code == player_nation.codigo_iso)

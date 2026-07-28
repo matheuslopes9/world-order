@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cprovconqtest01"]
+
+[ext_resource type="Script" path="res://scripts/ProvinceConquestTest.gd" id="1_pct"]
+
+[node name="ProvinceConquestTest" type="Node"]
+script = ExtResource("1_pct")

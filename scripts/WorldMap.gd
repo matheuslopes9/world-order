@@ -187,6 +187,9 @@ func _ready() -> void:
 
 	if GameEngine and GameEngine.has_signal("turn_advanced"):
 		GameEngine.turn_advanced.connect(_on_turn_advanced)
+	# Conquista de território: recolore a província quando muda de dono
+	if GameEngine and GameEngine.has_signal("province_conquered"):
+		GameEngine.province_conquered.connect(_on_province_conquered)
 	# Signal de eventos históricos com decisão (FASE 4)
 	if GameEngine and GameEngine.timeline and GameEngine.timeline.has_signal("historic_event_decision"):
 		GameEngine.timeline.historic_event_decision.connect(_open_historic_decision_modal)
@@ -1878,7 +1881,7 @@ func _ensure_provinces_loaded() -> void:
 	var list: Array = data.get("provinces", [])
 	provinces_root = Node2D.new()
 	provinces_root.name = "Provinces"
-	provinces_root.z_index = 3   # acima dos países (base), abaixo de recursos/markers
+	provinces_root.z_index = 6   # acima do satélite/países/moldura, abaixo de markers (só sobe quando ligado)
 	provinces_root.visible = false
 	add_child(provinces_root)
 	var headless: bool = DisplayServer.get_name() == "headless"
@@ -1901,8 +1904,7 @@ func _ensure_provinces_loaded() -> void:
 		var col: Color = _province_color(owner_iso)
 		var poly := Polygon2D.new()
 		poly.polygon = ring
-		poly.color = Color.WHITE
-		poly.self_modulate = col
+		poly.color = col
 		provinces_root.add_child(poly)
 		# contorno interno fino (fronteira de província)
 		var ring_closed := ring
@@ -1922,10 +1924,12 @@ func _ensure_provinces_loaded() -> void:
 func _province_color(owner_iso: String) -> Color:
 	if owner_iso == "":
 		return COUNTRY_FILL
+	# Cor VÍVIDA e opaca por dono — saturação e valor altos pra contrastar com o
+	# satélite brilhante por baixo (senão a cor "lava" e só o contorno aparece).
 	var h: float = float(abs(owner_iso.hash()) % 360) / 360.0
-	var s: float = 0.45 + float(abs((owner_iso + "s").hash()) % 30) / 100.0
-	var v: float = 0.72 + float(abs((owner_iso + "v").hash()) % 22) / 100.0
-	return Color.from_hsv(h, s, v, 1.0)
+	var s: float = 0.70 + float(abs((owner_iso + "s").hash()) % 25) / 100.0   # 0.70-0.95
+	var v: float = 0.82 + float(abs((owner_iso + "v").hash()) % 15) / 100.0   # 0.82-0.97
+	return Color.from_hsv(h, s, v, 0.92)
 
 # Liga/desliga a camada de províncias. Recolore/repinta os países por baixo
 # ficam ocultos quando províncias estão visíveis (a camada as cobre).
@@ -1945,7 +1949,7 @@ func set_provinces_visible(on: bool) -> void:
 		countries_root.modulate = Color(1, 1, 1, 0.15) if on else Color(1, 1, 1, 1)
 	_log_ticker("🗺 MAPA", "Províncias %s" % ("ATIVADAS" if on else "desativadas"), Color(0.7, 0.85, 1))
 
-# Repinta a província (chamado quando o dono muda — blocos futuros de conquista).
+# Repinta a província (chamado quando o dono muda — conquista de território).
 func repaint_province(prov_id: String) -> void:
 	if not _province_nodes.has(prov_id):
 		return
@@ -1956,7 +1960,27 @@ func repaint_province(prov_id: String) -> void:
 		new_owner = String(GameEngine.province_owner(prov_id))
 		entry["owner_iso"] = new_owner
 	var poly: Polygon2D = entry["poly"]
-	poly.self_modulate = _province_color(new_owner)
+	poly.color = _province_color(new_owner)
+
+# Sinal do motor: uma província mudou de dono (guerra/diplomacia/espionagem).
+# Recolore no mapa (se a camada já foi carregada) e loga o drama no ticker.
+func _on_province_conquered(prov_id: String, _old_owner: String, new_owner: String) -> void:
+	if _province_nodes.has(prov_id):
+		var entry: Dictionary = _province_nodes[prov_id]
+		entry["owner_iso"] = new_owner
+		var poly: Polygon2D = entry["poly"]
+		if is_instance_valid(poly):
+			poly.color = _province_color(new_owner)
+	# Notícia: só destaca quando envolve o jogador (evita spam de guerras alheias)
+	var pc: String = GameEngine.player_nation.codigo_iso if GameEngine.player_nation else ""
+	if new_owner == pc or _old_owner == pc:
+		var pnome: String = String(GameEngine.provinces.get(prov_id, {}).get("nome", prov_id))
+		var ganhou: bool = new_owner == pc
+		var inimigo_nome: String = String(GameEngine.nations[new_owner].nome) if GameEngine.nations.has(new_owner) else new_owner
+		_log_ticker(
+			"🗺 TERRITÓRIO" if ganhou else "⚠ TERRITÓRIO PERDIDO",
+			("Você conquistou %s!" % pnome) if ganhou else ("%s tomou %s de você." % [inimigo_nome, pnome]),
+			Color(0.4, 0.9, 0.5) if ganhou else Color(0.95, 0.5, 0.4))
 
 # ─────────────────────────────────────────────────────────────────
 # CÂMERA

@@ -75,9 +75,18 @@ func _ready() -> void:
 			for c in wm.modal_layer.get_children():
 				c.queue_free()
 		await get_tree().process_frame
-		wm.set_provinces_visible(true)
-		await get_tree().create_timer(0.6).timeout
+		await wm.set_provinces_visible(true)   # aguarda o lazy load terminar
+		await get_tree().create_timer(0.3).timeout
 		await _shot("mapa_provincias")
+		# CONQUISTA (Bloco 2): o Brasil anexa metade das províncias da Argentina
+		# — o mapa recolore ao vivo (as províncias viram a cor do Brasil).
+		if GameEngine.provinces_of.has("AR"):
+			var ar_provs: Array = GameEngine.provinces_of.get("AR", []).duplicate()
+			var take: int = int(ar_provs.size() / 2)
+			for i in range(take):
+				GameEngine.transfer_province(ar_provs[i], "BR", "demo")
+			await get_tree().create_timer(0.6).timeout
+			await _shot("mapa_conquista")
 		wm.set_provinces_visible(false)
 		await get_tree().process_frame
 
