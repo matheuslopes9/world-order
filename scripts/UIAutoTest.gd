@@ -13,7 +13,7 @@ var notes: Array = []
 # Protege os arquivos REAIS do usuário: o teste salva/joga por cima e
 # restaura no final (antes ele sobrescrevia o save real com a partida de teste!)
 var _backups: Dictionary = {}
-const PROTECTED := ["user://world_order_save.json", "user://achievements.json", "user://settings.cfg"]
+const PROTECTED := ["user://nations_new_dawn_save.json", "user://achievements.json", "user://settings.cfg"]
 
 func _backup_user_files() -> void:
 	for path in PROTECTED:

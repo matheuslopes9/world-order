@@ -3,7 +3,25 @@ extends RefCounted
 ## Sistema de save/load via JSON local.
 ## Salva nações + estado do jogo + tratados + log de espionagem.
 
-const SAVE_PATH := "user://world_order_save.json"
+const SAVE_PATH := "user://nations_new_dawn_save.json"
+const LEGACY_SAVE_PATH := "user://world_order_save.json"  # nome antigo — migrado 1×
+
+# Migra o save do nome antigo ("World Order") para o novo, se existir e o novo
+# ainda não. Chamado no boot/load — preserva o progresso de quem testou antes.
+static func _migrate_legacy_save() -> void:
+	if FileAccess.file_exists(SAVE_PATH):
+		return
+	if not FileAccess.file_exists(LEGACY_SAVE_PATH):
+		return
+	var fr := FileAccess.open(LEGACY_SAVE_PATH, FileAccess.READ)
+	if fr == null: return
+	var content := fr.get_as_text()
+	fr.close()
+	var fw := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if fw != null:
+		fw.store_string(content)
+		fw.close()
+		print("[SAVE] Save antigo migrado: %s → %s" % [LEGACY_SAVE_PATH, SAVE_PATH])
 
 static func save_game(engine) -> bool:
 	var data := {
@@ -54,6 +72,7 @@ static func save_game(engine) -> bool:
 	return true
 
 static func load_game(engine) -> bool:
+	_migrate_legacy_save()
 	if not FileAccess.file_exists(SAVE_PATH):
 		return false
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
@@ -153,6 +172,7 @@ static func _backup_corrupt_save(raw_content: String, reason: String) -> void:
 		print("[SAVE] Backup do save corrupto: %s" % backup_path)
 
 static func has_save() -> bool:
+	_migrate_legacy_save()
 	return FileAccess.file_exists(SAVE_PATH)
 
 static func get_save_info() -> Dictionary:
@@ -174,11 +194,14 @@ static func get_save_info() -> Dictionary:
 	}
 
 static func delete_save() -> bool:
-	if not has_save(): return false
 	var dir := DirAccess.open("user://")
 	if dir == null: return false
-	dir.remove("world_order_save.json")
-	return true
+	var removed := false
+	if FileAccess.file_exists(SAVE_PATH):
+		dir.remove("nations_new_dawn_save.json"); removed = true
+	if FileAccess.file_exists(LEGACY_SAVE_PATH):
+		dir.remove("world_order_save.json"); removed = true
+	return removed
 
 # ─────────────────────────────────────────────────────────────────
 # SERIALIZAÇÃO INTERNA

@@ -3,7 +3,7 @@ extends Node
 ## DECISÕES modais o jogador veria — mede se o "deserto do meio do século" acabou.
 ## Roda: Godot_console.exe --headless --path . res://scenes/EventDensityTest.tscn
 
-const SAVE_PATH := "user://world_order_save.json"
+const SAVE_PATH := "user://nations_new_dawn_save.json"
 var _save_backup := ""
 var _had_save := false
 

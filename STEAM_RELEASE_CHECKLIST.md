@@ -1,6 +1,6 @@
-# 🎮 WORLD ORDER — Checklist Steam Release
+# 🎮 NATIONS: NEW DAWN — Checklist Steam Release
 
-Documento de auditoria pra preparar lançamento na Steam. Atualizado em 2026-04.
+Documento de auditoria pra preparar lançamento na Steam. Atualizado em 2026-07.
 
 ## Status atual: ~60% pronto pra Steam Direct
 
@@ -40,6 +40,22 @@ Resoluções **estritas** segundo docs Steam (atualização 2024):
 **Total:** 12 assets gráficos novos a produzir + screenshots in-game.
 
 ## 3. Requisitos técnicos do build
+
+### ⚠ EXCLUIR CENAS DE QA DO EXPORT (obrigatório antes do build final)
+
+O jogo tem **14 cenas de teste/dev** que NÃO devem ir no build do jogador. No
+Godot: `Project → Export → [preset] → Resources → Exclude`, adicione o filtro
+`res://scenes/*Test*.tscn, res://scenes/*Sim*.tscn` ou exclua individualmente.
+Os scripts correspondentes (`scripts/*Test.gd`, etc.) saem junto se não referenciados.
+
+Cenas a excluir (só o jogador não deve ter; o dev continua rodando por CLI):
+- `SystemsCheck.tscn` · `GameplayTest.tscn` · `ProvinceConquestTest.tscn`
+- `EventDensityTest.tscn` · `WorldDramaTest.tscn` · `UIAutoTest.tscn` · `TimelineTest.tscn`
+- `MegaSim.tscn` · `BalanceSim.tscn` · `MassivePlaytest.tscn` · `PlaytestSim.tscn`
+- `ScreenTour.tscn` · `PortraitTour.tscn` · `PanelShot.tscn`
+
+Confirmar que a **cena principal** do export é `res://scenes/MainMenu.tscn`
+(Project → Run → Main Scene), NÃO um harness.
 
 ### Sistema operacional
 - [ ] Windows 10/11 64-bit (build atual ✓)

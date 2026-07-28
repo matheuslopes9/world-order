@@ -2,7 +2,7 @@ extends Node
 ## Teste headless dos Blocos 2+3: TERRITÓRIO muda de dono na guerra E persiste
 ## no save/load. Roda: Godot_console.exe --headless --path . res://scenes/ProvinceConquestTest.tscn
 
-const SAVE_PATH := "user://world_order_save.json"
+const SAVE_PATH := "user://nations_new_dawn_save.json"
 var _save_backup: String = ""
 var _had_save: bool = false
 

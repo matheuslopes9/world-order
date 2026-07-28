@@ -22,7 +22,7 @@ var ns_dict: Dictionary = {}
 var results: Array = []
 var anomalies: Array = []
 var _backups: Dictionary = {}
-const PROTECTED := ["user://achievements.json", "user://world_order_save.json", "user://meta_progression.json"]
+const PROTECTED := ["user://achievements.json", "user://nations_new_dawn_save.json", "user://meta_progression.json"]
 
 # Estado da run corrente (preenchido por signals)
 var _endgame_result: Dictionary = {}

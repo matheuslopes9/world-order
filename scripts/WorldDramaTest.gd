@@ -3,7 +3,7 @@ extends Node
 ## eventos-mundo (coalizão, novo rival, golpe, guerra entre potências) enfileiram
 ## drama para a UI destacar. Roda: --headless res://scenes/WorldDramaTest.tscn
 
-const SAVE_PATH := "user://world_order_save.json"
+const SAVE_PATH := "user://nations_new_dawn_save.json"
 var _save_backup := ""
 var _had_save := false
 

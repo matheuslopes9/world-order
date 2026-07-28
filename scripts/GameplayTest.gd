@@ -18,7 +18,7 @@ var notes: Array = []
 var _timings: Array = []  # {label, ms}
 
 var _backups: Dictionary = {}
-const PROTECTED := ["user://world_order_save.json", "user://achievements.json", "user://settings.cfg"]
+const PROTECTED := ["user://nations_new_dawn_save.json", "user://achievements.json", "user://settings.cfg"]
 
 # ─────────────────────────────────────────────────────────────────
 
@@ -545,7 +545,7 @@ func _phase_options_save_news() -> void:
 	if save_btn:
 		await _press(save_btn, "salvar via opções")
 		await get_tree().process_frame
-		_test("Save criado em disco", FileAccess.file_exists("user://world_order_save.json"))
+		_test("Save criado em disco", FileAccess.file_exists("user://nations_new_dawn_save.json"))
 	while not wm._modal_stack.is_empty():
 		wm._close_top_modal()
 		await get_tree().process_frame

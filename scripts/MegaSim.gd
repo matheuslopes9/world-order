@@ -28,7 +28,7 @@ const END_YEAR := 2100
 const MAX_TURNS := 1320   # 1200 (100 anos × 12 meses) + margem
 
 var _backups: Dictionary = {}
-const PROTECTED := ["user://achievements.json", "user://world_order_save.json", "user://meta_progression.json"]
+const PROTECTED := ["user://achievements.json", "user://nations_new_dawn_save.json", "user://meta_progression.json"]
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():

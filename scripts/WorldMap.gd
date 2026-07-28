@@ -4645,7 +4645,7 @@ func _on_sanctions_pressed() -> void:
 	var t = GameEngine.nations[preview_code]
 	_show_confirmation_modal(
 		"🚫 IMPOR SANÇÕES",
-		"Impor sanções contra %s?\n\nCusto: $%dB + 1 ação. Aplica -1.5%% PIB/turno no alvo por %d turnos. Relações caem -30. Bloqueia comércio bilateral." % [t.nome, GameEngine.SANCTION_COST, GameEngine.SANCTION_DURATION],
+		"Impor sanções contra %s?\n\nCusto: $%dB + 1 ação. Aplica -0.5%% PIB/mês no alvo por %d meses. Relações caem -30. Bloqueia comércio bilateral." % [t.nome, GameEngine.SANCTION_COST, GameEngine.SANCTION_DURATION],
 		func():
 			var res: Dictionary = GameEngine.player_impose_sanctions(preview_code)
 			if res.get("ok", false):

@@ -8,7 +8,7 @@ var wm: Node = null
 var shot_idx: int = 0
 
 var _backups: Dictionary = {}
-const PROTECTED := ["user://world_order_save.json", "user://achievements.json", "user://settings.cfg"]
+const PROTECTED := ["user://nations_new_dawn_save.json", "user://achievements.json", "user://settings.cfg"]
 
 func _ready() -> void:
 	_backup_user_files()

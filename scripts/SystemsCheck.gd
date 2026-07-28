@@ -14,7 +14,7 @@ var fails: int = 0
 var checks: int = 0
 var _backups: Dictionary = {}  # path → bytes (ou null se não existia)
 
-const PROTECTED := ["user://world_order_save.json", "user://achievements.json"]
+const PROTECTED := ["user://nations_new_dawn_save.json", "user://achievements.json"]
 
 func _ready() -> void:
 	await get_tree().process_frame
