@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cevdensitytest1"]
+
+[ext_resource type="Script" path="res://scripts/EventDensityTest.gd" id="1_edt"]
+
+[node name="EventDensityTest" type="Node"]
+script = ExtResource("1_edt")
