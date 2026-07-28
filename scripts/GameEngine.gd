@@ -2298,6 +2298,7 @@ func _load_provinces() -> void:
 			"pib_frac": float(pr.get("pib_frac", 0.0)),
 			"is_capital": bool(pr.get("is_capital", false)),
 			"nome": String(pr.get("nome", pid)),
+			"unrest": 0.0,   # 0-100; espionagem sobe; ≥100 = secessão (Bloco 5)
 		}
 		if not provinces_of.has(owner):
 			provinces_of[owner] = []
@@ -2839,6 +2840,63 @@ func player_buy_province(prov_id: String, oferta: float) -> Dictionary:
 		owner.relacoes[n.codigo_iso] = clamp(float(owner.relacoes.get(n.codigo_iso, 0)) + 5, -100, 100)
 		return {"ok": true, "msg": "%s vendeu %s por $%dB!" % [owner.nome, pnome, int(oferta)], "aceito": true}
 	return {"ok": true, "msg": "%s recusou sua oferta por %s." % [owner.nome, pnome], "aceito": false}
+
+# ─────────────────────────────────────────────────────────────────
+# ESPIONAGEM TERRITORIAL (Bloco 5) — conquista pela SUBVERSÃO.
+# Fomentar secessão sobe o unrest de uma província; ao cruzar 100 ela RACHA:
+# vai para você (se fizer fronteira / for seu core histórico) ou vira independente.
+# 3ª via de conquista, ao lado de guerra e diplomacia.
+# ─────────────────────────────────────────────────────────────────
+const SECESSION_COST: float = 45.0
+const SECESSION_THRESHOLD: float = 100.0
+
+func player_incite_secession(prov_id: String) -> Dictionary:
+	var n = player_nation
+	if n == null or not provinces.has(prov_id):
+		return {"ok": false, "reason": "Alvo inválido"}
+	var p: Dictionary = provinces[prov_id]
+	var owner_iso: String = String(p.get("owner_iso", ""))
+	if owner_iso == n.codigo_iso:
+		return {"ok": false, "reason": "Não se fomenta secessão no próprio território"}
+	if n.tesouro < SECESSION_COST:
+		return {"ok": false, "reason": "Custo: $%dB" % int(SECESSION_COST)}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno"}
+	n.tesouro -= SECESSION_COST
+	# Sucesso depende do intel do operador vs. segurança do dono; instabilidade do
+	# dono ajuda (país em crise racha mais fácil). Capital resiste muito mais.
+	var owner = nations.get(owner_iso)
+	var intel_edge: float = clampf((n.intel_score - (owner.seguranca_intel * 5.0 if owner else 0.0)) * 0.02, -0.2, 0.4)
+	var crisis: float = clampf((60.0 - (owner.estabilidade_politica if owner else 60.0)) / 100.0, 0.0, 0.4)
+	var cap_pen: float = -0.5 if bool(p.get("is_capital", false)) else 0.0
+	var gain: float = clampf(20.0 + 60.0 * (0.4 + intel_edge + crisis + cap_pen), 5.0, 55.0)
+	p["unrest"] = clampf(float(p.get("unrest", 0.0)) + gain, 0.0, 150.0)
+	var pnome: String = String(p.get("nome", prov_id))
+	# fricção diplomática (operação subversiva)
+	if owner:
+		owner.relacoes[n.codigo_iso] = clamp(float(owner.relacoes.get(n.codigo_iso, 0)) - 8, -100, 100)
+	if float(p["unrest"]) >= SECESSION_THRESHOLD:
+		# SECESSÃO: a província racha. Vai pro operador se ele faz fronteira com ela
+		# ou é o dono histórico (core); senão vira independente (dono = core_iso).
+		var to_player: bool = _province_adjacent_to(prov_id, n.codigo_iso) or String(p.get("core_iso", "")) == n.codigo_iso
+		var new_owner: String = n.codigo_iso if to_player else String(p.get("core_iso", owner_iso))
+		if new_owner == owner_iso:
+			new_owner = n.codigo_iso  # sem core distinto → vai pro operador
+		p["unrest"] = 0.0
+		transfer_province(prov_id, new_owner, "secessão")
+		var quem: String = "juntou-se a você" if new_owner == n.codigo_iso else "declarou independência"
+		return {"ok": true, "msg": "%s se revoltou e %s!" % [pnome, quem], "secedeu": true}
+	return {"ok": true, "msg": "Agitação em %s sobe para %d%%." % [pnome, int(p["unrest"])], "secedeu": false}
+
+# A província é adjacente a algum território do dado país?
+func _province_adjacent_to(prov_id: String, iso: String) -> bool:
+	var own_set: Dictionary = {}
+	for pp in provinces_of.get(iso, []):
+		own_set[pp] = true
+	for nb in provinces.get(prov_id, {}).get("neighbors", []):
+		if own_set.has(nb):
+			return true
+	return false
 
 # Diplomacia: player propõe tratado
 func player_propose_treaty(target_code: String, treaty_type: String) -> Dictionary:

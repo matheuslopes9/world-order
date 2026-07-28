@@ -381,6 +381,37 @@ func _generate_diplomacy_actions(n) -> Array:
 			"reason": "Investir em educação (+5%% pesquisa)"
 		})
 
+	# CONQUISTA TERRITORIAL PACÍFICA (Bloco 5 — IA territorial): com caixa
+	# sobrando, o bot COMPRA uma província de um vizinho de continente com quem
+	# tem relação ok (evita guerra). Expande sem sangue — o mundo fica dinâmico.
+	if _engine.has_method("player_buy_province") and tesouro >= 300 and not _engine.provinces_of.is_empty():
+		var best_pid: String = ""
+		var best_prov_score: float = 0.0
+		for code in _engine.nations:
+			if code == p_code or code in n.em_guerra:
+				continue
+			var other = _engine.nations[code]
+			if other.continente != n.continente:
+				continue
+			var rel3: float = float(n.relacoes.get(code, 0))
+			if rel3 < -20.0:  # relação muito ruim → não vende
+				continue
+			for pid in _engine.provinces_of.get(code, []):
+				var pinf: Dictionary = _engine.provinces.get(pid, {})
+				if bool(pinf.get("is_capital", false)):
+					continue  # capital não se compra
+				var ch: float = _engine._cession_accept_chance(pid, p_code, tesouro * 0.15)
+				var sc: float = ch * 100.0 + rel3 * 0.3
+				if sc > best_prov_score and ch > 0.4:
+					best_prov_score = sc
+					best_pid = pid
+		if best_pid != "":
+			out.append({
+				"type": "buy_province", "prov_id": best_pid, "oferta": tesouro * 0.15,
+				"score": 26.0 + minf(best_prov_score * 0.15, 20.0), "category": "diplomacy",
+				"reason": "Comprar província (expansão pacífica)"
+			})
+
 	return out
 
 func _generate_military_actions(n) -> Array:
@@ -558,6 +589,12 @@ func _execute_action(action: Dictionary) -> bool:
 			var res: Dictionary = _engine.player_open_embassy(String(action.get("target", "")))
 			if not bool(res.get("ok", false)):
 				_think("  ✗ Embaixada falhou: %s" % String(res.get("reason", "")))
+				return false
+			return true
+		"buy_province":
+			var bres: Dictionary = _engine.player_buy_province(String(action.get("prov_id", "")), float(action.get("oferta", 0.0)))
+			if not bool(bres.get("ok", false)):
+				_think("  ✗ Compra de província falhou: %s" % String(bres.get("reason", "")))
 				return false
 			return true
 	return false

@@ -102,6 +102,33 @@ func _ready() -> void:
 			if rbuy.get("aceito", false): bought = true
 		_t.call("player_buy_province conquista com oferta alta", bought)
 
+	# 3c. ESPIONAGEM/SECESSÃO (Bloco 5): fomentar sobe unrest; ≥100 racha.
+	E.player_nation = E.nations["BR"]
+	var ar_now: Array = E.provinces_of.get("AR", [])
+	if not ar_now.is_empty():
+		# pega província não-capital da AR
+		var sec_pid: String = ""
+		for pp in ar_now:
+			if not bool(E.provinces.get(pp, {}).get("is_capital", false)):
+				sec_pid = pp; break
+		if sec_pid != "":
+			E.nations["BR"].intel_score = 200.0   # operador competente
+			E.provinces[sec_pid]["unrest"] = 0.0
+			var unrest0: float = float(E.provinces[sec_pid].get("unrest", 0.0))
+			E.nations["BR"].tesouro = 99999.0
+			E.player_actions_remaining = 99
+			E.player_incite_secession(sec_pid)
+			var unrest1: float = float(E.provinces[sec_pid].get("unrest", 0.0))
+			_t.call("fomentar secessão sobe o unrest (%.0f→%.0f)" % [unrest0, unrest1], unrest1 > unrest0)
+			# força a secessão: unrest alto + fomenta de novo
+			E.provinces[sec_pid]["unrest"] = 80.0
+			var owner_before: String = E.province_owner(sec_pid)
+			E.nations["BR"].tesouro = 99999.0
+			E.player_actions_remaining = 99
+			var rsec: Dictionary = E.player_incite_secession(sec_pid)
+			var owner_after: String = E.province_owner(sec_pid)
+			_t.call("secessão transfere a província (%s→%s)" % [owner_before, owner_after], owner_after != owner_before or rsec.get("secedeu", false))
+
 	# 4. SAVE/LOAD do território (Bloco 3): salva com território conquistado,
 	# zera o estado, carrega, e confirma que as províncias voltam ao dono certo.
 	var SaveSys = load("res://scripts/SaveSystem.gd")

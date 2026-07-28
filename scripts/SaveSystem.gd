@@ -195,8 +195,10 @@ static func _serialize_provinces(engine) -> Dictionary:
 		var p: Dictionary = engine.provinces[pid]
 		var owner: String = String(p.get("owner_iso", ""))
 		var core: String = String(p.get("core_iso", owner))
-		if owner != core:  # só o que foi conquistado
-			out[pid] = owner
+		var unrest: float = float(p.get("unrest", 0.0))
+		# salva se conquistada OU com agitação acumulada (secessão em curso)
+		if owner != core or unrest > 0.0:
+			out[pid] = {"o": owner, "u": unrest}
 	return out
 
 # Restaura o dono das províncias conquistadas. Migração: save antigo sem esse
@@ -207,12 +209,16 @@ static func _deserialize_provinces(engine, src: Dictionary) -> void:
 	for pid in src:
 		if not engine.provinces.has(pid):
 			continue
-		var new_owner: String = String(src[pid])
-		if not engine.nations.has(new_owner):
+		var entry = src[pid]
+		# retrocompat: formato antigo era só a string do dono; novo é {o, u}
+		var new_owner: String = String(entry.get("o", "")) if entry is Dictionary else String(entry)
+		var unrest: float = float(entry.get("u", 0.0)) if entry is Dictionary else 0.0
+		var p: Dictionary = engine.provinces[pid]
+		p["unrest"] = unrest
+		if new_owner == "" or not engine.nations.has(new_owner):
 			continue
 		# usa a porta oficial pra manter provinces_of consistente (sem mover
 		# pop/PIB de novo — isso já está refletido no save das nações)
-		var p: Dictionary = engine.provinces[pid]
 		var old_owner: String = String(p.get("owner_iso", ""))
 		if old_owner == new_owner:
 			continue

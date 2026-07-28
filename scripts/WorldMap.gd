@@ -4954,6 +4954,17 @@ func _show_territory_picker_modal(target_code: String) -> void:
 			_log_ticker("🗺 TERRITÓRIO", String(res.get("msg", res.get("reason", ""))), Color(0.5, 0.85, 0.6))
 			modal.queue_free())
 		btns.add_child(b_buy)
+		# 3ª via — ESPIONAGEM/SECESSÃO: sobe o unrest; ≥100 a província racha.
+		var unrest_now: float = float(pinfo.get("unrest", 0.0))
+		var b_sec := Button.new()
+		b_sec.text = "💥 FOMENTAR SECESSÃO — agitação %d%% ($%dB)" % [int(unrest_now), int(GameEngine.SECESSION_COST)]
+		b_sec.custom_minimum_size = Vector2(0, 30)
+		b_sec.add_theme_font_size_override("font_size", 11)
+		b_sec.pressed.connect(func():
+			var res: Dictionary = GameEngine.player_incite_secession(pid)
+			_log_ticker("💥 SUBVERSÃO", String(res.get("msg", res.get("reason", ""))), Color(0.9, 0.45, 0.75))
+			modal.queue_free())
+		rv.add_child(b_sec)
 		v.add_child(row)
 	v.add_child(HSeparator.new())
 	var btn_cancel2 := Button.new()
