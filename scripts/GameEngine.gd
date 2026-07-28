@@ -810,6 +810,13 @@ func generate_briefing(n) -> Dictionary:
 		steps.append("🎓 Pense no futuro: painel Educação → a pesquisa científica destrava vantagens permanentes.")
 	if steps.size() < 3:
 		steps.append("🏭 Agregue valor: painel Economia → Upgrade Industrial eleva seu ECS e faz cada exportação render mais.")
+	# Passo TERRITORIAL: nação com força militar decente é candidata natural a
+	# expandir. Apresenta as 3 vias de conquista (aperte P pra ver o território).
+	if steps.size() < 3:
+		if n.get_military_power() >= _world_max_mil * 0.25:
+			steps.append("🗺 Expanda o território: aperte P para ver as províncias. Você pode conquistá-las por guerra, comprá-las ou fomentar secessão (clique num vizinho).")
+		else:
+			steps.append("🗺 Conheça o mapa: aperte P para ver as províncias. Território muda de dono por guerra, diplomacia ou espionagem — o caminho da expansão.")
 	steps = steps.slice(0, 3)
 
 	return {

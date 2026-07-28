@@ -315,10 +315,19 @@ const LOAD_TIPS := [
 	"Se você dominar demais, o mundo forma uma coalizão de contenção contra você.",
 	"Hegemonia exige PIB de 40% ou mais do líder mundial por 4 anos seguidos — após 2025.",
 	"Sua nemesis te provoca em ciclos. No Brutal, a cada 8 meses.",
+	"Aperte P (ou o botão 🗺 na barra de cima) para ver as PROVÍNCIAS de cada país no mapa.",
+	"Vencer uma guerra CONQUISTA território: a fronteira anda e a província vira sua cor.",
+	"No War Room (painel Militar) você pilota a guerra: Ofensiva, Cerco ou Fortificar.",
+	"Território muda de dono por 3 vias: guerra, diplomacia (exigir/comprar) e espionagem (secessão).",
+	"Clique num país → DIPLOMACIA TERRITORIAL para exigir, comprar ou fomentar a secessão de uma província.",
+	"Fomentar secessão sobe a agitação de uma província até ela se revoltar e rachar.",
+	"Nenhuma nação some do mapa: a capital e a última província nunca caem de graça.",
+	"Conquistar território soma população e PIB — mas provoca vizinhos e pode acender a coalizão.",
 	"Declare guerra com um OBJETIVO: reparações, recursos ou mudança de regime.",
 	"Vitória com objetivo de regime impõe seu sistema político ao derrotado.",
 	"Guerras drenam 12% de eficiência por frente. Três frentes = metade das ações.",
 	"Guerra longa gera crise humanitária — e o mundo lembra.",
+	"O PLANTÃO GEOPOLÍTICO avisa quando o mundo se mexe: coalizão, novo rival, golpe ou guerra entre potências.",
 	"DEFCON 1 significa guerra nuclear iminente. Recue ou aperte o botão.",
 	"Espionagem revela segredos; contra-inteligência protege os seus.",
 	"Intel score alto abre operações avançadas: sabotagem, roubo de tech, propaganda.",
@@ -2321,13 +2330,15 @@ func _show_help_center() -> void:
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.add_child(_help_tab_como_jogar())
+	tabs.add_child(_help_tab_territorio())
 	tabs.add_child(_help_tab_parametros())
 	tabs.add_child(_help_tab_vitoria())
 	tabs.add_child(_help_tab_glossario())
 	tabs.set_tab_title(0, "🎮 Como jogar")
-	tabs.set_tab_title(1, "📊 Parâmetros")
-	tabs.set_tab_title(2, "🏆 Vitória & Derrota")
-	tabs.set_tab_title(3, "📖 Glossário")
+	tabs.set_tab_title(1, "🗺 Território")
+	tabs.set_tab_title(2, "📊 Parâmetros")
+	tabs.set_tab_title(3, "🏆 Vitória & Derrota")
+	tabs.set_tab_title(4, "📖 Glossário")
 	_open_modal(tabs, "❓ CENTRAL DE AJUDA", Vector2(640, 600))
 
 # Container de aba de ajuda: ScrollContainer > VBox (retorna o VBox).
@@ -2368,13 +2379,30 @@ func _help_tab_como_jogar() -> ScrollContainer:
 	_help_block(v, "🌍 O objetivo",
 		"Você governa uma das 195 nações reais, de 2000 a 2100 (cada turno = 1 mês). A meta é levar seu país à HEGEMONIA mundial — ou, sendo realista com nações difíceis, simplesmente SOBREVIVER e prosperar. Não há um único caminho certo: economia, guerra, diplomacia e tecnologia são rotas válidas.")
 	_help_block(v, "🎯 O ciclo de cada turno",
-		"1. Olhe seus indicadores (barra de baixo) e as notícias (rodapé).\n2. Tome até 3 ações nos painéis dos ministérios (barra de baixo).\n3. Clique num país no mapa para diplomacia (embaixada, tratado, sanção, guerra).\n4. Aperte ▶ PRÓXIMO TURNO (ou ESPAÇO) para avançar o mês.\nO mundo então reage: as outras 194 nações jogam, eventos históricos disparam.")
+		"1. Olhe seus indicadores (barra de baixo) e as notícias (rodapé).\n2. Tome até 3 ações nos painéis dos ministérios (barra de baixo).\n3. Clique num país no mapa para diplomacia, guerra ou conquista de território.\n4. Aperte ▶ PRÓXIMO TURNO (ou ESPAÇO) para avançar o mês.\nO mundo então reage: as outras 194 nações jogam, eventos históricos e crises disparam — fique de olho no PLANTÃO GEOPOLÍTICO, que avisa quando o mundo se mexe contra você.")
 	_help_block(v, "🏛 Os ministérios",
 		"Cada painel na barra inferior é um ministério com ações próprias: Governo (ordem, apoio), Fazenda (dinheiro, impostos, empréstimos), Justiça & Segurança (corrupção, crime), Saúde e Educação (bem-estar e pesquisa), Exterior (diplomacia). O ministro de cada pasta tem competência que afeta a força das ações.")
+	_help_block(v, "🗺 O mapa e as províncias",
+		"Cada país é dividido em PROVÍNCIAS. Aperte a tecla P (ou o botão 🗺 na barra de cima) para ligar essa visão e ver as subdivisões. É por elas que o território muda de mãos: conquistar move a fronteira e recolore o mapa. Veja a aba TERRITÓRIO para as 3 formas de conquistar.", Color(0.55, 0.85, 0.62))
 	_help_block(v, "🤝 Diplomacia & blocos",
-		"Nações de ideologia parecida se aproximam e formam BLOCOS (como OTAN, BRICS). Aderir a um bloco onde você é bem-quisto traz aliados e comércio. Mas cuidado: se você virar o país mais poderoso, o mundo pode se unir contra você numa coalizão de contenção.")
+		"Nações de ideologia parecida se aproximam e formam BLOCOS (como OTAN, BRICS). Aderir a um bloco onde você é bem-quisto traz aliados e comércio. Mas cuidado: se você virar o país mais poderoso, o mundo pode se unir contra você numa COALIZÃO DE CONTENÇÃO — e você será avisado disso na hora.")
 	_help_block(v, "💡 Dica de ouro",
-		"Não tente fazer tudo de uma vez. Estabilize o essencial primeiro (caixa positivo, apoio e estabilidade acima de 50%), depois construa vantagem de longo prazo (tecnologia, economia complexa, alianças). O CONSELHEIRO vai te avisar quando algo entrar em zona de perigo.")
+		"Não tente fazer tudo de uma vez. Estabilize o essencial primeiro (caixa positivo, apoio e estabilidade acima de 50%), depois construa vantagem de longo prazo (tecnologia, economia complexa, alianças, território). O CONSELHEIRO avisa quando algo entra em zona de perigo.")
+	return sc
+
+func _help_tab_territorio() -> ScrollContainer:
+	var sc := _help_tab("Território")
+	var v: VBoxContainer = sc.get_node("V")
+	_help_block(v, "🗺 Território muda de dono",
+		"Cada nação é um conjunto de PROVÍNCIAS. Aperte P (ou o botão 🗺 na barra de cima) para ver as subdivisões no mapa. Ao conquistar território, a fronteira anda de verdade e a província vira a sua cor — na hora. Há TRÊS formas de tomar território, cada uma com um estilo:", Color(0.55, 0.85, 0.62))
+	_help_block(v, "⚔ 1. Guerra",
+		"Declare guerra a um país (clique nele no mapa). Enquanto sua frente lidera o placar (veja o WAR ROOM no painel Militar), a fronteira AVANÇA e você toma províncias fronteiriças, uma a uma. Pilote a guerra com as ações Ofensiva Total, Cerco e Fortificar. A vitória decisiva anexa o resto — mas a capital e a última província do inimigo nunca caem assim: uma nação não some do mapa.")
+	_help_block(v, "🤝 2. Diplomacia",
+		"Sem guerra: clique num país, abra DIPLOMACIA TERRITORIAL e escolha uma província. EXIGIR pressiona pelo seu poder militar (o fraco cede ao forte, mas custa relações). COMPRAR oferece dinheiro (o dono aceita se precisa de caixa ou gosta de você). A capital e a última província nunca são cedidas.")
+	_help_block(v, "💥 3. Espionagem (secessão)",
+		"A via da paciência: no mesmo menu, FOMENTAR SECESSÃO sobe a AGITAÇÃO de uma província. Quando ela passa de 100%, a província se revolta e racha — juntando-se a você (se faz fronteira) ou virando independente. Cuidado: o custo sobe a cada incitação, então não dá pra fatiar uma nação inteira de graça.")
+	_help_block(v, "🛡 O que você NÃO pode fazer",
+		"Nenhuma das 3 vias apaga uma nação do mapa: a capital só cai na vitória decisiva de uma guerra total, e o dono nunca fica sem NENHUMA província. Conquistar território dá população e PIB, mas provoca os vizinhos e pode acender a coalizão de contenção contra você.")
 	return sc
 
 func _help_tab_parametros() -> ScrollContainer:
@@ -2400,7 +2428,7 @@ func _help_tab_vitoria() -> ScrollContainer:
 	var sc := _help_tab("Vitória & Derrota")
 	var v: VBoxContainer = sc.get_node("V")
 	_help_block(v, "⚖ Como o PODER é medido",
-		"Seu poder mundial soma quatro pesos: Economia (40%), Militar (25%), Tecnologia (20%) e Diplomacia (15%). É por isso que uma economia forte pesa mais que um exército enorme — mas os quatro contam.", Color(0.60, 0.80, 1.0))
+		"Seu poder mundial soma quatro pesos: Economia (40%), Militar (25%), Tecnologia (20%) e Diplomacia (15%). É por isso que uma economia forte pesa mais que um exército enorme — mas os quatro contam. CONQUISTAR TERRITÓRIO soma a população e o PIB da província ao seu país, então expandir é um caminho direto para subir no poder — só cuidado com a coalizão de contenção.", Color(0.60, 0.80, 1.0))
 	_help_block(v, "🏆 HEGEMONIA (a grande vitória)",
 		"Ser o nº 1 do ranking mundial por 4 anos seguidos, com o país estável e economia de pelo menos 40% da maior do mundo (a partir de 2025). É o auge — e o mundo vai resistir a você chegar lá.", Color(0.95, 0.82, 0.35))
 	_help_block(v, "🏛 POTÊNCIA DO SÉCULO",
@@ -2420,7 +2448,11 @@ func _help_tab_glossario() -> ScrollContainer:
 		["Tier de dificuldade", "Cada nação nasce com uma dificuldade (Fácil → Quase Impossível) conforme PIB, estabilidade e regime. Nações difíceis ganham um bônus na força das ações para compensar."],
 		["Rating de crédito", "Nota da sua saúde fiscal (AAA = ótimo, D = calote). Quanto pior, mais caros seus empréstimos. Cai com dívida alta e inflação."],
 		["Bloco geopolítico", "Aliança de nações com ideologia parecida (OTAN, BRICS...). Dá defesa coletiva e bônus de comércio entre membros."],
-		["Coalizão de contenção", "Quando uma nação fica poderosa demais, as outras se unem contra ela. É o preço de mirar a hegemonia."],
+		["Coalizão de contenção", "Quando uma nação fica poderosa demais, as outras se unem contra ela. É o preço de mirar a hegemonia — e você é avisado por um PLANTÃO GEOPOLÍTICO quando isso acontece."],
+		["Província", "Subdivisão de um país. Aperte P (ou o botão 🗺) para vê-las no mapa. É a unidade de território que muda de dono na conquista."],
+		["Conquista de território", "Tomar províncias de outra nação por GUERRA (a fronteira anda), DIPLOMACIA (exigir/comprar) ou ESPIONAGEM (fomentar secessão). Ganha população e PIB, mas provoca vizinhos."],
+		["Secessão", "Quando a AGITAÇÃO de uma província passa de 100% (via espionagem), ela se revolta e racha do país — junta-se ao operador ou vira independente."],
+		["Plantão geopolítico", "O alerta destacado (com retrato) que surge quando o mundo se mexe de um jeito que te afeta: coalizão contra você, um novo rival, um golpe numa potência ou guerra entre gigantes."],
 		["Espiral de crise", "Mecanismo em que um problema não resolvido piora sozinho a cada turno, acelerando rumo ao colapso. O antídoto é agir cedo."],
 		["Corrupção", "Percentual do tesouro roubado a cada turno e que afugenta investidores. Combatida no painel Justiça & Segurança."],
 	]

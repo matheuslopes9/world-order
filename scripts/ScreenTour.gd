@@ -129,6 +129,12 @@ func _ready() -> void:
 		wm._show_help_center()
 		await get_tree().create_timer(0.4).timeout
 		await _shot("onboarding_ajuda")
+		# seleciona a nova aba TERRITÓRIO (índice 1) e captura
+		var tc := _find_tabcontainer(wm.modal_layer)
+		if tc != null:
+			tc.current_tab = 1
+			await get_tree().create_timer(0.3).timeout
+			await _shot("ajuda_territorio")
 		while not wm._modal_stack.is_empty():
 			wm._close_top_modal()
 			await get_tree().process_frame
@@ -282,6 +288,16 @@ func _loose() -> Array:
 		if c is ColorRect and c.get_child_count() > 0:
 			out.append(c)
 	return out
+
+func _find_tabcontainer(root: Node) -> TabContainer:
+	if root == null: return null
+	for c in root.get_children():
+		if c is TabContainer:
+			return c
+		var found := _find_tabcontainer(c)
+		if found != null:
+			return found
+	return null
 
 func _mute_event_popups() -> void:
 	for conn in GameEngine.player_event_triggered.get_connections():
