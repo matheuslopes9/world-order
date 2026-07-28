@@ -485,7 +485,10 @@ func _phase_dossier_flows() -> void:
 
 func _phase_map_and_filters() -> void:
 	print("\n[5] MAPA — filtros e câmera")
-	var fbtns := _find_buttons(wm.map_filters)
+	var fbtns_all := _find_buttons(wm.map_filters)
+	# O toggle de PROVÍNCIAS não é um filtro: é uma camada pesada (carga lazy de
+	# ~500 polígonos no 1º clique). Exclui da medição de latência de filtro.
+	var fbtns: Array = fbtns_all.filter(func(b): return not (b as Button).get_meta("provinces_toggle", false))
 	_test("Filtros de mapa: %d botões (≥ 5)" % fbtns.size(), fbtns.size() >= 5)
 	var ok := true
 	for b in fbtns:

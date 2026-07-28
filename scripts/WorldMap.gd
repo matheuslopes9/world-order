@@ -1950,6 +1950,11 @@ func set_provinces_visible(on: bool) -> void:
 	# cor dupla; a moldura/contorno nacional continua legível por cima delas.
 	if countries_root != null:
 		countries_root.modulate = Color(1, 1, 1, 0.15) if on else Color(1, 1, 1, 1)
+	# sincroniza o botão-toggle do MapFilters
+	if map_filters != null:
+		var pb := map_filters.get_node_or_null("ProvincesToggle")
+		if pb is Button:
+			(pb as Button).button_pressed = on
 	_log_ticker("🗺 MAPA", "Províncias %s" % ("ATIVADAS" if on else "desativadas"), Color(0.7, 0.85, 1))
 
 # Repinta a província (chamado quando o dono muda — conquista de território).
@@ -1984,6 +1989,10 @@ func _on_province_conquered(prov_id: String, _old_owner: String, new_owner: Stri
 			"🗺 TERRITÓRIO" if ganhou else "⚠ TERRITÓRIO PERDIDO",
 			("Você conquistou %s!" % pnome) if ganhou else ("%s tomou %s de você." % [inimigo_nome, pnome]),
 			Color(0.4, 0.9, 0.5) if ganhou else Color(0.95, 0.5, 0.4))
+		# Toast destacado — tomar/perder território é um MARCO, merece mais que o
+		# ticker. Sugere ligar a camada de províncias (P) pra ver a fronteira mudar.
+		var toast_txt: String = ("🗺 CONQUISTOU %s! Aperte P para ver no mapa." % pnome) if ganhou else ("⚠ Você PERDEU %s para %s." % [pnome, inimigo_nome])
+		_show_advisor_toast(toast_txt, 2 if ganhou else 3)
 
 # ─────────────────────────────────────────────────────────────────
 # CÂMERA
@@ -4900,7 +4909,7 @@ func _show_territory_picker_modal(target_code: String) -> void:
 	title.add_theme_font_size_override("font_size", 18)
 	v.add_child(title)
 	var hint := Label.new()
-	hint.text = "EXIGIR pressiona pelo seu poder militar (mais forte = mais chance, mas custa relações). COMPRAR oferece $B (o dono aceita se precisa de dinheiro ou gosta de você). A capital quase nunca é cedida."
+	hint.text = "3 vias de conquista: EXIGIR pressiona pelo seu poder militar (custa relações). COMPRAR oferece $B (o dono aceita se precisa de dinheiro). FOMENTAR SECESSÃO sobe a agitação da província até ela se revoltar e rachar. A capital e a última província nunca são cedidas. Aperte P para ver as províncias no mapa."
 	hint.add_theme_color_override("font_color", Color(0.7, 0.78, 0.88))
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -5096,6 +5105,20 @@ func _build_map_filters() -> void:
 		btn.add_theme_stylebox_override("hover", sb_h)
 		btn.pressed.connect(_on_map_filter_pressed.bind(fid))
 		map_filters.add_child(btn)
+	# TOGGLE DE PROVÍNCIAS (grand strategy) — botão à parte (não é filtro; é uma
+	# camada). Dá descoberta visível ao carro-chefe territorial. Atalho: P.
+	var prov_btn := Button.new()
+	prov_btn.toggle_mode = true
+	prov_btn.text = "🗺"
+	prov_btn.custom_minimum_size = Vector2(34, 32)
+	prov_btn.tooltip_text = "Províncias — as subdivisões de cada país. A fronteira muda com guerra, diplomacia e espionagem. (Atalho: P)"
+	prov_btn.add_theme_font_size_override("font_size", 15)
+	prov_btn.focus_mode = Control.FOCUS_NONE
+	prov_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	prov_btn.name = "ProvincesToggle"
+	prov_btn.set_meta("provinces_toggle", true)  # marcador: não é filtro (camada pesada, lazy load)
+	prov_btn.pressed.connect(func(): toggle_provinces())
+	map_filters.add_child(prov_btn)
 	_refresh_filter_label()
 
 func _on_map_filter_pressed(filter_id: String) -> void:

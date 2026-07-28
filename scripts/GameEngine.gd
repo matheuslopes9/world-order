@@ -2341,11 +2341,17 @@ func transfer_province(prov_id: String, new_owner: String, motivo: String = "con
 	return true
 
 # Escolhe a próxima província do PERDEDOR a cair para o VENCEDOR numa guerra:
-# a mais fraca na FRONTEIRA (adjacente a alguma província já do vencedor),
-# capital por último. Devolve "" se não houver alvo (perdedor sem território).
-func _pick_frontier_province(winner_iso: String, loser_iso: String) -> String:
+# a mais fraca na FRONTEIRA (adjacente a alguma província já do vencedor).
+# `protect_last=true` (fronteira que anda mid-war): NUNCA toma a capital nem a
+# última província — a nação não pode ser apagada antes da vitória decisiva.
+# `protect_last=false` (espólio decisivo): pode tomar tudo (o guard do >=1 vive
+# no chamador). Devolve "" se não houver alvo elegível.
+func _pick_frontier_province(winner_iso: String, loser_iso: String, protect_last: bool = false) -> String:
 	var loser_provs: Array = provinces_of.get(loser_iso, [])
 	if loser_provs.is_empty():
+		return ""
+	# mid-war: se só resta 1 província, não toma (a nação sobrevive à guerra)
+	if protect_last and loser_provs.size() <= 1:
 		return ""
 	var winner_set: Dictionary = {}
 	for w in provinces_of.get(winner_iso, []):
@@ -2359,18 +2365,20 @@ func _pick_frontier_province(winner_iso: String, loser_iso: String) -> String:
 				frontier.append(pid)
 				break
 	# se o vencedor ainda não faz fronteira interna (1ª conquista), qualquer
-	# província não-capital serve (represents desembarque/avanço inicial)
+	# província não-capital serve (representa desembarque/avanço inicial)
 	var pool: Array = frontier if not frontier.is_empty() else loser_provs
-	# prioriza não-capital; capital só quando é a última que resta
+	# escolhe a melhor NÃO-capital; a capital só entra se protect_last=false
 	var best: String = ""
-	var best_is_cap: bool = true
 	for pid in pool:
-		var is_cap: bool = bool(provinces.get(pid, {}).get("is_capital", false))
-		if best == "" or (best_is_cap and not is_cap):
+		if bool(provinces.get(pid, {}).get("is_capital", false)):
+			continue  # nunca escolhe capital pela fronteira que anda
+		best = pid
+		break
+	if best == "" and not protect_last:
+		# espólio decisivo pode tomar a capital (é a última que resta)
+		for pid in pool:
 			best = pid
-			best_is_cap = is_cap
-			if not is_cap:
-				break
+			break
 	return best
 
 func _process_war_resolution() -> void:
@@ -2404,7 +2412,9 @@ func _process_war_resolution() -> void:
 				var prev_mag: float = abs(prev_score) if (prev_score > 0.0) == (cur_score > 0.0) else 0.0
 				var step: float = 25.0
 				if floori(mag / step) > floori(prev_mag / step) and mag < WAR_DECISIVE_SCORE:
-					var target: String = _pick_frontier_province(lead.codigo_iso, behind.codigo_iso)
+					# protect_last: a fronteira que anda NUNCA toma a capital nem a
+					# última província — a nação só cai na vitória decisiva.
+					var target: String = _pick_frontier_province(lead.codigo_iso, behind.codigo_iso, true)
 					if target != "":
 						transfer_province(target, lead.codigo_iso, "avanço de guerra")
 			if abs(cur_score) >= WAR_DECISIVE_SCORE:
@@ -2784,14 +2794,19 @@ func _cession_accept_chance(prov_id: String, demander_iso: String, pago: float) 
 	# Relação: aliado cede mais fácil; inimigo, quase nunca.
 	var rel: float = float(owner.relacoes.get(demander_iso, 0))
 	var rel_f: float = clampf((rel + 100.0) / 200.0, 0.0, 1.0) * 0.30   # até +0.30
+	# GUARDAS ABSOLUTOS (anti-exploit): ninguém cede a CAPITAL enquanto tiver outro
+	# território, nem cede a ÚLTIMA província (a nação não desaparece por diplomacia).
+	var owner_count: int = provinces_of.get(owner_iso, []).size()
+	if owner_count <= 1:
+		return 0.0
+	if bool(p.get("is_capital", false)):
+		return 0.0
 	# Dinheiro oferecido vs. valor da província (fração do PIB do dono).
 	var prov_value: float = owner.pib_bilhoes_usd * clampf(float(p.get("pib_frac", 0.05)), 0.0, 1.0)
 	var money_f: float = clampf(pago / maxf(1.0, prov_value * 2.0), 0.0, 0.6)  # pagar 2x o valor → +0.6
-	# Capital quase nunca é cedida.
-	var cap_pen: float = -0.5 if bool(p.get("is_capital", false)) else 0.0
 	# Dono desesperado (tesouro no chão) aceita dinheiro mais fácil.
 	var desp: float = 0.15 if (owner.tesouro < owner.pib_bilhoes_usd * 0.02 and pago > 0.0) else 0.0
-	return clampf(0.05 + fear + rel_f + money_f + cap_pen + desp, 0.0, 0.95)
+	return clampf(0.05 + fear + rel_f + money_f + desp, 0.0, 0.95)
 
 # EXIGIR província (pressão): sem pagar. Aceita → transferência; recusa → tombo
 # de relações (pode virar guerra). Consome 1 ação.
@@ -2858,11 +2873,19 @@ func player_incite_secession(prov_id: String) -> Dictionary:
 	var owner_iso: String = String(p.get("owner_iso", ""))
 	if owner_iso == n.codigo_iso:
 		return {"ok": false, "reason": "Não se fomenta secessão no próprio território"}
-	if n.tesouro < SECESSION_COST:
-		return {"ok": false, "reason": "Custo: $%dB" % int(SECESSION_COST)}
+	# CUSTO ESCALONADO (anti-exploit): sobe com o tamanho/riqueza do alvo e com
+	# quantas províncias você já arrancou dele — subversão em série fica cara,
+	# em vez de fatiar uma nação inteira por $45B fixos.
+	var owner_n = nations.get(owner_iso)
+	var size_mult: float = 1.0 + clampf((owner_n.pib_bilhoes_usd if owner_n else 0.0) / 3000.0, 0.0, 2.0)
+	var serial: int = int(n.get_meta("secessions_vs_" + owner_iso, 0))
+	var serial_mult: float = 1.0 + serial * 0.5
+	var real_cost: float = SECESSION_COST * size_mult * serial_mult
+	if n.tesouro < real_cost:
+		return {"ok": false, "reason": "Custo: $%dB (sobe com o alvo e com incitações repetidas)" % int(real_cost)}
 	if not _consume_action():
 		return {"ok": false, "reason": "Sem ações restantes neste turno"}
-	n.tesouro -= SECESSION_COST
+	n.tesouro -= real_cost
 	# Sucesso depende do intel do operador vs. segurança do dono; instabilidade do
 	# dono ajuda (país em crise racha mais fácil). Capital resiste muito mais.
 	var owner = nations.get(owner_iso)
@@ -2875,7 +2898,13 @@ func player_incite_secession(prov_id: String) -> Dictionary:
 	# fricção diplomática (operação subversiva)
 	if owner:
 		owner.relacoes[n.codigo_iso] = clamp(float(owner.relacoes.get(n.codigo_iso, 0)) - 8, -100, 100)
-	if float(p["unrest"]) >= SECESSION_THRESHOLD:
+	# GUARDAS (anti-exploit, alinhados com a guerra): a capital só racha se for a
+	# ÚNICA província restante do dono; e a secessão nunca deixa o dono com 0
+	# províncias. Sem isso, subversão barata apagava uma nação do mapa.
+	var owner_prov_count: int = provinces_of.get(owner_iso, []).size()
+	var is_cap: bool = bool(p.get("is_capital", false))
+	var blocked_by_guard: bool = (is_cap and owner_prov_count > 1) or (owner_prov_count <= 1)
+	if float(p["unrest"]) >= SECESSION_THRESHOLD and not blocked_by_guard:
 		# SECESSÃO: a província racha. Vai pro operador se ele faz fronteira com ela
 		# ou é o dono histórico (core); senão vira independente (dono = core_iso).
 		var to_player: bool = _province_adjacent_to(prov_id, n.codigo_iso) or String(p.get("core_iso", "")) == n.codigo_iso
@@ -2883,6 +2912,7 @@ func player_incite_secession(prov_id: String) -> Dictionary:
 		if new_owner == owner_iso:
 			new_owner = n.codigo_iso  # sem core distinto → vai pro operador
 		p["unrest"] = 0.0
+		n.set_meta("secessions_vs_" + owner_iso, int(n.get_meta("secessions_vs_" + owner_iso, 0)) + 1)
 		transfer_province(prov_id, new_owner, "secessão")
 		var quem: String = "juntou-se a você" if new_owner == n.codigo_iso else "declarou independência"
 		return {"ok": true, "msg": "%s se revoltou e %s!" % [pnome, quem], "secedeu": true}

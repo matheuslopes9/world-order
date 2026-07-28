@@ -625,6 +625,13 @@ func _add_war_front(enemy_code: String) -> void:
 	scale_lbl.add_theme_color_override("font_color", Color(0.60, 0.64, 0.70))
 	scale_lbl.add_theme_font_size_override("font_size", 9)
 	box.add_child(scale_lbl)
+	# Deixa claro que a guerra CONQUISTA território (a maior consequência nova)
+	var conq_lbl := Label.new()
+	conq_lbl.text = "🗺 Enquanto você lidera, a fronteira avança e você toma províncias do inimigo. A vitória decisiva anexa o resto. (Aperte P para ver no mapa.)"
+	conq_lbl.add_theme_color_override("font_color", Color(0.55, 0.85, 0.62))
+	conq_lbl.add_theme_font_size_override("font_size", 10)
+	conq_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(conq_lbl)
 	# Ações de guerra (empurram o placar) — mesma porta que o BotPlayer usará
 	for aid in GameEngine.WAR_ACTIONS:
 		var meta: Dictionary = GameEngine.WAR_ACTIONS[aid]

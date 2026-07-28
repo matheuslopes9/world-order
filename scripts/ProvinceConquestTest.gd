@@ -70,10 +70,14 @@ func _ready() -> void:
 	# 3b. DIPLOMACIA TERRITORIAL (Bloco 4): exigir e comprar província
 	E.player_nation = E.nations["BR"]
 	E.player_actions_remaining = 99
-	# _cession_accept_chance responde a poder/relação
+	# _cession_accept_chance responde a poder/relação — usa província NÃO-capital
+	# (a capital tem chance 0 por guard, então não serve pra testar a curva)
 	var some_ar: Array = E.provinces_of.get("AR", [])
-	if not some_ar.is_empty():
-		var pid_ar: String = some_ar[0]
+	var pid_ar: String = ""
+	for pp in some_ar:
+		if not bool(E.provinces.get(pp, {}).get("is_capital", false)):
+			pid_ar = pp; break
+	if pid_ar != "":
 		# BR esmagadoramente forte → chance de EXIGIR alta
 		var ch_strong: float = E._cession_accept_chance(pid_ar, "BR", 0.0)
 		ar.militar["poder_militar_global"] = 500.0  # AR fica forte
@@ -128,6 +132,30 @@ func _ready() -> void:
 			var rsec: Dictionary = E.player_incite_secession(sec_pid)
 			var owner_after: String = E.province_owner(sec_pid)
 			_t.call("secessão transfere a província (%s→%s)" % [owner_before, owner_after], owner_after != owner_before or rsec.get("secedeu", false))
+
+	# 3d. GUARDAS ANTI-EXPLOIT (correção pós-revisão): nação nunca é apagada.
+	# Reduz a AR a 1 província e tenta arrancá-la pelas 3 vias — nenhuma deve zerar.
+	var ar_ids: Array = E.provinces_of.get("AR", []).duplicate()
+	if ar_ids.size() > 1:
+		# deixa só a 1ª província com a AR (o resto vai pro BR direto)
+		for i in range(1, ar_ids.size()):
+			E.transfer_province(ar_ids[i], "BR", "setup-guard")
+	var last_ar: String = ""
+	if E.provinces_of.get("AR", []).size() == 1:
+		last_ar = E.provinces_of["AR"][0]
+	if last_ar != "":
+		# via GUERRA (fronteira mid-war com protect_last): não pode tomar a última
+		var picked: String = E._pick_frontier_province("BR", "AR", true)
+		_t.call("fronteira mid-war NÃO toma a última província", picked == "")
+		# via DIPLOMACIA: chance 0 na última província
+		var ch_last: float = E._cession_accept_chance(last_ar, "BR", 999999.0)
+		_t.call("diplomacia NÃO compra a última província (chance %.2f)" % ch_last, ch_last == 0.0)
+		# via SECESSÃO: não seca a última província
+		E.provinces[last_ar]["unrest"] = 95.0
+		E.nations["BR"].tesouro = 9999999.0
+		E.player_actions_remaining = 99
+		E.player_incite_secession(last_ar)
+		_t.call("secessão NÃO zera o território do dono", E.provinces_of.get("AR", []).size() >= 1)
 
 	# 4. SAVE/LOAD do território (Bloco 3): salva com território conquistado,
 	# zera o estado, carrega, e confirma que as províncias voltam ao dono certo.
