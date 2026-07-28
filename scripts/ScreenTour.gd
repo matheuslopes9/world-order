@@ -66,6 +66,26 @@ func _ready() -> void:
 	wm._refresh_top_bar()
 	await _shot("mapa_em_jogo")
 
+	# 4-drama — MEGAFONE: card de drama mundial (coalizão contra você, com retrato)
+	if wm.has_method("_show_world_drama_card") and GameEngine.nations.has("US"):
+		if wm.has_method("_hide_spinner"): wm._hide_spinner()
+		if wm.has_method("_hide_loading_screen"): wm._hide_loading_screen()
+		if wm.modal_layer:
+			for c in wm.modal_layer.get_children():
+				c.queue_free()
+		await get_tree().process_frame
+		wm._show_world_drama_card({
+			"headline": "🌐 O MUNDO SE UNE CONTRA VOCÊ",
+			"body": "As grandes potências formaram uma COALIZÃO DE CONTENÇÃO para barrar sua hegemonia. Liderança: Estados Unidos.",
+			"iso": "US", "role": "presidente", "severity": 3,
+		})
+		await get_tree().create_timer(0.6).timeout
+		await _shot("megafone_drama")
+		for c in wm.get_children():
+			if c is PanelContainer and String(c.name).begins_with("DramaCard"):
+				c.queue_free()
+		await get_tree().process_frame
+
 	# 4a — MAPA DE PROVÍNCIAS (grand strategy): liga a camada e captura
 	if wm.has_method("set_provinces_visible"):
 		if wm.has_method("_hide_spinner"): wm._hide_spinner()

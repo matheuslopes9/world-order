@@ -139,6 +139,18 @@ const TRADE_BASE_VALUE: float = 8.0  # $8B/turno por nível 100 do recurso (esca
 # Helper: adiciona evento ao recent_events E ao news_history persistente com metadados
 # involves: array de códigos ISO de nações envolvidas no evento (vazio = global)
 # region: continente do evento (vazio = sem região específica)
+# Fila de DRAMA MUNDIAL (megafone): eventos de alto impacto que a UI eleva a um
+# toast destacado (com retrato), em vez de deixá-los rolar no ticker passivo.
+# Cada item: {headline, body, iso, role, severity}. Consumida 1×/turno pela UI.
+var pending_drama: Array = []
+
+# Marca um acontecimento como DRAMA — o mundo reagindo de um jeito que o jogador
+# deve SENTIR. iso/role alimentam o retrato; severity 1-3 escala o destaque.
+func _flag_drama(headline: String, body: String, iso: String = "", role: String = "ancora", severity: int = 2) -> void:
+	pending_drama.append({
+		"headline": headline, "body": body, "iso": iso, "role": role, "severity": severity,
+	})
+
 func _log_news(entry: Dictionary, involves: Array = [], region: String = "") -> void:
 	# Mantém o append em recent_events pra compatibilidade com ticker
 	recent_events.append(entry)
@@ -1614,6 +1626,15 @@ func _succeed_leader(n, motivo: String) -> void:
 			"involves_player": false,
 			"color": Color(1, 0.8, 0.3) if motivo != "golpe" else Color(1, 0.4, 0.3),
 		}, [n.codigo_iso], n.continente)
+		# MEGAFONE: golpe numa grande potência OU troca que muda o rumo ideológico do
+		# país é drama geopolítico — mostra o novo líder com rosto.
+		var big_power: bool = n.pib_bilhoes_usd >= _world_max_pib * 0.15
+		if motivo == "golpe" or (mudou_ideo and big_power):
+			var drama_head: String = ("💥 GOLPE EM %s" % n.nome.to_upper()) if motivo == "golpe" else ("🎙 %s MUDA DE RUMO" % n.nome.to_upper())
+			_flag_drama(
+				drama_head,
+				"%s %s%s" % [n.lider_nome, verbo, rumo],
+				n.codigo_iso, "presidente", 3 if motivo == "golpe" else 2)
 
 # Sorteia um arquétipo sucessor. Viés: 60% de chance de MUDAR a ideologia econômica
 # (o país muda de rumo); 40% mantém continuidade ideológica.
@@ -1703,6 +1724,11 @@ func _update_player_nemesis() -> void:
 			"body": "Relação caiu para %d — esperar provocações nos próximos turnos." % int(worst_rel),
 			"color": Color(1, 0.4, 0.3),
 		}, [worst_code, player_nation.codigo_iso], nations[worst_code].continente if nations.has(worst_code) else "")
+		# MEGAFONE: você ganhou um ANTAGONISTA — com rosto. O jogador deve saber quem é.
+		_flag_drama(
+			"🔥 UM NOVO RIVAL SE DECLARA",
+			"%s virou seu rival declarado (relação %d). Espere provocações e hostilidade daqui pra frente." % [rival_name, int(worst_rel)],
+			worst_code, "presidente", 2)
 	elif current_turn % _nemesis_provo_interval() == 0:
 		# Provocação periódica do rival declarado (intervalo escala com a dificuldade)
 		var rival = nations.get(player_nemesis)
@@ -1765,6 +1791,12 @@ func _process_containment_coalition() -> void:
 			"involves_player": true,
 			"color": Color(1, 0.5, 0.3),
 		}, [player_nation.codigo_iso], "")
+		# MEGAFONE: o mundo se unindo contra você é o clímax da ascensão — destaque máximo.
+		var lider_iso: String = String(coalizao[0]) if coalizao.size() > 0 else ""
+		_flag_drama(
+			"🌐 O MUNDO SE UNE CONTRA VOCÊ",
+			"As grandes potências formaram uma COALIZÃO DE CONTENÇÃO para barrar sua hegemonia. Liderança: %s. Elas vão esfriar com você e se aproximar entre si." % (nations[lider_iso].nome if nations.has(lider_iso) else "as maiores potências"),
+			lider_iso, "presidente", 3)
 	# Efeito por ativação: rivais esfriam com o jogador e se aproximam entre si
 	for i in coalizao.size():
 		var ri = nations[coalizao[i]]
@@ -2035,6 +2067,23 @@ func _declare_war(from_code: String, to_code: String) -> void:
 		"body": "DEFCON %d%s." % [defcon, responder_names],
 		"involves_player": involves_player,
 	}, [from_code, to_code], attacker.continente)
+	# MEGAFONE: guerra que envolve o jogador, um aliado, ou DUAS grandes potências
+	# (redesenha o mapa) merece destaque — não só uma linha no ticker.
+	var pc_iso: String = player_nation.codigo_iso if player_nation else ""
+	var both_big: bool = attacker.pib_bilhoes_usd >= _world_max_pib * 0.15 and defender.pib_bilhoes_usd >= _world_max_pib * 0.15
+	if involves_player or both_big:
+		var head: String
+		var sev: int
+		if from_code == pc_iso or to_code == pc_iso:
+			head = "⚔️ GUERRA! %s ataca %s" % [attacker.nome, defender.nome]
+			sev = 3
+		elif both_big:
+			head = "⚔️ GUERRA ENTRE POTÊNCIAS: %s × %s" % [attacker.nome, defender.nome]
+			sev = 3
+		else:
+			head = "⚔️ Aliado em guerra: %s × %s" % [attacker.nome, defender.nome]
+			sev = 2
+		_flag_drama(head, "DEFCON caiu para %d.%s" % [defcon, responder_names], from_code, "general", sev)
 
 func _propose_peace(from_code: String, to_code: String) -> void:
 	if not nations.has(from_code) or not nations.has(to_code):

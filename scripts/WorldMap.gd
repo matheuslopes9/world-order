@@ -5468,6 +5468,7 @@ func _on_turn_advanced(_t: int) -> void:
 	_maybe_autosave()
 	_maybe_show_contextual_tip()
 	_maybe_show_advisor_alert()
+	_maybe_show_world_drama()
 
 # Tooltip-toast contextual nos primeiros turnos. Aparece no canto superior por 6s,
 # não bloqueia gameplay. Persiste turnos mostrados em user://settings.cfg.
@@ -5586,6 +5587,93 @@ func _show_advisor_toast(text: String, severity: int) -> void:
 	tw.tween_property(toast, "modulate:a", 0.0, 0.5)
 	tw.tween_callback(func():
 		if is_instance_valid(toast): toast.queue_free())
+
+# ─────────────────────────────────────────────────────────────────
+# MEGAFONE DO DRAMA MUNDIAL — o mundo reage e o jogador SENTE.
+# Consome a fila GameEngine.pending_drama (coalizão contra você, novo rival,
+# golpe/troca de rumo numa potência, guerra entre potências) e mostra 1 CARD
+# destacado por turno — com o RETRATO de quem protagoniza. O drama já era
+# calculado; isto é só o megafone que a auditoria pediu.
+# ─────────────────────────────────────────────────────────────────
+func _maybe_show_world_drama() -> void:
+	if GameEngine == null or GameEngine.pending_drama.is_empty():
+		return
+	# pega o de MAIOR severidade (o mais dramático) e descarta o resto do turno
+	var best: Dictionary = {}
+	var best_sev: int = -1
+	for d in GameEngine.pending_drama:
+		if int(d.get("severity", 1)) > best_sev:
+			best_sev = int(d.get("severity", 1))
+			best = d
+	GameEngine.pending_drama.clear()
+	if best.is_empty():
+		return
+	_show_world_drama_card(best)
+
+func _show_world_drama_card(d: Dictionary) -> void:
+	var sev: int = int(d.get("severity", 2))
+	var accent: Color = Color(0.95, 0.35, 0.30) if sev >= 3 else Color(0.95, 0.62, 0.30)
+	var card := PanelContainer.new()
+	card.name = "DramaCard_%d" % Time.get_ticks_msec()
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.09, 0.055, 0.05, 0.98)
+	st.set_border_width_all(2)
+	st.border_color = accent
+	st.set_corner_radius_all(12)
+	st.content_margin_left = 14
+	st.content_margin_right = 16
+	st.content_margin_top = 12
+	st.content_margin_bottom = 12
+	card.add_theme_stylebox_override("panel", st)
+	card.custom_minimum_size = Vector2(520, 0)
+	# não estica na vertical — o card acompanha a altura do conteúdo
+	card.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	card.add_child(row)
+	# Retrato de quem protagoniza (o novo líder / rival / general)
+	var iso: String = String(d.get("iso", ""))
+	if iso != "" and GameEngine.nations.has(iso):
+		var expr: String = "bravo" if sev >= 3 else "neutro"
+		var pv := PortraitView.make(iso, String(d.get("role", "presidente")), expr, 64.0)
+		if pv != null:
+			pv.custom_minimum_size = Vector2(64, 64)
+			pv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			row.add_child(pv)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(col)
+	var cap := Label.new()
+	cap.text = "◆ PLANTÃO GEOPOLÍTICO"
+	cap.add_theme_color_override("font_color", accent)
+	cap.add_theme_font_size_override("font_size", 10)
+	col.add_child(cap)
+	var head := Label.new()
+	head.text = String(d.get("headline", ""))
+	head.add_theme_color_override("font_color", Color(1, 0.95, 0.88))
+	head.add_theme_font_size_override("font_size", 15)
+	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	head.custom_minimum_size = Vector2(410, 0)
+	col.add_child(head)
+	var body := Label.new()
+	body.text = String(d.get("body", ""))
+	body.add_theme_color_override("font_color", Color(0.85, 0.82, 0.80))
+	body.add_theme_font_size_override("font_size", 11)
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.custom_minimum_size = Vector2(410, 0)
+	col.add_child(body)
+	add_child(card)
+	card.position = Vector2(get_viewport_rect().size.x * 0.5 - 260, 96)
+	card.modulate = Color(1, 1, 1, 0)
+	# entrada com leve deslize + brilho, permanece ~8.5s (é um marco, não uma dica)
+	var tw := create_tween()
+	tw.tween_property(card, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_interval(8.5)
+	tw.tween_property(card, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(func():
+		if is_instance_valid(card): card.queue_free())
 
 # Detecta se está em viewport compacto (laptop 1366x768) e ajusta layout
 func _detect_compact_mode() -> void:
