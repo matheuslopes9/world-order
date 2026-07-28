@@ -101,6 +101,7 @@ var sanctions_button: Button = null
 var propose_treaty_button: Button = null
 var trade_button: Button = null
 var espionage_button: Button = null
+var territory_button: Button = null
 var next_turn_floater: Control = null
 var game_overlay: Control = null
 
@@ -651,6 +652,8 @@ func _build_legacy_nodes() -> void:
 	rv.add_child(trade_button)
 	espionage_button = _create_action_btn("EspionageButton", "🕵 OPERAÇÃO DE ESPIONAGEM")
 	rv.add_child(espionage_button)
+	territory_button = _create_action_btn("TerritoryButton", "🗺 DIPLOMACIA TERRITORIAL")
+	rv.add_child(territory_button)
 
 	# ─── GAME OVERLAY (9 painéis temáticos do jogador) ───
 	# Reaproveita o script GameOverlay.gd ATTACHED via SetScript
@@ -2140,6 +2143,8 @@ func _setup_ui_bindings() -> void:
 		trade_button.pressed.connect(_on_trade_pressed)
 	if espionage_button:
 		espionage_button.pressed.connect(_on_espionage_pressed)
+	if territory_button:
+		territory_button.pressed.connect(func(): if preview_code != "": _show_territory_picker_modal(preview_code))
 	if nations_list:
 		nations_list.item_selected.connect(_on_nation_list_selected)
 		nations_list.item_activated.connect(_on_nation_list_activated)
@@ -4851,6 +4856,111 @@ func _show_treaty_picker_modal(target_code: String) -> void:
 	btn_cancel.custom_minimum_size = Vector2(0, 36)
 	btn_cancel.pressed.connect(func(): modal.queue_free())
 	v.add_child(btn_cancel)
+
+# ─────────────────────────────────────────────────────────────────
+# PICKER DE DIPLOMACIA TERRITORIAL (Bloco 4) — exigir ou comprar província
+# ─────────────────────────────────────────────────────────────────
+func _show_territory_picker_modal(target_code: String) -> void:
+	var target = GameEngine.nations.get(target_code)
+	if target == null: return
+	var target_provs: Array = GameEngine.provinces_of.get(target_code, [])
+	var modal := ColorRect.new()
+	modal.color = Color(0, 0, 0, 0.85)
+	modal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	modal.mouse_filter = Control.MOUSE_FILTER_STOP
+	if modal_layer != null:
+		modal_layer.visible = true
+		modal_layer.add_child(modal)
+	else:
+		add_child(modal)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_PASS
+	modal.add_child(center)
+	var box := PanelContainer.new()
+	box.custom_minimum_size = Vector2(580, 520)
+	center.add_child(box)
+	UIStyles.animate_modal_in(modal, box)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(540, 480)
+	box.add_child(scroll)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	v.custom_minimum_size = Vector2(520, 0)
+	scroll.add_child(v)
+	var cap := Label.new()
+	cap.text = "🗺 DIPLOMACIA TERRITORIAL"
+	cap.add_theme_color_override("font_color", Color(0.86, 0.72, 0.38))
+	cap.add_theme_font_size_override("font_size", 11)
+	v.add_child(cap)
+	var title := Label.new()
+	title.text = "Território de " + target.nome
+	title.add_theme_color_override("font_color", Color(1, 1, 1))
+	title.add_theme_font_size_override("font_size", 18)
+	v.add_child(title)
+	var hint := Label.new()
+	hint.text = "EXIGIR pressiona pelo seu poder militar (mais forte = mais chance, mas custa relações). COMPRAR oferece $B (o dono aceita se precisa de dinheiro ou gosta de você). A capital quase nunca é cedida."
+	hint.add_theme_color_override("font_color", Color(0.7, 0.78, 0.88))
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(hint)
+	v.add_child(HSeparator.new())
+	if target_provs.is_empty():
+		var none := Label.new()
+		none.text = "%s não tem províncias mapeadas." % target.nome
+		none.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+		v.add_child(none)
+	for pid in target_provs:
+		var pinfo: Dictionary = GameEngine.provinces.get(pid, {})
+		var pnome: String = String(pinfo.get("nome", pid))
+		var is_cap: bool = bool(pinfo.get("is_capital", false))
+		var oferta: float = maxf(20.0, target.pib_bilhoes_usd * float(pinfo.get("pib_frac", 0.05)) * 1.5)
+		var chance_dem: float = GameEngine._cession_accept_chance(pid, GameEngine.player_nation.codigo_iso, 0.0)
+		var chance_buy: float = GameEngine._cession_accept_chance(pid, GameEngine.player_nation.codigo_iso, oferta)
+		var row := PanelContainer.new()
+		var rsb := StyleBoxFlat.new()
+		rsb.bg_color = Color(0.05, 0.06, 0.08, 0.9)
+		rsb.set_border_width_all(1)
+		rsb.border_color = Color(0.86, 0.72, 0.38, 0.4)
+		rsb.set_corner_radius_all(8)
+		rsb.content_margin_left = 12; rsb.content_margin_right = 12
+		rsb.content_margin_top = 8; rsb.content_margin_bottom = 8
+		row.add_theme_stylebox_override("panel", rsb)
+		var rv := VBoxContainer.new()
+		rv.add_theme_constant_override("separation", 6)
+		row.add_child(rv)
+		var lbl := Label.new()
+		lbl.text = "%s%s" % [("★ " if is_cap else ""), pnome]
+		lbl.add_theme_color_override("font_color", Color(0.95, 0.85, 0.55) if is_cap else Color(0.9, 0.92, 0.96))
+		lbl.add_theme_font_size_override("font_size", 13)
+		rv.add_child(lbl)
+		var btns := HBoxContainer.new()
+		btns.add_theme_constant_override("separation", 8)
+		rv.add_child(btns)
+		var b_dem := Button.new()
+		b_dem.text = "✊ EXIGIR (%d%%)" % int(chance_dem * 100)
+		b_dem.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b_dem.pressed.connect(func():
+			var res: Dictionary = GameEngine.player_demand_province(pid)
+			_log_ticker("🗺 TERRITÓRIO", String(res.get("msg", res.get("reason", ""))), Color(0.9, 0.7, 0.4))
+			modal.queue_free())
+		btns.add_child(b_dem)
+		var b_buy := Button.new()
+		b_buy.text = "💰 COMPRAR $%dB (%d%%)" % [int(oferta), int(chance_buy * 100)]
+		b_buy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b_buy.pressed.connect(func():
+			var res: Dictionary = GameEngine.player_buy_province(pid, oferta)
+			_log_ticker("🗺 TERRITÓRIO", String(res.get("msg", res.get("reason", ""))), Color(0.5, 0.85, 0.6))
+			modal.queue_free())
+		btns.add_child(b_buy)
+		v.add_child(row)
+	v.add_child(HSeparator.new())
+	var btn_cancel2 := Button.new()
+	btn_cancel2.text = "❌ FECHAR"
+	btn_cancel2.custom_minimum_size = Vector2(0, 36)
+	btn_cancel2.pressed.connect(func(): modal.queue_free())
+	v.add_child(btn_cancel2)
 
 # ─────────────────────────────────────────────────────────────────
 # MODAL DO FMI — resgate em crise fiscal (aceitar/recusar)

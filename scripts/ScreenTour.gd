@@ -194,6 +194,22 @@ func _ready() -> void:
 	while not wm._modal_stack.is_empty():
 		wm._close_top_modal()
 		await get_tree().process_frame
+	if wm.modal_layer:
+		for c in wm.modal_layer.get_children():
+			c.queue_free()
+	await get_tree().process_frame
+	# Bloco 4: picker de diplomacia territorial (exigir/comprar província da AR)
+	if wm.has_method("_show_territory_picker_modal"):
+		wm.preview_code = "AR"
+		wm._show_territory_picker_modal("AR")
+		await get_tree().create_timer(0.4).timeout
+		await _shot("picker_territorio")
+		if wm.modal_layer:
+			for c in wm.modal_layer.get_children():
+				c.queue_free()
+	while not wm._modal_stack.is_empty():
+		wm._close_top_modal()
+		await get_tree().process_frame
 
 	# 7 — Opções + Notícias
 	wm._on_menu_pressed()

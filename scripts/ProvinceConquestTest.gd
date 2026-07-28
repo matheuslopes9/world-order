@@ -67,6 +67,41 @@ func _ready() -> void:
 	_t.call("BR conquistou território de AR na guerra (%d→%d províncias)" % [br_before, br_after], br_after > br_before)
 	_t.call("sinal province_conquered disparou (%d vezes)" % conquered.size(), conquered.size() > 0)
 
+	# 3b. DIPLOMACIA TERRITORIAL (Bloco 4): exigir e comprar província
+	E.player_nation = E.nations["BR"]
+	E.player_actions_remaining = 99
+	# _cession_accept_chance responde a poder/relação
+	var some_ar: Array = E.provinces_of.get("AR", [])
+	if not some_ar.is_empty():
+		var pid_ar: String = some_ar[0]
+		# BR esmagadoramente forte → chance de EXIGIR alta
+		var ch_strong: float = E._cession_accept_chance(pid_ar, "BR", 0.0)
+		ar.militar["poder_militar_global"] = 500.0  # AR fica forte
+		var ch_weak: float = E._cession_accept_chance(pid_ar, "BR", 0.0)
+		ar.militar["poder_militar_global"] = 5.0     # volta fraca
+		_t.call("chance de exigir cai quando o alvo fica forte (%.2f→%.2f)" % [ch_strong, ch_weak], ch_strong > ch_weak)
+		# COMPRAR com oferta alta aumenta a chance
+		var ch_nopay: float = E._cession_accept_chance(pid_ar, "BR", 0.0)
+		var ch_pay: float = E._cession_accept_chance(pid_ar, "BR", 5000.0)
+		_t.call("oferta em dinheiro aumenta a chance (%.2f→%.2f)" % [ch_nopay, ch_pay], ch_pay > ch_nopay)
+		# player_buy_province transfere se aceito (força aceitação via oferta gigante)
+		var ar_count0: int = E.provinces_of.get("AR", []).size()
+		var br_count0: int = E.provinces_of.get("BR", []).size()
+		var tries := 0
+		var bought := false
+		while tries < 20 and not bought:
+			tries += 1
+			var tgt2: String = ""
+			for pp in E.provinces_of.get("AR", []):
+				if not bool(E.provinces.get(pp, {}).get("is_capital", false)):
+					tgt2 = pp; break
+			if tgt2 == "": break
+			E.nations["BR"].tesouro = 999999.0
+			E.player_actions_remaining = 99
+			var rbuy: Dictionary = E.player_buy_province(tgt2, 99999.0)
+			if rbuy.get("aceito", false): bought = true
+		_t.call("player_buy_province conquista com oferta alta", bought)
+
 	# 4. SAVE/LOAD do território (Bloco 3): salva com território conquistado,
 	# zera o estado, carrega, e confirma que as províncias voltam ao dono certo.
 	var SaveSys = load("res://scripts/SaveSystem.gd")

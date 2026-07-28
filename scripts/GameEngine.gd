@@ -2760,6 +2760,86 @@ func war_front_status(enemy_code: String) -> Dictionary:
 		"decisive": WAR_DECISIVE_SCORE,
 	}
 
+# ─────────────────────────────────────────────────────────────────
+# DIPLOMACIA TERRITORIAL (Bloco 4) — conquista SEM guerra.
+# Duas vias: EXIGIR (pressão de poder — o fraco cede ao forte) e COMPRAR
+# (oferecer $$). Ambas usam transfer_province se aceitas. A IA decide com base
+# em poder relativo, relação e necessidade fiscal — coerente com o resto do jogo.
+# ─────────────────────────────────────────────────────────────────
+
+# Chance de a nação-dono ACEITAR ceder a província (0..1). Usada pelas 2 vias.
+func _cession_accept_chance(prov_id: String, demander_iso: String, pago: float) -> float:
+	var p: Dictionary = provinces.get(prov_id, {})
+	var owner_iso: String = String(p.get("owner_iso", ""))
+	if owner_iso == "" or not nations.has(owner_iso) or not nations.has(demander_iso):
+		return 0.0
+	var owner = nations[owner_iso]
+	var demander = nations[demander_iso]
+	# Poder relativo: quanto mais forte o pretendente, mais o dono cede (medo).
+	var pw_d: float = demander.get_military_power()
+	var pw_o: float = maxf(1.0, owner.get_military_power())
+	var ratio: float = pw_d / pw_o
+	var fear: float = clampf((ratio - 1.0) / 3.0, 0.0, 0.55)     # até +0.55 se 4x mais forte
+	# Relação: aliado cede mais fácil; inimigo, quase nunca.
+	var rel: float = float(owner.relacoes.get(demander_iso, 0))
+	var rel_f: float = clampf((rel + 100.0) / 200.0, 0.0, 1.0) * 0.30   # até +0.30
+	# Dinheiro oferecido vs. valor da província (fração do PIB do dono).
+	var prov_value: float = owner.pib_bilhoes_usd * clampf(float(p.get("pib_frac", 0.05)), 0.0, 1.0)
+	var money_f: float = clampf(pago / maxf(1.0, prov_value * 2.0), 0.0, 0.6)  # pagar 2x o valor → +0.6
+	# Capital quase nunca é cedida.
+	var cap_pen: float = -0.5 if bool(p.get("is_capital", false)) else 0.0
+	# Dono desesperado (tesouro no chão) aceita dinheiro mais fácil.
+	var desp: float = 0.15 if (owner.tesouro < owner.pib_bilhoes_usd * 0.02 and pago > 0.0) else 0.0
+	return clampf(0.05 + fear + rel_f + money_f + cap_pen + desp, 0.0, 0.95)
+
+# EXIGIR província (pressão): sem pagar. Aceita → transferência; recusa → tombo
+# de relações (pode virar guerra). Consome 1 ação.
+func player_demand_province(prov_id: String) -> Dictionary:
+	var n = player_nation
+	if n == null or not provinces.has(prov_id):
+		return {"ok": false, "reason": "Alvo inválido"}
+	var owner_iso: String = province_owner(prov_id)
+	if owner_iso == n.codigo_iso:
+		return {"ok": false, "reason": "A província já é sua"}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno"}
+	var chance: float = _cession_accept_chance(prov_id, n.codigo_iso, 0.0)
+	var owner = nations[owner_iso]
+	var pnome: String = String(provinces[prov_id].get("nome", prov_id))
+	if randf() < chance:
+		transfer_province(prov_id, n.codigo_iso, "cessão sob pressão")
+		# ceder sob pressão humilha o dono e esfria a relação mesmo assim
+		owner.relacoes[n.codigo_iso] = clamp(float(owner.relacoes.get(n.codigo_iso, 0)) - 15, -100, 100)
+		return {"ok": true, "msg": "%s cedeu %s sob pressão!" % [owner.nome, pnome], "aceito": true}
+	# recusa: relação despenca (a exigência é uma afronta)
+	owner.relacoes[n.codigo_iso] = clamp(float(owner.relacoes.get(n.codigo_iso, 0)) - 30, -100, 100)
+	n.relacoes[owner_iso] = clamp(float(n.relacoes.get(owner_iso, 0)) - 10, -100, 100)
+	return {"ok": true, "msg": "%s RECUSOU ceder %s. Relações despencam." % [owner.nome, pnome], "aceito": false}
+
+# COMPRAR província: oferece $B. Aceita → paga e transfere; recusa → dinheiro
+# volta. Consome 1 ação.
+func player_buy_province(prov_id: String, oferta: float) -> Dictionary:
+	var n = player_nation
+	if n == null or not provinces.has(prov_id):
+		return {"ok": false, "reason": "Alvo inválido"}
+	var owner_iso: String = province_owner(prov_id)
+	if owner_iso == n.codigo_iso:
+		return {"ok": false, "reason": "A província já é sua"}
+	if n.tesouro < oferta:
+		return {"ok": false, "reason": "Tesouro insuficiente para a oferta"}
+	if not _consume_action():
+		return {"ok": false, "reason": "Sem ações restantes neste turno"}
+	var chance: float = _cession_accept_chance(prov_id, n.codigo_iso, oferta)
+	var owner = nations[owner_iso]
+	var pnome: String = String(provinces[prov_id].get("nome", prov_id))
+	if randf() < chance:
+		n.tesouro -= oferta
+		owner.tesouro += oferta
+		transfer_province(prov_id, n.codigo_iso, "compra territorial")
+		owner.relacoes[n.codigo_iso] = clamp(float(owner.relacoes.get(n.codigo_iso, 0)) + 5, -100, 100)
+		return {"ok": true, "msg": "%s vendeu %s por $%dB!" % [owner.nome, pnome, int(oferta)], "aceito": true}
+	return {"ok": true, "msg": "%s recusou sua oferta por %s." % [owner.nome, pnome], "aceito": false}
+
 # Diplomacia: player propõe tratado
 func player_propose_treaty(target_code: String, treaty_type: String) -> Dictionary:
 	if diplomacy == null or player_nation == null:
