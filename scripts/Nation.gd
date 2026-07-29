@@ -204,6 +204,11 @@ var spy_ops_log: Array = []
 
 # Estado interno
 var memoria: Array = []
+# IA ESTRATÉGICA (Mundo Vivo, Bloco B): a meta atual da nação, recalculada quando
+# ela age. Enviesa as decisões (guerra/ação) rumo a um propósito, em vez de gates
+# soltos. `ascendente` = a potência que sobe deliberadamente nesta partida (1/jogo).
+var objetivo_atual: String = "DESENVOLVER"   # EXPANDIR | DEFENDER | DESENVOLVER | OPORTUNISMO
+var ascendente: bool = false
 var gasto_social: Dictionary = {"saude": 0, "educacao": 0, "previdencia": 0, "seguranca": 0}
 var revolucao_turnos: int = 0
 var falencia_turnos: int = 0

@@ -51,6 +51,7 @@ static func save_game(engine) -> bool:
 		"storyline_started_arcs": engine.storylines.started_arcs if engine.storylines else [],
 		"player_nemesis": engine.player_nemesis,
 		"player_reputation": engine.player_reputation,   # reputação de agressor (Mundo Vivo)
+		"ascendente_iso": engine._ascendente_iso,        # rival ascendente da partida (Mundo Vivo B)
 		"nemesis_declared": engine.nemesis_declared,
 		"victory_achieved": engine.victory_achieved,
 		"power_rank_history": engine.player_power_rank_history,
@@ -155,6 +156,7 @@ static func load_game(engine) -> bool:
 	# Restaura antagonista
 	engine.player_nemesis = String(data.get("player_nemesis", ""))
 	engine.player_reputation = float(data.get("player_reputation", 0.0))
+	engine._ascendente_iso = String(data.get("ascendente_iso", ""))
 	engine.nemesis_declared = bool(data.get("nemesis_declared", false))
 	# Restaura estado de vitória (evita re-disparo do modal em modo livre)
 	engine.victory_achieved = bool(data.get("victory_achieved", false))

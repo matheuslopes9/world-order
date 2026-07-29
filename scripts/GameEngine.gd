@@ -614,6 +614,10 @@ func end_turn() -> void:
 	# contra ele (balancing realista — o mundo reage à ascensão).
 	_process_containment_coalition()
 
+	# RIVAL ASCENDENTE (Mundo Vivo B): 1×/partida, uma potência sobe deliberadamente
+	# e vira o antagonista orgânico daquela campanha — diferente a cada jogo.
+	_maybe_pick_ascendente()
+
 	# Recuperação de DEFCON: 4 turnos sem nova guerra → tensão mundial alivia
 	# (antes o DEFCON só descia — o mundo travava em alerta nuclear permanente)
 	_turns_since_war += 1
@@ -1860,6 +1864,10 @@ func _run_ai_turn() -> void:
 	if total <= 1:
 		return
 	var max_actors: int = settings.get("ai_speed", 24)
+	# O RIVAL ASCENDENTE age TODO turno (fora do cursor) — persegue a expansão com
+	# mais frequência que as outras, por isso sobe de verdade.
+	if _ascendente_iso != "" and nations.has(_ascendente_iso) and _ascendente_iso != player_nation.codigo_iso:
+		_ai_decide(nations[_ascendente_iso])
 	var acted: int = 0
 	var checked: int = 0
 	while acted < max_actors and checked < total:
@@ -1868,13 +1876,112 @@ func _run_ai_turn() -> void:
 		checked += 1
 		if code == player_nation.codigo_iso:
 			continue
+		if code == _ascendente_iso:
+			continue  # já agiu acima
 		_ai_decide(nations[code])
 		acted += 1
+
+# META ESTRATÉGICA (Mundo Vivo, Bloco B) — decide o PROPÓSITO da nação a partir
+# de estado que já existe. Barato (só comparações) e determinístico. Chamado 1×
+# quando a nação age. O rival ascendente fica travado em EXPANDIR.
+func _compute_objetivo(n) -> String:
+	if n.ascendente:
+		return "EXPANDIR"
+	var aggro: float = _get_aggression(n)
+	var my_power: float = compute_power_score(n)
+	# OPORTUNISMO (transitório, prioridade máxima): há um vizinho ENFRAQUECIDO por
+	# perto (saindo de guerra ou bem mais fraco)? Ataca a presa.
+	if n.tesouro >= 80.0 and n.estabilidade_politica >= 45.0 and aggro >= 0.4:
+		for c in nations:
+			if c == n.codigo_iso: continue
+			var t = nations[c]
+			if t.continente != n.continente: continue
+			if n.codigo_iso in t.em_guerra: continue
+			# presa: bem mais fraca OU exausta de outra guerra
+			var weak: bool = compute_power_score(t) < my_power * 0.55
+			var exhausted: bool = t.em_guerra.size() > 0 or t.estabilidade_politica < 40.0
+			if weak or (exhausted and compute_power_score(t) < my_power * 0.85):
+				return "OPORTUNISMO"
+	# DEFENDER: perdendo poder relativo, ou tem rancor/nemesis ativo, ou instável.
+	if n.estabilidade_politica < 50.0 or n.em_guerra.size() > 0:
+		return "DEFENDER"
+	var tem_rancor: bool = false
+	for e in n.memoria:
+		if float(e.get("peso", 0.0)) >= 25.0:  # mágoa forte = postura defensiva/vingativa
+			tem_rancor = true
+			break
+	if tem_rancor and aggro < 0.55:
+		return "DEFENDER"
+	# EXPANDIR: agressivo, forte, com fôlego — busca crescer território/poder.
+	if aggro >= 0.55 and n.tesouro >= 120.0 and n.estabilidade_politica >= 55.0:
+		return "EXPANDIR"
+	# DESENVOLVER: o default — estável e focado em crescer por dentro.
+	return "DESENVOLVER"
+
+# RIVAL ASCENDENTE — escolhido 1×/partida entre as top-10 de poder (não o jogador),
+# com viés por AGRESSIVIDADE, no início do meio-jogo. Vira o antagonista orgânico:
+# cresce mais rápido, prioriza expansão e age com mais frequência. Cada partida
+# elege um vilão diferente — o motor da rejogabilidade.
+var _ascendente_iso: String = ""
+
+func _maybe_pick_ascendente() -> void:
+	if _ascendente_iso != "":
+		return
+	# Janela: turno 60-120 (~2005-2010) — dá tempo do mundo assentar antes do vilão subir.
+	if current_turn < 60 or current_turn > 120:
+		return
+	if player_nation == null:
+		return
+	# Candidatas: top-10 de poder que NÃO são o jogador. Peso = poder × (0.5+aggro).
+	var ranked: Array = []
+	for c in nations:
+		if c == player_nation.codigo_iso: continue
+		ranked.append(c)
+	ranked.sort_custom(func(a, b): return compute_power_score(nations[a]) > compute_power_score(nations[b]))
+	var pool: Array = ranked.slice(0, mini(10, ranked.size()))
+	if pool.is_empty():
+		return
+	# escolha ponderada por agressividade (o vilão tende a ser um líder agressivo)
+	var total_w: float = 0.0
+	var weights: Array = []
+	for c in pool:
+		var w: float = (0.5 + _get_aggression(nations[c])) * compute_power_score(nations[c])
+		weights.append(w)
+		total_w += w
+	var roll: float = randf() * total_w
+	var pick: String = pool[0]
+	for i in pool.size():
+		roll -= weights[i]
+		if roll <= 0.0:
+			pick = pool[i]
+			break
+	_ascendente_iso = pick
+	nations[pick].ascendente = true
+	# manchete de drama: o mundo aponta o rival emergente
+	var nome: String = nations[pick].nome
+	_log_news({
+		"type": "rival_ascendente",
+		"headline": "📈 %s desponta como potência ascendente" % nome,
+		"body": "Analistas apontam %s como a nação que mais projeta ambição geopolítica na década — de olho na expansão." % nome,
+		"involves_player": false,
+		"color": Color(0.95, 0.6, 0.3),
+	}, [pick], nations[pick].continente)
+	_flag_drama(
+		"📈 UMA POTÊNCIA ASCENDE",
+		"%s desponta como a força mais ambiciosa do mundo — expansionista e determinada. De olho nela." % nome,
+		pick, "presidente", 2)
 
 func _ai_decide(n) -> void:
 	# MEMÓRIA (Mundo Vivo): a nação envelhece seus rancores quando age (não todo
 	# turno — barato). O drift logo abaixo já lê o rancor que sobrou.
 	n.decay_memory()
+	# META ESTRATÉGICA (Mundo Vivo B): recalcula o propósito da nação ao agir.
+	n.objetivo_atual = _compute_objetivo(n)
+	# RIVAL ASCENDENTE: cresce mais rápido (dentro dos caps) — sobe de verdade no
+	# ranking, virando ameaça real. Bônus leve e determinístico.
+	if n.ascendente and n.tesouro >= 40.0:
+		n.pib_bilhoes_usd = n.pib_bilhoes_usd * 1.004  # ~+5%/ano composto, dentro do cap de update_pib
+		n.tesouro += n.pib_bilhoes_usd * 0.0008
 	# Drift de relações por afinidade ideológica (#7): sempre que a nação age, suas
 	# relações caminham devagar na direção da afinidade — afins se aproximam, opostos
 	# se afastam. Compostas ao longo do século, fazem blocos geopolíticos EMERGIREM.
@@ -1902,35 +2009,56 @@ func _ai_decide(n) -> void:
 
 	# 2. DECLARAR GUERRA — agressivo, com tesouro, sem guerra atual
 	if n.em_guerra.size() == 0 and treasury >= 80.0 and stab >= 50.0:
-		# Procura rival pela relação EFETIVA = relação - RANCOR. Assim a nação
-		# prioriza QUEM A AGREDIU (vendeta) sobre um mero desafeto ideológico —
-		# quem tomou sua província ou te declarou guerra vira o alvo preferencial.
+		var objetivo: String = n.objetivo_atual
 		var worst_code: String = ""
 		var worst_rel: float = 1000.0
-		for c in n.relacoes:
-			if c == n.codigo_iso: continue
-			var r: float = float(n.relacoes[c]) - n.grudge_against(c)
-			if r < worst_rel:
-				if nations.has(c) and not (n.codigo_iso in nations[c].em_guerra):
-					worst_rel = r
-					worst_code = c
-		# Fallback: se não achou rival na lista, escolhe vizinho geográfico aleatório
-		if worst_code == "" or worst_rel >= 0.0:
-			var candidates: Array = []
+		# META EXPANDIR/OPORTUNISMO: mira o mais FRACO na vizinhança (conquista
+		# oportunista) em vez do desafeto ideológico. É a IA "estrategizando":
+		# escolhe a presa, não o inimigo simbólico.
+		if objetivo == "EXPANDIR" or objetivo == "OPORTUNISMO":
+			var my_power: float = compute_power_score(n)
+			var weakest_ratio: float = 1.0
 			for c in nations:
 				if c == n.codigo_iso: continue
-				var other = nations[c]
-				if other.continente == n.continente and not (n.codigo_iso in other.em_guerra):
-					candidates.append(c)
-			if candidates.size() > 0:
-				worst_code = candidates[randi() % candidates.size()]
-				worst_rel = -30.0  # tensão regional baseline
+				var t = nations[c]
+				if t.continente != n.continente: continue
+				if n.codigo_iso in t.em_guerra: continue
+				var ratio: float = compute_power_score(t) / maxf(1.0, my_power)
+				# quer alguém mais fraco; oportunismo aceita alvo mais forte que expandir
+				var limite: float = 0.85 if objetivo == "OPORTUNISMO" else 0.7
+				if ratio < weakest_ratio and ratio < limite:
+					weakest_ratio = ratio
+					worst_code = c
+					worst_rel = float(n.relacoes.get(c, -30.0)) - n.grudge_against(c)
+		# DEFENDER/DESENVOLVER (ou EXPANDIR sem presa): alvo por relação EFETIVA =
+		# relação - RANCOR (prioriza quem a agrediu — vendeta).
+		if worst_code == "":
+			for c in n.relacoes:
+				if c == n.codigo_iso: continue
+				var r: float = float(n.relacoes[c]) - n.grudge_against(c)
+				if r < worst_rel:
+					if nations.has(c) and not (n.codigo_iso in nations[c].em_guerra):
+						worst_rel = r
+						worst_code = c
+			# Fallback: vizinho geográfico aleatório
+			if worst_code == "" or worst_rel >= 0.0:
+				var candidates: Array = []
+				for c in nations:
+					if c == n.codigo_iso: continue
+					var other = nations[c]
+					if other.continente == n.continente and not (n.codigo_iso in other.em_guerra):
+						candidates.append(c)
+				if candidates.size() > 0:
+					worst_code = candidates[randi() % candidates.size()]
+					worst_rel = -30.0
 		if worst_code != "":
-			# Chance baseada em agressividade: ~0.3% (pacífico) até 3.5% (Putin/Kim) por turno
-			# (calibrado: 0.05 gerava guerra nova a cada ~2.5 turnos — 160 guerras/século
-			# e DEFCON travado em 2)
+			# Chance base por agressividade (0.3%-3.5%/turno). A META multiplica: quem
+			# EXPANDE/APROVEITA guerreia mais; quem DEFENDE/DESENVOLVE, bem menos.
+			var obj_mult: float = {
+				"EXPANDIR": 1.8, "OPORTUNISMO": 2.4, "DEFENDER": 0.5, "DESENVOLVER": 0.6,
+			}.get(objetivo, 1.0)
 			var rel_factor: float = clamp((100.0 + worst_rel) / 100.0 + 0.5, 0.3, 1.5)
-			var war_chance: float = aggro * 0.035 * rel_factor
+			var war_chance: float = aggro * 0.035 * rel_factor * obj_mult
 			if randf() < war_chance:
 				_declare_war(n.codigo_iso, worst_code)
 				return
