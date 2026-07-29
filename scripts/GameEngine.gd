@@ -191,6 +191,15 @@ var scenarios_data: Array = []
 var player_nemesis: String = ""
 var nemesis_declared: bool = false  # vira true ao cruzar limiar
 
+# REPUTAÇÃO DO JOGADOR (Mundo Vivo, Bloco A) — o mundo rastreia quão AGRESSOR
+# você é. Sobe com guerra/conquista/secessão; decai devagar. Alimenta o nemesis
+# e a coalizão de contenção (que passam a reagir à sua HISTÓRIA, não só ao poder).
+# 0 = respeitável; >60 = potência agressora temida; >100 = pária mundial.
+var player_reputation: float = 0.0
+
+func _add_player_reputation(v: float) -> void:
+	player_reputation = clampf(player_reputation + v, 0.0, 150.0)
+
 # ── Dados estáticos ──────────────────────────────────────────────
 var difficulty_tiers: Dictionary = {}    # code → tier
 var alliances_data: Array = []
@@ -594,6 +603,10 @@ func end_turn() -> void:
 				"color": n.get("color", Color(0.7, 0.8, 1)),
 			}, inv, reg)
 
+	# Reputação de agressor decai devagar (o mundo esquece aos poucos se você para
+	# de agir mal): ~-0.15/mês → uma guerra (rep +6) leva ~3 anos pra "cicatrizar".
+	if player_reputation > 0.0:
+		player_reputation = maxf(0.0, player_reputation - 0.15)
 	# Atualiza tracking de antagonista (nação rival recorrente)
 	_update_player_nemesis()
 
@@ -1544,6 +1557,12 @@ func _drift_ideological_relations(n) -> void:
 		var aff: float = _ideological_affinity(n, other)
 		# Alvo de longo prazo: afinidade máxima → +50, mínima → -50 (blocos, não guerra)
 		var alvo: float = aff * 50.0
+		# MEMÓRIA (Mundo Vivo): rancor acumulado ARRASTA o alvo pra baixo — a mágoa
+		# impede a relação de voltar ao normal. Antes o drift zerava toda ofensa em
+		# ~20 turnos (a vingança evaporava); agora o rancor a mantém viva.
+		var grudge: float = n.grudge_against(other_code)
+		if grudge > 0.0:
+			alvo -= minf(grudge, 90.0)   # rancor forte trava a relação bem no negativo
 		var atual: float = float(n.relacoes[other_code])
 		# Passo rumo ao alvo (8% do gap por ativação ≈ a cada 2 anos). Forte o bastante
 		# para consolidar blocos coerentes com a ideologia ATUAL apesar da rotatividade
@@ -1714,11 +1733,17 @@ func _update_player_nemesis() -> void:
 	var worst_rel: float = 1.0
 	for code in player_nation.relacoes:
 		if code == player_nation.codigo_iso: continue
+		# Rancor da NPC contra você conta: quem guarda mágoa é candidato a nemesis.
 		var r: float = float(player_nation.relacoes[code])
+		if nations.has(code):
+			r -= nations[code].grudge_against(player_nation.codigo_iso) * 0.5
 		if r < worst_rel:
 			worst_rel = r
 			worst_code = code
-	if worst_code == "" or worst_rel > -50.0:
+	# Reputação de agressor baixa o limiar: um pária ganha rivais mais fácil
+	# (o mundo enxerga a ameaça). Neutro: -50; pária (rep 100): ~-30.
+	var limiar: float = -50.0 + clampf(player_reputation * 0.2, 0.0, 20.0)
+	if worst_code == "" or worst_rel > limiar:
 		# Sem rival qualificado — limpa estado se havia
 		if nemesis_declared:
 			nemesis_declared = false
@@ -1847,6 +1872,9 @@ func _run_ai_turn() -> void:
 		acted += 1
 
 func _ai_decide(n) -> void:
+	# MEMÓRIA (Mundo Vivo): a nação envelhece seus rancores quando age (não todo
+	# turno — barato). O drift logo abaixo já lê o rancor que sobrou.
+	n.decay_memory()
 	# Drift de relações por afinidade ideológica (#7): sempre que a nação age, suas
 	# relações caminham devagar na direção da afinidade — afins se aproximam, opostos
 	# se afastam. Compostas ao longo do século, fazem blocos geopolíticos EMERGIREM.
@@ -1874,12 +1902,15 @@ func _ai_decide(n) -> void:
 
 	# 2. DECLARAR GUERRA — agressivo, com tesouro, sem guerra atual
 	if n.em_guerra.size() == 0 and treasury >= 80.0 and stab >= 50.0:
-		# Procura rival: pior relação CONHECIDA OU qualquer vizinho viável
+		# Procura rival pela relação EFETIVA = relação - RANCOR. Assim a nação
+		# prioriza QUEM A AGREDIU (vendeta) sobre um mero desafeto ideológico —
+		# quem tomou sua província ou te declarou guerra vira o alvo preferencial.
 		var worst_code: String = ""
 		var worst_rel: float = 1000.0
 		for c in n.relacoes:
-			var r: float = n.relacoes[c]
-			if r < worst_rel and c != n.codigo_iso:
+			if c == n.codigo_iso: continue
+			var r: float = float(n.relacoes[c]) - n.grudge_against(c)
+			if r < worst_rel:
 				if nations.has(c) and not (n.codigo_iso in nations[c].em_guerra):
 					worst_rel = r
 					worst_code = c
@@ -2051,6 +2082,11 @@ func _declare_war(from_code: String, to_code: String) -> void:
 		defender.em_guerra.append(from_code)
 	attacker.relacoes[to_code] = -100
 	defender.relacoes[from_code] = -100
+	# MEMÓRIA (Mundo Vivo): o defensor lembra QUEM lhe declarou guerra.
+	defender.remember("guerra_declarada", from_code, current_turn)
+	# Reputação: o jogador declarando guerra sobe sua agressividade percebida.
+	if player_nation != null and from_code == player_nation.codigo_iso:
+		_add_player_reputation(6.0)
 	# DEFCON só reage a guerras RELEVANTES ao jogador — senão, com 195 nações
 	# guerreando o tempo todo, o alerta ficava cravado em DEFCON 1 o século
 	# inteiro (medido: média 1.12). Guerra distante entre bots vira notícia,
@@ -2398,6 +2434,13 @@ func transfer_province(prov_id: String, new_owner: String, motivo: String = "con
 	if not provinces_of.has(new_owner):
 		provinces_of[new_owner] = []
 	provinces_of[new_owner].append(prov_id)
+	# MEMÓRIA (Mundo Vivo): o país que PERDE território guarda rancor de quem tomou.
+	# Território perdido é a mágoa mais forte e mais duradoura (irredentismo).
+	if nations.has(old_owner) and old_owner != new_owner:
+		nations[old_owner].remember("provincia_perdida", new_owner, current_turn)
+	# Se o jogador foi o conquistador, sua reputação de agressor sobe.
+	if player_nation != null and new_owner == player_nation.codigo_iso:
+		_add_player_reputation(4.0)
 	emit_signal("province_conquered", prov_id, old_owner, new_owner)
 	return true
 
@@ -2959,6 +3002,10 @@ func player_incite_secession(prov_id: String) -> Dictionary:
 	# fricção diplomática (operação subversiva)
 	if owner:
 		owner.relacoes[n.codigo_iso] = clamp(float(owner.relacoes.get(n.codigo_iso, 0)) - 8, -100, 100)
+		# MEMÓRIA: o dono lembra de quem fomenta separatismo no seu território.
+		owner.remember("secessao_fomentada", n.codigo_iso, current_turn)
+	if n == player_nation:
+		_add_player_reputation(3.0)
 	# GUARDAS (anti-exploit, alinhados com a guerra): a capital só racha se for a
 	# ÚNICA província restante do dono; e a secessão nunca deixa o dono com 0
 	# províncias. Sem isso, subversão barata apagava uma nação do mapa.
@@ -3164,6 +3211,9 @@ func player_impose_sanctions(target_code: String) -> Dictionary:
 	var t = nations[target_code]
 	player_nation.relacoes[target_code] = clamp(float(player_nation.relacoes.get(target_code, 0)) - 30, -100, 100)
 	t.relacoes[player_nation.codigo_iso] = clamp(float(t.relacoes.get(player_nation.codigo_iso, 0)) - 30, -100, 100)
+	# MEMÓRIA: o alvo lembra da sanção; reputação de agressor do jogador sobe pouco.
+	t.remember("sancao", player_nation.codigo_iso, current_turn)
+	_add_player_reputation(2.0)
 	_log_news({
 		"type": "sanctions",
 		"headline": "🚫 %s impõe sanções contra %s" % [player_nation.nome, t.nome],

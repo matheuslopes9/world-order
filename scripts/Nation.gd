@@ -933,3 +933,64 @@ func _push_hist(key: String, value: float) -> void:
 	arr.append(snappedf(value, 0.1))
 	if arr.size() > HIST_MAX: arr.pop_front()
 	historico[key] = arr
+
+# ─────────────────────────────────────────────────────────────────
+# MEMÓRIA & RANCOR (Mundo Vivo, Bloco A) — a nação LEMBRA de quem a agrediu.
+# Cada agravo vira uma entrada {tipo, culpado, turno, peso}. O peso decai devagar
+# (não some em 20 turnos como a relação crua), então a mágoa persiste e influencia
+# guerra futura e o drift de relações. Cap rígido — só os agravos que importam.
+# ─────────────────────────────────────────────────────────────────
+const MEMORIA_MAX: int = 12
+# Peso inicial por tipo de agravo — perder território dói MUITO mais que uma sanção.
+const AGRAVO_PESO := {
+	"provincia_perdida":   45.0,
+	"guerra_declarada":    30.0,
+	"secessao_fomentada":  25.0,
+	"traicao_alianca":     22.0,
+	"coalizao":            15.0,
+	"sancao":              12.0,
+}
+# Tipos que decaem MAIS devagar (mágoa histórica — território tomado vira irredentismo).
+const AGRAVO_LENTO := {"provincia_perdida": true, "traicao_alianca": true}
+
+# Registra um agravo cometido por `culpado` contra esta nação.
+func remember(tipo: String, culpado: String, turno: int, peso_override: float = -1.0) -> void:
+	if culpado == "" or culpado == codigo_iso:
+		return
+	var peso: float = peso_override if peso_override >= 0.0 else float(AGRAVO_PESO.get(tipo, 10.0))
+	# Se já há um agravo do MESMO tipo pelo MESMO culpado, reforça em vez de duplicar.
+	for e in memoria:
+		if e.get("tipo", "") == tipo and e.get("culpado", "") == culpado:
+			e["peso"] = float(e.get("peso", 0.0)) + peso * 0.6
+			e["turno"] = turno
+			return
+	memoria.append({"tipo": tipo, "culpado": culpado, "turno": turno, "peso": peso})
+	# Cap: se estourar, descarta o de MENOR peso (o rancor mais fraco).
+	if memoria.size() > MEMORIA_MAX:
+		var min_i: int = 0
+		for i in range(1, memoria.size()):
+			if float(memoria[i].get("peso", 0.0)) < float(memoria[min_i].get("peso", 0.0)):
+				min_i = i
+		memoria.remove_at(min_i)
+
+# Soma do rancor acumulado contra `alvo` (0 = nenhum). A IA usa isso pra decidir
+# retaliação e o drift usa pra NÃO deixar a relação voltar ao normal.
+func grudge_against(alvo: String) -> float:
+	var total: float = 0.0
+	for e in memoria:
+		if e.get("culpado", "") == alvo:
+			total += float(e.get("peso", 0.0))
+	return total
+
+# Decaimento — chamado 1× quando a nação AGE (no cursor da IA, ~a cada 8 turnos),
+# não todo turno. Meia-vida ~12 anos; agravos lentos duram mais. Descarta os fracos.
+func decay_memory() -> void:
+	if memoria.is_empty():
+		return
+	var kept: Array = []
+	for e in memoria:
+		var fator: float = 0.99 if AGRAVO_LENTO.has(e.get("tipo", "")) else 0.97
+		e["peso"] = float(e.get("peso", 0.0)) * fator
+		if float(e["peso"]) >= 1.0:
+			kept.append(e)
+	memoria = kept

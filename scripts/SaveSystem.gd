@@ -50,6 +50,7 @@ static func save_game(engine) -> bool:
 		"storyline_active_arcs": engine.storylines.active_arcs if engine.storylines else [],
 		"storyline_started_arcs": engine.storylines.started_arcs if engine.storylines else [],
 		"player_nemesis": engine.player_nemesis,
+		"player_reputation": engine.player_reputation,   # reputação de agressor (Mundo Vivo)
 		"nemesis_declared": engine.nemesis_declared,
 		"victory_achieved": engine.victory_achieved,
 		"power_rank_history": engine.player_power_rank_history,
@@ -153,6 +154,7 @@ static func load_game(engine) -> bool:
 		engine.storylines.started_arcs = data.get("storyline_started_arcs", [])
 	# Restaura antagonista
 	engine.player_nemesis = String(data.get("player_nemesis", ""))
+	engine.player_reputation = float(data.get("player_reputation", 0.0))
 	engine.nemesis_declared = bool(data.get("nemesis_declared", false))
 	# Restaura estado de vitória (evita re-disparo do modal em modo livre)
 	engine.victory_achieved = bool(data.get("victory_achieved", false))
@@ -287,6 +289,7 @@ static func _serialize_nations(nations: Dictionary) -> Dictionary:
 			"velocidade_pesquisa": n.velocidade_pesquisa,
 			"relacoes": n.relacoes,
 			"em_guerra": n.em_guerra,
+			"memoria": n.memoria,   # rancor/agravos (Mundo Vivo, Bloco A)
 			"intel_score": n.intel_score,
 			"seguranca_intel": n.seguranca_intel,
 			"spy_ops_log": n.spy_ops_log,
