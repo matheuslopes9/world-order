@@ -1581,6 +1581,11 @@ func _drift_ideological_relations(n) -> void:
 # e, se cair, empossa um sucessor de ideologia possivelmente diferente.
 func _process_leadership(n) -> void:
 	if n == player_nation:
+		# POLÍTICA INTERNA (Mundo Vivo, Bloco D): o jogador NÃO é mais imune à queda,
+		# mas SÓ cai por GOLPE quando deixa a estabilidade no chão — é culpa dele, e
+		# a estabilidade é visível. Nunca por morte/eleição aleatória. Imune no Fácil.
+		# Um aviso de "risco de golpe" já vem do conselheiro quando estab < 35.
+		_maybe_player_coup(n)
 		return
 	# Inicializa o líder na primeira passagem
 	if n.lider_nome == "":
@@ -1617,6 +1622,32 @@ func _process_leadership(n) -> void:
 		motivo = "eleicao"
 	if motivo != "":
 		_succeed_leader(n, motivo)
+
+# GOLPE DO JOGADOR (Mundo Vivo, Bloco D) — a política interna morde. O jogador já
+# perde por colapso instantâneo (<8% de estabilidade, em evaluate_endgame). Aqui
+# há uma ZONA DE PERIGO (8-15%) onde um golpe se constrói: quanto mais tempo você
+# passa com estabilidade crítica, maior o risco — mas há AVISO e chance de reagir.
+# Justo: só golpe (nunca morte/eleição), imune no Fácil, e é sempre culpa do jogador.
+func _maybe_player_coup(n) -> void:
+	if game_state != "PLAYING" or victory_achieved:
+		return
+	if String(settings.get("difficulty", "normal")) == "easy":
+		return  # no Fácil o jogador não sofre golpe interno
+	if n.estabilidade_politica >= 15.0:
+		n.set_meta("coup_pressure", 0)   # fora da zona de perigo, a panela esfria
+		return
+	# Na zona 8-15%: acumula "pressão de golpe". Aviso ao entrar; golpe se persistir.
+	var pressure: int = int(n.get_meta("coup_pressure", 0)) + 1
+	n.set_meta("coup_pressure", pressure)
+	if pressure == 1:
+		_flag_drama("⚠ GENERAIS CONSPIRAM",
+			"Sua estabilidade está crítica (%d%%). Se não restaurar a ordem, um golpe é questão de tempo. Painel Governo/Segurança, urgente." % int(n.estabilidade_politica),
+			n.codigo_iso, "general", 3)
+	# Risco cresce com a pressão; ~6+ meses na zona sem reagir → golpe provável.
+	var coup_chance: float = clampf((pressure - 3) * 0.04, 0.0, 0.25)
+	if pressure >= 4 and randf() < coup_chance:
+		_fire_endgame(false, "💀 GOLPE DE ESTADO",
+			"Os militares tomaram o poder após meses de instabilidade crítica. Você foi deposto — a ordem interna era sua responsabilidade.")
 
 # Empossa um novo líder, possivelmente de ideologia diferente → o país muda de rumo.
 func _succeed_leader(n, motivo: String) -> void:
@@ -2897,9 +2928,24 @@ func _roll_events() -> void:
 	if randf() > 0.10:   # 30%/tri → 10%/mês (mesma frequência anual de eventos)
 		return
 	var ev: Dictionary = events_data[randi() % events_data.size()]
-	var year_min: int = int(ev.get("condicao", {}).get("ano_min", 0))
+	var cond: Dictionary = ev.get("condicao", {})
+	var year_min: int = int(cond.get("ano_min", 0))
 	if year_min > 0 and date_year < year_min:
 		return
+	# POLÍTICA (Mundo Vivo, Bloco D): respeita as condições que já existem nos dados
+	# mas eram ignoradas — evento de regime só cai no regime certo, e evento de
+	# crise só quando a estabilidade justifica. Um democrata não vê mais "Protestos
+	# Pró-Democracia" que só faziam sentido numa ditadura.
+	if cond.has("regime"):
+		var req: String = String(cond["regime"])
+		if req != "" and not (req in player_nation.regime_politico):
+			return
+	if cond.has("estabilidade_max"):
+		if player_nation.estabilidade_politica > float(cond["estabilidade_max"]):
+			return
+	if cond.has("estabilidade_min"):
+		if player_nation.estabilidade_politica < float(cond["estabilidade_min"]):
+			return
 	# Eventos com escolhas e que afetam o jogador → emite sinal pra UI mostrar modal
 	if ev.has("choices") and ev.get("afeta_jogador", false):
 		emit_signal("player_event_triggered", ev)
