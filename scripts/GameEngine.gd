@@ -179,8 +179,24 @@ var settings: Dictionary = {
 	#   "livre"     — eventos disparam com janelas alargadas, IA reage sem constraint histórico
 	"mode": "inspirado",
 	# Cenário ativo (id em data/scenarios.json). Default = campanha 2000-2100
-	"scenario": "campanha"
+	"scenario": "campanha",
+	# ATUALIZAÇÃO "MUNDO VIVO" (estreia) — pacote separável do jogo base. Quando
+	# DESLIGADO (default), o jogo roda o comportamento base original. Quando LIGADO,
+	# ativa memória/rancor, IA estratégica + rival, conquista com consequência e
+	# política interna. É a "atualização de estreia": vira só ligar esta flag.
+	"mundo_vivo": false,
 }
+
+# A atualização Mundo Vivo está ativa? Todos os pontos de integração dos blocos
+# A-D checam isto — desligado = jogo base puro.
+func mundo_vivo_ativo() -> bool:
+	return bool(settings.get("mundo_vivo", false))
+
+# Registra um agravo na memória de `vitima` — só quando a atualização está ativa.
+# Centraliza o guard: no jogo base a memória nunca é preenchida.
+func _remember_if_live(vitima, tipo: String, culpado: String) -> void:
+	if mundo_vivo_ativo() and vitima != null:
+		vitima.remember(tipo, culpado, current_turn)
 
 # Definição do cenário ativo carregada de data/scenarios.json (preenchida em apply_scenario)
 var active_scenario: Dictionary = {}
@@ -198,6 +214,8 @@ var nemesis_declared: bool = false  # vira true ao cruzar limiar
 var player_reputation: float = 0.0
 
 func _add_player_reputation(v: float) -> void:
+	if not mundo_vivo_ativo():
+		return  # reputação de agressor é da atualização Mundo Vivo
 	player_reputation = clampf(player_reputation + v, 0.0, 150.0)
 
 # ── Dados estáticos ──────────────────────────────────────────────
@@ -607,7 +625,7 @@ func end_turn() -> void:
 
 	# Reputação de agressor decai devagar (o mundo esquece aos poucos se você para
 	# de agir mal): ~-0.15/mês → uma guerra (rep +6) leva ~3 anos pra "cicatrizar".
-	if player_reputation > 0.0:
+	if mundo_vivo_ativo() and player_reputation > 0.0:
 		player_reputation = maxf(0.0, player_reputation - 0.15)
 	# Atualiza tracking de antagonista (nação rival recorrente)
 	_update_player_nemesis()
@@ -1564,11 +1582,12 @@ func _drift_ideological_relations(n) -> void:
 		# Alvo de longo prazo: afinidade máxima → +50, mínima → -50 (blocos, não guerra)
 		var alvo: float = aff * 50.0
 		# MEMÓRIA (Mundo Vivo): rancor acumulado ARRASTA o alvo pra baixo — a mágoa
-		# impede a relação de voltar ao normal. Antes o drift zerava toda ofensa em
-		# ~20 turnos (a vingança evaporava); agora o rancor a mantém viva.
-		var grudge: float = n.grudge_against(other_code)
-		if grudge > 0.0:
-			alvo -= minf(grudge, 90.0)   # rancor forte trava a relação bem no negativo
+		# impede a relação de voltar ao normal. No jogo base isto não roda (o drift
+		# original só segue a afinidade ideológica).
+		if mundo_vivo_ativo():
+			var grudge: float = n.grudge_against(other_code)
+			if grudge > 0.0:
+				alvo -= minf(grudge, 90.0)   # rancor forte trava a relação no negativo
 		var atual: float = float(n.relacoes[other_code])
 		# Passo rumo ao alvo (8% do gap por ativação ≈ a cada 2 anos). Forte o bastante
 		# para consolidar blocos coerentes com a ideologia ATUAL apesar da rotatividade
@@ -1629,6 +1648,8 @@ func _process_leadership(n) -> void:
 # passa com estabilidade crítica, maior o risco — mas há AVISO e chance de reagir.
 # Justo: só golpe (nunca morte/eleição), imune no Fácil, e é sempre culpa do jogador.
 func _maybe_player_coup(n) -> void:
+	if not mundo_vivo_ativo():
+		return  # golpe do jogador é da atualização Mundo Vivo (Bloco D)
 	if game_state != "PLAYING" or victory_achieved:
 		return
 	if String(settings.get("difficulty", "normal")) == "easy":
@@ -1965,6 +1986,8 @@ func _compute_objetivo(n) -> String:
 var _ascendente_iso: String = ""
 
 func _maybe_pick_ascendente() -> void:
+	if not mundo_vivo_ativo():
+		return  # rival ascendente é da atualização Mundo Vivo (Bloco B)
 	if _ascendente_iso != "":
 		return
 	# Janela: turno 60-120 (~2005-2010) — dá tempo do mundo assentar antes do vilão subir.
@@ -2012,16 +2035,19 @@ func _maybe_pick_ascendente() -> void:
 		pick, "presidente", 2)
 
 func _ai_decide(n) -> void:
-	# MEMÓRIA (Mundo Vivo): a nação envelhece seus rancores quando age (não todo
-	# turno — barato). O drift logo abaixo já lê o rancor que sobrou.
-	n.decay_memory()
-	# META ESTRATÉGICA (Mundo Vivo B): recalcula o propósito da nação ao agir.
-	n.objetivo_atual = _compute_objetivo(n)
-	# RIVAL ASCENDENTE: cresce mais rápido (dentro dos caps) — sobe de verdade no
-	# ranking, virando ameaça real. Bônus leve e determinístico.
-	if n.ascendente and n.tesouro >= 40.0:
-		n.pib_bilhoes_usd = n.pib_bilhoes_usd * 1.004  # ~+5%/ano composto, dentro do cap de update_pib
-		n.tesouro += n.pib_bilhoes_usd * 0.0008
+	# ── ATUALIZAÇÃO MUNDO VIVO (A+B): memória, meta estratégica e rival ascendente.
+	# No jogo base a IA age pelos gates originais (sem meta nem rancor).
+	if mundo_vivo_ativo():
+		# MEMÓRIA: a nação envelhece seus rancores quando age (barato). O drift lê o resto.
+		n.decay_memory()
+		# META ESTRATÉGICA (B): recalcula o propósito da nação ao agir.
+		n.objetivo_atual = _compute_objetivo(n)
+		# RIVAL ASCENDENTE: cresce mais rápido (dentro dos caps) — sobe de verdade.
+		if n.ascendente and n.tesouro >= 40.0:
+			n.pib_bilhoes_usd = n.pib_bilhoes_usd * 1.004
+			n.tesouro += n.pib_bilhoes_usd * 0.0008
+	else:
+		n.objetivo_atual = "DESENVOLVER"  # base: sem meta, comportamento neutro
 	# Drift de relações por afinidade ideológica (#7): sempre que a nação age, suas
 	# relações caminham devagar na direção da afinidade — afins se aproximam, opostos
 	# se afastam. Compostas ao longo do século, fazem blocos geopolíticos EMERGIREM.
@@ -2092,11 +2118,14 @@ func _ai_decide(n) -> void:
 					worst_code = candidates[randi() % candidates.size()]
 					worst_rel = -30.0
 		if worst_code != "":
-			# Chance base por agressividade (0.3%-3.5%/turno). A META multiplica: quem
-			# EXPANDE/APROVEITA guerreia mais; quem DEFENDE/DESENVOLVE, bem menos.
-			var obj_mult: float = {
-				"EXPANDIR": 1.8, "OPORTUNISMO": 2.4, "DEFENDER": 0.5, "DESENVOLVER": 0.6,
-			}.get(objetivo, 1.0)
+			# Chance base por agressividade (0.3%-3.5%/turno). Com o MUNDO VIVO, a META
+			# multiplica: quem EXPANDE/APROVEITA guerreia mais; quem DEFENDE/DESENVOLVE,
+			# menos. No jogo base o multiplicador é neutro (1.0) — chance original.
+			var obj_mult: float = 1.0
+			if mundo_vivo_ativo():
+				obj_mult = {
+					"EXPANDIR": 1.8, "OPORTUNISMO": 2.4, "DEFENDER": 0.5, "DESENVOLVER": 0.6,
+				}.get(objetivo, 1.0)
 			var rel_factor: float = clamp((100.0 + worst_rel) / 100.0 + 0.5, 0.3, 1.5)
 			var war_chance: float = aggro * 0.035 * rel_factor * obj_mult
 			if randf() < war_chance:
@@ -2251,7 +2280,7 @@ func _declare_war(from_code: String, to_code: String) -> void:
 	attacker.relacoes[to_code] = -100
 	defender.relacoes[from_code] = -100
 	# MEMÓRIA (Mundo Vivo): o defensor lembra QUEM lhe declarou guerra.
-	defender.remember("guerra_declarada", from_code, current_turn)
+	_remember_if_live(defender, "guerra_declarada", from_code)
 	# Reputação: o jogador declarando guerra sobe sua agressividade percebida.
 	if player_nation != null and from_code == player_nation.codigo_iso:
 		_add_player_reputation(6.0)
@@ -2605,7 +2634,7 @@ func transfer_province(prov_id: String, new_owner: String, motivo: String = "con
 	# MEMÓRIA (Mundo Vivo): o país que PERDE território guarda rancor de quem tomou.
 	# Território perdido é a mágoa mais forte e mais duradoura (irredentismo).
 	if nations.has(old_owner) and old_owner != new_owner:
-		nations[old_owner].remember("provincia_perdida", new_owner, current_turn)
+		_remember_if_live(nations[old_owner], "provincia_perdida", new_owner)
 	# Se o jogador foi o conquistador, sua reputação de agressor sobe.
 	if player_nation != null and new_owner == player_nation.codigo_iso:
 		_add_player_reputation(4.0)
@@ -2614,7 +2643,7 @@ func transfer_province(prov_id: String, new_owner: String, motivo: String = "con
 	# revolta. Capital ocupada resiste mais (nacionalismo). O _process_occupation
 	# depois faz esse unrest crescer e, se você não pacificar, a província racha.
 	var core: String = String(p.get("core_iso", ""))
-	if new_owner != core and core != "" and motivo != "secessão":
+	if mundo_vivo_ativo() and new_owner != core and core != "" and motivo != "secessão":
 		var seed: float = 40.0 if bool(p.get("is_capital", false)) else 28.0
 		p["unrest"] = maxf(float(p.get("unrest", 0.0)), seed)
 	emit_signal("province_conquered", prov_id, old_owner, new_owner)
@@ -2626,6 +2655,8 @@ func transfer_province(prov_id: String, new_owner: String, motivo: String = "con
 # tesouro, e ao passar de 100 a província RACHA de volta ao dono histórico (core)
 # via transfer_province — a insurgência venceu. Conquista deixa de ser grátis.
 func _process_occupation() -> void:
+	if not mundo_vivo_ativo():
+		return  # ocupação com consequência é da atualização Mundo Vivo (Bloco C)
 	if not _provinces_ready:
 		return
 	var to_revolt: Array = []
@@ -2934,17 +2965,16 @@ func _roll_events() -> void:
 		return
 	# POLÍTICA (Mundo Vivo, Bloco D): respeita as condições que já existem nos dados
 	# mas eram ignoradas — evento de regime só cai no regime certo, e evento de
-	# crise só quando a estabilidade justifica. Um democrata não vê mais "Protestos
-	# Pró-Democracia" que só faziam sentido numa ditadura.
-	if cond.has("regime"):
-		var req: String = String(cond["regime"])
-		if req != "" and not (req in player_nation.regime_politico):
+	# crise só quando a estabilidade justifica. No jogo base essas condições
+	# continuam ignoradas (comportamento original).
+	if mundo_vivo_ativo():
+		if cond.has("regime"):
+			var req: String = String(cond["regime"])
+			if req != "" and not (req in player_nation.regime_politico):
+				return
+		if cond.has("estabilidade_max") and player_nation.estabilidade_politica > float(cond["estabilidade_max"]):
 			return
-	if cond.has("estabilidade_max"):
-		if player_nation.estabilidade_politica > float(cond["estabilidade_max"]):
-			return
-	if cond.has("estabilidade_min"):
-		if player_nation.estabilidade_politica < float(cond["estabilidade_min"]):
+		if cond.has("estabilidade_min") and player_nation.estabilidade_politica < float(cond["estabilidade_min"]):
 			return
 	# Eventos com escolhas e que afetam o jogador → emite sinal pra UI mostrar modal
 	if ev.has("choices") and ev.get("afeta_jogador", false):
@@ -3248,7 +3278,7 @@ func player_incite_secession(prov_id: String) -> Dictionary:
 	if owner:
 		owner.relacoes[n.codigo_iso] = clamp(float(owner.relacoes.get(n.codigo_iso, 0)) - 8, -100, 100)
 		# MEMÓRIA: o dono lembra de quem fomenta separatismo no seu território.
-		owner.remember("secessao_fomentada", n.codigo_iso, current_turn)
+		_remember_if_live(owner, "secessao_fomentada", n.codigo_iso)
 	if n == player_nation:
 		_add_player_reputation(3.0)
 	# GUARDAS (anti-exploit, alinhados com a guerra): a capital só racha se for a
@@ -3457,7 +3487,7 @@ func player_impose_sanctions(target_code: String) -> Dictionary:
 	player_nation.relacoes[target_code] = clamp(float(player_nation.relacoes.get(target_code, 0)) - 30, -100, 100)
 	t.relacoes[player_nation.codigo_iso] = clamp(float(t.relacoes.get(player_nation.codigo_iso, 0)) - 30, -100, 100)
 	# MEMÓRIA: o alvo lembra da sanção; reputação de agressor do jogador sobe pouco.
-	t.remember("sancao", player_nation.codigo_iso, current_turn)
+	_remember_if_live(t, "sancao", player_nation.codigo_iso)
 	_add_player_reputation(2.0)
 	_log_news({
 		"type": "sanctions",

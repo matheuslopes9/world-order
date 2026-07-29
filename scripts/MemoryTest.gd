@@ -14,6 +14,7 @@ func _ready() -> void:
 		if f: _save_backup = f.get_as_text(); f.close()
 
 	var E = GameEngine
+	E.settings["mundo_vivo"] = true   # a atualização Mundo Vivo precisa estar LIGADA p/ estes testes
 	print("\n=== TESTE DE MEMÓRIA & RANCOR (Mundo Vivo A) ===")
 	var tally := [0, 0]
 	var _t = func(desc, ok):

@@ -13,6 +13,7 @@ func _ready() -> void:
 		var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
 		if f: _save_backup = f.get_as_text(); f.close()
 	var E = GameEngine
+	E.settings["mundo_vivo"] = true   # a atualização Mundo Vivo precisa estar LIGADA p/ estes testes
 	E.player_nation = E.nations["BR"]
 	E.game_state = "PLAYING"
 	print("\n=== TESTE DE IA ESTRATÉGICA + RIVAL ASCENDENTE (Mundo Vivo B) ===")
