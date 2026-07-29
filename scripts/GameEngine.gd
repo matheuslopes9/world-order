@@ -554,6 +554,8 @@ func end_turn() -> void:
 	_process_war_costs()
 	# Progresso das guerras: vantagem acumula, vitória decisiva gera espólios
 	_process_war_resolution()
+	# Ocupação (Mundo Vivo C): território conquistado revolta se não for pacificado
+	_process_occupation()
 	# Fadiga: guerras longas demais terminam em armistício
 	_process_war_fatigue()
 	# Sanções ativas: aplica penalidade nos alvos e decrementa duração
@@ -1817,26 +1819,33 @@ func _process_containment_coalition() -> void:
 	maiores.sort_custom(func(a, b): return compute_power_score(nations[a]) > compute_power_score(nations[b]))
 	var segundo_score: float = compute_power_score(nations[maiores[0]])
 	var hegemon: bool = my_score > segundo_score * 1.6 and get_power_rank(player_nation.codigo_iso) == 1
-	if not hegemon:
+	# 2º GATILHO (Mundo Vivo C): AGRESSOR PÁRIA. Reputação de agressão alta (guerras
+	# e conquistas acumuladas) faz o mundo se unir contra você MESMO sem ser hegemon
+	# — anexar meio continente tem preço diplomático, não só o hegemon é contido.
+	var paria: bool = player_reputation >= 55.0
+	if not hegemon and not paria:
 		if _containment_active:
-			_containment_active = false  # perdeu o status; coalizão se dissolve
+			_containment_active = false  # não é mais ameaça; coalizão se dissolve
 		return
 	# Ativa/mantém a coalizão: as 5 maiores rivais formam o bloco de contenção
 	var coalizao: Array = maiores.slice(0, mini(5, maiores.size()))
 	if not _containment_active:
 		_containment_active = true
+		# Motivo da coalizão: hegemonia de poder OU agressão (pária). Muda o texto.
+		var por_agressao: bool = paria and not hegemon
+		var motivo_txt: String = "sua agressão expansionista" if por_agressao else "sua hegemonia"
+		var lider_iso: String = String(coalizao[0]) if coalizao.size() > 0 else ""
 		_log_news({
 			"type": "coalizao",
-			"headline": "🌐 Coalizão de contenção se forma contra %s" % player_nation.nome,
-			"body": "As grandes potências, alarmadas com o poder de %s, cerram fileiras para conter sua hegemonia." % player_nation.nome,
+			"headline": "🌐 Coalizão %s se forma contra %s" % ["anti-agressão" if por_agressao else "de contenção", player_nation.nome],
+			"body": "As grandes potências, alarmadas com %s, cerram fileiras para contê-lo." % motivo_txt,
 			"involves_player": true,
 			"color": Color(1, 0.5, 0.3),
 		}, [player_nation.codigo_iso], "")
-		# MEGAFONE: o mundo se unindo contra você é o clímax da ascensão — destaque máximo.
-		var lider_iso: String = String(coalizao[0]) if coalizao.size() > 0 else ""
+		# MEGAFONE: o mundo se unindo contra você — destaque máximo.
 		_flag_drama(
 			"🌐 O MUNDO SE UNE CONTRA VOCÊ",
-			"As grandes potências formaram uma COALIZÃO DE CONTENÇÃO para barrar sua hegemonia. Liderança: %s. Elas vão esfriar com você e se aproximar entre si." % (nations[lider_iso].nome if nations.has(lider_iso) else "as maiores potências"),
+			"As grandes potências formaram uma COALIZÃO para conter %s. Liderança: %s. Elas vão esfriar com você e se aproximar entre si." % [motivo_txt, (nations[lider_iso].nome if nations.has(lider_iso) else "as maiores potências")],
 			lider_iso, "presidente", 3)
 	# Efeito por ativação: rivais esfriam com o jogador e se aproximam entre si
 	for i in coalizao.size():
@@ -2569,8 +2578,70 @@ func transfer_province(prov_id: String, new_owner: String, motivo: String = "con
 	# Se o jogador foi o conquistador, sua reputação de agressor sobe.
 	if player_nation != null and new_owner == player_nation.codigo_iso:
 		_add_player_reputation(4.0)
+	# OCUPAÇÃO (Mundo Vivo, Bloco C): território tomado à FORÇA de outro dono nasce
+	# insatisfeito. Reconquistar seu PRÓPRIO core (irredentismo legítimo) não gera
+	# revolta. Capital ocupada resiste mais (nacionalismo). O _process_occupation
+	# depois faz esse unrest crescer e, se você não pacificar, a província racha.
+	var core: String = String(p.get("core_iso", ""))
+	if new_owner != core and core != "" and motivo != "secessão":
+		var seed: float = 40.0 if bool(p.get("is_capital", false)) else 28.0
+		p["unrest"] = maxf(float(p.get("unrest", 0.0)), seed)
 	emit_signal("province_conquered", prov_id, old_owner, new_owner)
 	return true
+
+# OCUPAÇÃO (Mundo Vivo, Bloco C) — território tomado à força tem CUSTO e RISCO.
+# Itera só as províncias ocupadas (owner != core — dezenas, não milhares): o
+# unrest cresce (menos se o ocupante é estável e forte), cobra guarnição do
+# tesouro, e ao passar de 100 a província RACHA de volta ao dono histórico (core)
+# via transfer_province — a insurgência venceu. Conquista deixa de ser grátis.
+func _process_occupation() -> void:
+	if not _provinces_ready:
+		return
+	var to_revolt: Array = []
+	for pid in provinces:
+		var p: Dictionary = provinces[pid]
+		var owner: String = String(p.get("owner_iso", ""))
+		var core: String = String(p.get("core_iso", ""))
+		if owner == "" or core == "" or owner == core:
+			continue  # só território OCUPADO gera custo
+		var occ = nations.get(owner)
+		if occ == null:
+			continue
+		# Crescimento do unrest: menor se o ocupante é estável (repressão/integração).
+		# Estab 100 → +0.8/turno; estab 30 → +2.5/turno. Capital resiste mais (some).
+		var estab: float = occ.estabilidade_politica
+		var growth: float = clampf(3.0 - estab / 40.0, 0.4, 2.8)
+		p["unrest"] = clampf(float(p.get("unrest", 0.0)) + growth, 0.0, 150.0)
+		# Custo de guarnição: proporcional ao unrest e ao PIB da província ocupada.
+		var garrison: float = float(p.get("pib_frac", 0.05)) * occ.pib_bilhoes_usd * 0.02 * (float(p["unrest"]) / 100.0)
+		occ.tesouro = maxf(0.0, occ.tesouro - garrison)
+		# Revolta: ao cruzar o limiar, a província volta ao CORE (dono histórico).
+		if float(p["unrest"]) >= SECESSION_THRESHOLD:
+			# guard: não deixa o ocupante com 0 províncias (raro, mas consistente)
+			if provinces_of.get(owner, []).size() > 1 and nations.has(core):
+				to_revolt.append(pid)
+	# aplica as revoltas fora do loop (transfer_province muda provinces_of)
+	for pid in to_revolt:
+		var p2: Dictionary = provinces[pid]
+		var owner2: String = String(p2.get("owner_iso", ""))
+		var core2: String = String(p2.get("core_iso", ""))
+		p2["unrest"] = 0.0
+		transfer_province(pid, core2, "revolta")
+		# a nação que PERDE a província ocupada não guarda rancor disso (foi justa
+		# reconquista do dono histórico) — remove a memória sobra, se houver.
+		var pnome: String = String(p2.get("nome", pid))
+		var involves_p: bool = player_nation != null and (owner2 == player_nation.codigo_iso or core2 == player_nation.codigo_iso)
+		_log_news({
+			"type": "revolta",
+			"headline": "✊ %s se revolta e volta a %s" % [pnome, nations[core2].nome if nations.has(core2) else core2],
+			"body": "A ocupação de %s ruiu: a insurgência expulsou o ocupante e o território voltou ao dono histórico." % pnome,
+			"involves_player": involves_p,
+			"color": Color(0.9, 0.5, 0.3),
+		}, [owner2, core2], nations[core2].continente if nations.has(core2) else "")
+		if involves_p and owner2 == player_nation.codigo_iso:
+			_flag_drama("✊ REVOLTA! Você perdeu %s" % pnome,
+				"O território ocupado se revoltou e voltou ao dono original. Ocupar sem pacificar tem preço.",
+				core2, "general", 3)
 
 # Escolhe a próxima província do PERDEDOR a cair para o VENCEDOR numa guerra:
 # a mais fraca na FRONTEIRA (adjacente a alguma província já do vencedor).
