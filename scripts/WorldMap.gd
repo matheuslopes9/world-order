@@ -2471,7 +2471,6 @@ func _persist_all_settings() -> void:
 	cfg.load("user://settings.cfg")
 	cfg.set_value("game", "difficulty", GameEngine.settings.get("difficulty", "normal"))
 	cfg.set_value("game", "ai_speed", int(GameEngine.settings.get("ai_speed", 8)))
-	cfg.set_value("game", "mundo_vivo", bool(GameEngine.settings.get("mundo_vivo", false)))
 	cfg.save("user://settings.cfg")
 
 # Container-padrão de uma aba: ScrollContainer > VBox (retorna o VBox p/ encher)
@@ -2561,18 +2560,6 @@ func _build_tab_jogo(modal_ref: Array) -> ScrollContainer:
 		info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(info)
 		v.add_child(HSeparator.new())
-	_opt_section(v, "🌍 ATUALIZAÇÃO: MUNDO VIVO")
-	var mv_hint := Label.new()
-	mv_hint.text = "As nações lembram do que você faz e retaliam, uma potência rival ascende a cada partida, conquistar território tem consequências, e a política interna morde. Deixa cada partida única — e o jogo mais difícil."
-	mv_hint.add_theme_color_override("font_color", Color(0.72, 0.82, 0.95))
-	mv_hint.add_theme_font_size_override("font_size", 10)
-	mv_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	mv_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(mv_hint)
-	_opt_toggle_row(v, [["✨ ATIVADA", "on"], ["Desativada", "off"]],
-		"on" if bool(GameEngine.settings.get("mundo_vivo", false)) else "off",
-		func(id): GameEngine.settings["mundo_vivo"] = (id == "on"))
-	v.add_child(HSeparator.new())
 	_opt_section(v, "DIFICULDADE")
 	_opt_toggle_row(v, [["Fácil", "easy"], ["Normal", "normal"], ["Difícil", "hard"], ["Brutal", "brutal"]],
 		String(GameEngine.settings.get("difficulty", "normal")),

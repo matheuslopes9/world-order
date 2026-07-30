@@ -52,3 +52,6 @@ desktop.ini
 deploy.ps1
 node_modules/
 npm-debug.log*
+
+# Graphify (mapa de arquitetura gerado — recriar com: graphify update .)
+graphify-out/

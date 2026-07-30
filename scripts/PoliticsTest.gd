@@ -5,7 +5,6 @@ extends Node
 func _ready() -> void:
 	await get_tree().process_frame
 	var E = GameEngine
-	E.settings["mundo_vivo"] = true   # a atualização Mundo Vivo precisa estar LIGADA p/ estes testes
 	E.player_nation = E.nations["BR"]
 	E.game_state = "PLAYING"
 	E.victory_achieved = false

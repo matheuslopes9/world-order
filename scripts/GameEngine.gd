@@ -180,22 +180,17 @@ var settings: Dictionary = {
 	"mode": "inspirado",
 	# Cenário ativo (id em data/scenarios.json). Default = campanha 2000-2100
 	"scenario": "campanha",
-	# ATUALIZAÇÃO "MUNDO VIVO" (estreia) — pacote separável do jogo base. Quando
-	# DESLIGADO (default), o jogo roda o comportamento base original. Quando LIGADO,
-	# ativa memória/rancor, IA estratégica + rival, conquista com consequência e
-	# política interna. É a "atualização de estreia": vira só ligar esta flag.
-	"mundo_vivo": false,
 }
 
-# A atualização Mundo Vivo está ativa? Todos os pontos de integração dos blocos
-# A-D checam isto — desligado = jogo base puro.
+# MUNDO VIVO — sistema base do jogo, sempre ativo: memória/rancor, IA estratégica
+# + rival ascendente, conquista com consequência e política interna. As nações
+# lembram do que o jogador faz e reagem; cada partida é diferente.
 func mundo_vivo_ativo() -> bool:
-	return bool(settings.get("mundo_vivo", false))
+	return true
 
-# Registra um agravo na memória de `vitima` — só quando a atualização está ativa.
-# Centraliza o guard: no jogo base a memória nunca é preenchida.
+# Registra um agravo na memória de `vitima`.
 func _remember_if_live(vitima, tipo: String, culpado: String) -> void:
-	if mundo_vivo_ativo() and vitima != null:
+	if vitima != null:
 		vitima.remember(tipo, culpado, current_turn)
 
 # Definição do cenário ativo carregada de data/scenarios.json (preenchida em apply_scenario)
