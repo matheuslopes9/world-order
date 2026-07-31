@@ -1822,6 +1822,11 @@ func _instantiate_country(data: Dictionary, verts_left: int) -> int:
 		if verts_left <= 0:
 			await get_tree().process_frame
 			verts_left = 2200
+		var ring_packed := PackedVector2Array(ring)
+		# Anel degenerado (colinear / área ~0): pula — não desenha nada e faria a
+		# triangulação do Polygon2D falhar em loop no render.
+		if not _polygon_ok(ring_packed):
+			continue
 		var ring_closed := PackedVector2Array(ring)
 		ring_closed.append(ring[0])
 		# (Shelf costeiro artificial REMOVIDO: a batimetria real da NASA já
@@ -1861,6 +1866,29 @@ func _ring_to_packed(ring: Array) -> PackedVector2Array:
 		var y: float = (90.0 - pt[1]) * (MAP_HEIGHT / 180.0)
 		arr[i] = Vector2(x, y)
 	return arr
+
+# Um anel serve para um Polygon2D? Precisa de ≥3 vértices E área não-nula. Anéis
+# degenerados (todos os pontos colineares, ou área ~0) fazem a triangulação do
+# renderizador falhar com "Invalid polygon data, triangulation failed" a cada
+# desenho. Descartá-los antes de virar Polygon2D silencia o spam sem perda visual
+# (um polígono de área zero não desenharia nada mesmo).
+func _polygon_ok(ring: PackedVector2Array) -> bool:
+	if ring.size() < 3:
+		return false
+	# Área não-nula (shoelace) descarta anéis colineares/achatados baratos.
+	var area2: float = 0.0
+	var n: int = ring.size()
+	for i in n:
+		var a := ring[i]
+		var b := ring[(i + 1) % n]
+		area2 += a.x * b.y - b.x * a.y
+	if absf(area2) <= 0.5:
+		return false
+	# Teste definitivo: o renderizador triangula o Polygon2D exatamente assim.
+	# Se Geometry2D não consegue triangular (auto-interseção / bowtie / pontos
+	# repetidos), o Polygon2D falharia com "triangulation failed" a cada desenho.
+	# Fazemos o mesmo cálculo uma vez aqui e descartamos o que não passa.
+	return Geometry2D.triangulate_polygon(ring).size() > 0
 
 # ─────────────────────────────────────────────────────────────────
 # PROVÍNCIAS (grand strategy) — camada de subdivisões, invisível por default.
@@ -1904,8 +1932,8 @@ func _ensure_provinces_loaded() -> void:
 			continue  # província sintética sem geometria (FR/NO) — não renderiza
 		var owner_iso: String = String(pr.get("owner_iso", ""))
 		var ring := _ring_to_packed(poly_lonlat)
-		if ring.size() < 3:
-			continue
+		if not _polygon_ok(ring):
+			continue  # degenerado (colinear/área ~0): pula p/ não falhar a triangulação
 		# Orçamento de vértices: cede o frame antes de polígonos grandes (só no
 		# cliente; em headless monta tudo síncrono pra não atrasar testes/sims).
 		if not headless:
@@ -5643,6 +5671,12 @@ func _maybe_show_world_drama() -> void:
 	_show_world_drama_card(best)
 
 func _show_world_drama_card(d: Dictionary) -> void:
+	# Remove qualquer card de plantão anterior AINDA na tela (o card fica ~8.5s;
+	# se outro plantão dispara antes disso, os dois se sobrepunham na MESMA posição
+	# fixa e o texto embaralhava). Um plantão por vez.
+	for c in get_children():
+		if c is PanelContainer and String(c.name).begins_with("DramaCard_"):
+			c.queue_free()
 	var sev: int = int(d.get("severity", 2))
 	var accent: Color = Color(0.95, 0.35, 0.30) if sev >= 3 else Color(0.95, 0.62, 0.30)
 	var card := PanelContainer.new()
@@ -5682,20 +5716,26 @@ func _show_world_drama_card(d: Dictionary) -> void:
 	cap.add_theme_color_override("font_color", accent)
 	cap.add_theme_font_size_override("font_size", 10)
 	col.add_child(cap)
-	var head := Label.new()
-	head.text = String(d.get("headline", ""))
-	head.add_theme_color_override("font_color", Color(1, 0.95, 0.88))
-	head.add_theme_font_size_override("font_size", 15)
-	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	head.custom_minimum_size = Vector2(410, 0)
-	col.add_child(head)
-	var body := Label.new()
-	body.text = String(d.get("body", ""))
-	body.add_theme_color_override("font_color", Color(0.85, 0.82, 0.80))
-	body.add_theme_font_size_override("font_size", 11)
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.custom_minimum_size = Vector2(410, 0)
-	col.add_child(body)
+	var headline_txt: String = String(d.get("headline", "")).strip_edges()
+	if headline_txt != "":
+		var head := Label.new()
+		head.text = headline_txt
+		head.add_theme_color_override("font_color", Color(1, 0.95, 0.88))
+		head.add_theme_font_size_override("font_size", 15)
+		head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		head.custom_minimum_size = Vector2(410, 0)
+		col.add_child(head)
+	# O body só entra se houver texto — uma Label vazia com min-size 410 gerava
+	# um retângulo preto morto quando o drama não trazia corpo.
+	var body_txt: String = String(d.get("body", "")).strip_edges()
+	if body_txt != "":
+		var body := Label.new()
+		body.text = body_txt
+		body.add_theme_color_override("font_color", Color(0.85, 0.82, 0.80))
+		body.add_theme_font_size_override("font_size", 11)
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.custom_minimum_size = Vector2(410, 0)
+		col.add_child(body)
 	add_child(card)
 	card.position = Vector2(get_viewport_rect().size.x * 0.5 - 260, 96)
 	card.modulate = Color(1, 1, 1, 0)

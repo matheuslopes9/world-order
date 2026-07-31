@@ -268,21 +268,21 @@ func _draw() -> void:
 	# ombros / paletó
 	var suit := Color(String(rc["suit"]))
 	var suit_dark := suit.darkened(0.25)
-	draw_colored_polygon(PackedVector2Array([
+	_poly(PackedVector2Array([
 		Vector2(28, 240), Vector2(40, 192), Vector2(66, 172), Vector2(134, 172),
 		Vector2(160, 192), Vector2(172, 240)]), suit)
 	# camisa
-	draw_colored_polygon(PackedVector2Array([
+	_poly(PackedVector2Array([
 		Vector2(84, 172), Vector2(116, 172), Vector2(100, 210)]), Color(String(rc["shirt"])))
 	# lapelas
-	draw_colored_polygon(PackedVector2Array([
+	_poly(PackedVector2Array([
 		Vector2(84, 172), Vector2(100, 182), Vector2(88, 212), Vector2(72, 194)]), suit_dark)
-	draw_colored_polygon(PackedVector2Array([
+	_poly(PackedVector2Array([
 		Vector2(116, 172), Vector2(100, 182), Vector2(112, 212), Vector2(128, 194)]), suit_dark)
 	# gravata
 	if bool(rc.get("tie", false)):
 		var tie: Color = f["tie_color"]
-		draw_colored_polygon(PackedVector2Array([
+		_poly(PackedVector2Array([
 			Vector2(96, 180), Vector2(104, 180), Vector2(106, 214),
 			Vector2(100, 226), Vector2(94, 214)]), tie)
 		draw_rect(Rect2(95, 176, 10, 6), tie.darkened(0.2))
@@ -309,7 +309,7 @@ func _draw() -> void:
 			var a := -PI / 2.0 + TAU * i / 10.0
 			var r := 8.0 if i % 2 == 0 else 3.4
 			star.append(star_c + Vector2(cos(a) * r, sin(a) * r))
-		draw_colored_polygon(star, Color("d9c56a"))
+		_poly(star, Color("d9c56a"))
 		draw_circle(star_c, 2.2, Color("8a6f1e"))
 	# estetoscópio do Min. da Saúde (jaleco branco + gravata já vêm do suit)
 	if bool(rc.get("coat", false)):
@@ -406,7 +406,7 @@ func _draw() -> void:
 				pts.append(head_c + Vector2(cos(a) * (rx - 2), sin(a) * (ry - 1)))
 			pts.append(head_c + Vector2(rx * 0.62, 8))
 			pts.append(head_c + Vector2(-rx * 0.62, 8))
-			draw_colored_polygon(pts, fh)
+			_poly(pts, fh)
 			_ellipse(Vector2(head_c.x, head_c.y + 30), 12, 3.2, fh)
 			# reabre a boca por cima da barba
 			_mouth(head_c, skin_dark)
@@ -415,14 +415,17 @@ func _draw() -> void:
 
 func _head(c: Vector2, rx: float, ry: float, jaw: float, col: Color) -> void:
 	var pts := PackedVector2Array()
-	for i in 49:
+	# 48 pontos numa volta completa (0..<TAU). NÃO fechamos com um 49º ponto: ele
+	# coincidiria com o 1º e o ponto duplicado fazia draw_colored_polygon falhar a
+	# triangulação ("Invalid polygon data"). O draw já fecha o polígono sozinho.
+	for i in 48:
 		var a := TAU * i / 48.0
 		var px := cos(a) * rx
 		var py := sin(a) * ry
 		if py > 0.0:  # abaixo do centro: afunila pelo queixo
 			px *= lerpf(1.0, jaw, py / ry)
 		pts.append(c + Vector2(px, py))
-	draw_colored_polygon(pts, col)
+	_poly(pts, col)
 
 func _hair_top(c: Vector2, rx: float, ry: float, hairline_y: float, col: Color, bump: float, freq: int) -> void:
 	var pts := PackedVector2Array()
@@ -431,9 +434,15 @@ func _hair_top(c: Vector2, rx: float, ry: float, hairline_y: float, col: Color, 
 		var r_mod := 1.0 + (bump * sin(freq * a) if bump > 0.0 else 0.0)
 		var p := c + Vector2(cos(a) * rx * r_mod, sin(a) * ry * r_mod)
 		pts.append(p)
-	pts.append(Vector2(c.x + rx, hairline_y))
-	pts.append(Vector2(c.x - rx, hairline_y))
-	draw_colored_polygon(pts, col)
+	# Fecha a silhueta descendo pelas laterais até a linha do cabelo. Os pontos de
+	# fecho entram na ORDEM correta do contorno (direita→esquerda) e clampeados para
+	# NÃO ficarem acima do arco — senão a aresta de fecho cruzava o arco e o polígono
+	# auto-intersectava, fazendo draw_colored_polygon falhar a triangulação
+	# ("Invalid polygon data") a cada desenho do retrato.
+	var y_close: float = maxf(hairline_y, c.y)  # nunca acima do centro (onde o arco fecha)
+	pts.append(Vector2(c.x + rx, y_close))
+	pts.append(Vector2(c.x - rx, y_close))
+	_poly(pts, col)  # _poly já pula silhuetas que auto-intersectam
 
 func _face(c: Vector2, skin_dark: Color, hair: Color) -> void:
 	var eye_h: float = f["eye_h"]
@@ -495,7 +504,19 @@ func _mouth(c: Vector2, skin_dark: Color) -> void:
 
 func _ellipse(c: Vector2, rx: float, ry: float, col: Color) -> void:
 	var pts := PackedVector2Array()
-	for i in 33:
+	# 32 pontos numa volta (0..<TAU); sem 33º duplicado no fecho (ver _head).
+	for i in 32:
 		var a := TAU * i / 32.0
 		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
+	_poly(pts, col)
+
+
+# Guard central de TODOS os polígonos do retrato. Alguns contornos procedurais
+# (cabelo, barba, silhueta) auto-intersectam com certas combinações de feições, e
+# aí draw_colored_polygon falha a triangulação ("Invalid polygon data") a cada
+# frame — spam de erro no render. Aqui validamos uma vez: se o polígono não é
+# triangulável, pulamos a camada (o retrato continua correto) em vez de spammar.
+func _poly(pts, col) -> void:
+	if typeof(pts) == TYPE_PACKED_VECTOR2_ARRAY and pts.size() >= 3 and Geometry2D.triangulate_polygon(pts).is_empty():
+		return
 	draw_colored_polygon(pts, col)
