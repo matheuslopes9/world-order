@@ -1,7 +1,8 @@
 # Nations: New Dawn — Guia para o Claude Code
 
 Jogo de estratégia geopolítica em **Godot 4.6 (GDScript)**, PT-BR, alvo Steam.
-Simulador realista: **195 nações**, campanha **2000→2100** (1 turno = 1 trimestre).
+Simulador realista: **195 nações**, campanha **2000→2100** (1 turno = 1 mês →
+12 turnos/ano; a campanha completa são ~1200 turnos).
 O jogador governa uma nação e tenta levá-la à hegemonia — ou ao menos sobreviver.
 
 > Repositório GitHub: `https://github.com/matheuslopes9/world-order` (nome antigo
