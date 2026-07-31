@@ -500,8 +500,11 @@ func _phase_map_and_filters() -> void:
 	_test("Zoom-in aumenta o alvo", wm.camera_target_zoom.x > z0)
 	wm._on_zoom_out_pressed()
 	wm._on_zoom_reset_pressed()
-	await get_tree().process_frame
+	# checa ANTES do process_frame: a câmera anima por vários frames até o alvo, e
+	# se já estiver perto do alvo ela chega no 1º frame e camera_animating volta a
+	# false — o await tornava o teste frágil (falso negativo por timing).
 	_test("Zoom reset anima a câmera", wm.camera_animating)
+	await get_tree().process_frame
 
 # ─────────────────────────────────────────────────────────────────
 # FASE 6 — ATALHOS + MODO BOT

@@ -977,6 +977,7 @@ func _open_dossier_modal(code: String) -> void:
 	_open_modal(right_panel, "📋 DOSSIÊ — %s" % nation_name, Vector2(580, 720))
 
 func _open_overlay_modal(panel_id: String = "governo") -> void:
+	AudioManager.play("panel", -8.0)  # tick macio de abertura de painel
 	# Caso especial: o painel "noticias" agora abre o modal dedicado de notícias
 	if panel_id == "noticias":
 		_open_news_modal()
@@ -5696,6 +5697,9 @@ func _show_world_drama_card(d: Dictionary) -> void:
 		if c is PanelContainer and String(c.name).begins_with("DramaCard_"):
 			c.queue_free()
 	var sev: int = int(d.get("severity", 2))
+	# Som do plantão: drama pesado (golpe/coalizão/guerra) toca o hit grave "coup";
+	# avisos menores usam "alert". Dá peso sonoro ao megafone geopolítico.
+	AudioManager.play("coup" if sev >= 3 else "alert", -3.0)
 	var accent: Color = Color(0.95, 0.35, 0.30) if sev >= 3 else Color(0.95, 0.62, 0.30)
 	var card := PanelContainer.new()
 	card.name = "DramaCard_%d" % Time.get_ticks_msec()

@@ -74,6 +74,14 @@ const PANELS := [
 func _ready() -> void:
 	pass
 
+# Acha a cena WorldMap com segurança. _find_worldmap() dispara
+# "absolute paths from outside the active scene tree" quando ESTE nó não está na
+# árvore ativa (transições/testes) — o guard is_inside_tree() evita isso.
+func _find_worldmap():
+	if not is_inside_tree():
+		return null
+	return get_tree().root.get_node_or_null("WorldMap")
+
 func activate() -> void:
 	if activated: return
 	activated = true
@@ -482,9 +490,11 @@ func _render_governo() -> void:
 func _run_panel_action(action_id: String, panel_id: String, color: Color) -> void:
 	var res: Dictionary = GameEngine.player_panel_action(action_id)
 	if not res.get("ok", false):
+		AudioManager.play("deny", -3.0)  # ação negada: buzz suave (sem custo)
 		_log_global_news("⚠ AÇÃO INDISPONÍVEL", String(res.get("reason", "")), Color(1, 0.6, 0.4))
 		_spawn_action_floater("✕ " + String(res.get("reason", "indisponível")), Color(1, 0.55, 0.45))
 		return
+	AudioManager.play("success", -5.0)  # ação executada: díade satisfatória
 	_log_global_news(action_id.replace("_", " ").to_upper(),
 		String(res.get("msg", "")) + "  •  -$%dB" % int(res.get("cost", 0)), color)
 	var fb: String = String(res.get("msg", ""))
@@ -1389,7 +1399,7 @@ func _render_intel() -> void:
 	], 3)
 	_add_separator()
 	_add_section_title("OPERAÇÕES DISPONÍVEIS", intel_c)
-	var wm0 = get_node_or_null("/root/WorldMap")
+	var wm0 = _find_worldmap()
 	var alvo: String = String(wm0.preview_code) if wm0 != null and wm0.get("preview_code") != null else ""
 	if alvo != "" and GameEngine.player_nation != null and alvo != GameEngine.player_nation.codigo_iso and GameEngine.nations.has(alvo):
 		_add_hint_label("🎯 Alvo atual: %s — clique numa operação para executá-la." % GameEngine.nations[alvo].nome)
@@ -1417,7 +1427,7 @@ func _render_intel() -> void:
 # Clique numa operação do painel Intel: abre o picker de espionagem
 # (com % real de êxito por alvo) no país atualmente selecionado no mapa
 func _on_intel_op_pressed() -> void:
-	var wm = get_node_or_null("/root/WorldMap")
+	var wm = _find_worldmap()
 	if wm == null: return
 	var alvo: String = String(wm.preview_code) if wm.get("preview_code") != null else ""
 	if alvo == "" or GameEngine.player_nation == null or alvo == GameEngine.player_nation.codigo_iso or not GameEngine.nations.has(alvo):
@@ -2116,13 +2126,13 @@ func _fmt_thousands(value) -> String:
 
 func _refresh_top_bar_external() -> void:
 	# Pede ao WorldMap (parent do parent) pra atualizar top bar
-	var wm = get_node_or_null("/root/WorldMap")
+	var wm = _find_worldmap()
 	if wm and wm.has_method("_refresh_top_bar"):
 		wm._refresh_top_bar()
 
 func _log_global_news(title: String, body: String, color: Color = Color(0.7, 0.8, 1)) -> void:
 	# Adiciona ao ticker do WorldMap
-	var wm = get_node_or_null("/root/WorldMap")
+	var wm = _find_worldmap()
 	if wm and wm.has_method("_log_ticker"):
 		wm._log_ticker(title, body, color)
 

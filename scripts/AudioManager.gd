@@ -28,7 +28,11 @@ const CFG_PATH := "user://audio.cfg"
 const RATE := 22050  # sample rate da síntese procedural
 
 # Nomes de SFX conhecidos (síntese + override por arquivo)
-const SFX_NAMES := ["click", "hover", "confirm", "error", "turn", "alert", "achievement", "war"]
+const SFX_NAMES := [
+	"click", "hover", "confirm", "error", "turn", "alert", "achievement", "war",
+	# Enriquecimento: feedback de ações e eventos-chave do jogo
+	"success", "deny", "conquest", "coup", "money", "peace", "panel",
+]
 
 var sfx_volume: float = 0.8
 var music_volume: float = 0.5
@@ -134,7 +138,10 @@ func _load_or_synth_sfx() -> void:
 		[_sfx.size(), Time.get_ticks_msec() - t0, from_files, _sfx.size() - from_files])
 
 func _connect_game_signals() -> void:
-	var engine := get_node_or_null("/root/GameEngine")
+	# GameEngine é autoload — referência direta (get_node("/root/…") dispara
+	# "absolute paths from outside the active scene tree" quando este nó não está
+	# na árvore ativa, ex. durante transições de cena/testes).
+	var engine = GameEngine
 	if engine == null: return
 	if engine.has_signal("turn_advanced"):
 		engine.turn_advanced.connect(_on_turn_advanced)
@@ -147,12 +154,33 @@ func _connect_game_signals() -> void:
 		engine.achievements.achievement_unlocked.connect(func(_i, _n, _d): play("achievement"))
 	if engine.get("storylines") != null and engine.storylines.has_signal("storyline_triggered"):
 		engine.storylines.storyline_triggered.connect(func(_id, _ev): play("alert", -4.0))
+	# Conquista de território: fanfarra só quando o JOGADOR ganha a província
+	# (não a cada troca de dono entre bots — seria spam).
+	if engine.has_signal("province_conquered"):
+		engine.province_conquered.connect(_on_province_conquered)
+	# Fim de jogo: vitória → conquista; derrota → golpe (tom dramático)
+	if engine.has_signal("endgame_reached"):
+		engine.endgame_reached.connect(_on_endgame_reached)
+	# FMI oferece resgate: som de dinheiro (a proposta chega na mesa)
+	if engine.has_signal("bailout_offered"):
+		engine.bailout_offered.connect(func(_terms): play("money", -4.0))
 	_last_defcon = int(engine.get("defcon")) if engine.get("defcon") != null else 5
+
+func _on_province_conquered(_pid: String, _old_owner: String, new_owner: String) -> void:
+	var pn = GameEngine.player_nation
+	if pn != null and new_owner == pn.codigo_iso:
+		play("conquest", -3.0)
+
+func _on_endgame_reached(result: Dictionary) -> void:
+	if bool(result.get("victory", false)):
+		play("conquest", 0.0)
+	else:
+		play("coup", -2.0)
 
 func _on_turn_advanced(_turn: int) -> void:
 	play("turn", -4.0)
 	# DEFCON caiu → tambores de guerra
-	var engine := get_node_or_null("/root/GameEngine")
+	var engine = GameEngine  # autoload — ver nota em _connect_game_signals
 	if engine == null: return
 	var d: int = int(engine.get("defcon"))
 	if d < _last_defcon:
@@ -218,6 +246,21 @@ func _synth_sfx(name: String) -> AudioStreamWAV:
 		"alert":       return _pcm(_seq([_tone(0.08, 1180, 1180, 0.3, 16.0), _silence(0.05), _tone(0.08, 1180, 1180, 0.3, 16.0)]))
 		"achievement": return _pcm(_seq([_tone(0.09, 523, 523, 0.26, 10.0), _tone(0.09, 659, 659, 0.26, 10.0), _tone(0.09, 784, 784, 0.26, 10.0), _tone(0.16, 1046, 1046, 0.3, 7.0)]))
 		"war":         return _pcm(_mix([_tone(0.5, 65, 48, 0.42, 5.0), _noise(0.35, 0.13, 9.0)]))
+		# ── Enriquecimento ──
+		# success: díade ascendente curta e satisfatória (ação executada)
+		"success":     return _pcm(_seq([_tone(0.06, 587, 587, 0.26, 20.0), _tone(0.11, 880, 880, 0.28, 14.0)]))
+		# deny: buzz grave e curto (ação negada, sem custo — mais suave que "error")
+		"deny":        return _pcm(_tone(0.11, 196, 150, 0.26, 16.0))
+		# conquest: fanfarra breve de 3 notas subindo (território tomado)
+		"conquest":    return _pcm(_seq([_tone(0.09, 392, 392, 0.28, 11.0), _tone(0.09, 523, 523, 0.28, 11.0), _tone(0.18, 784, 784, 0.32, 7.0)]))
+		# coup/plantão: hit grave + ruído tenso (drama geopolítico)
+		"coup":        return _pcm(_mix([_tone(0.4, 98, 62, 0.4, 6.0), _noise(0.25, 0.10, 12.0)]))
+		# money: brilho curto tipo "caixa registradora" (empréstimo/receita)
+		"money":       return _pcm(_seq([_tone(0.04, 1568, 1568, 0.2, 40.0), _tone(0.07, 2093, 2093, 0.18, 30.0)]))
+		# peace: acorde suave e resolvido (tratado/paz)
+		"peace":       return _pcm(_mix([_tone(0.35, 523, 523, 0.16, 5.0), _tone(0.35, 659, 659, 0.14, 5.0), _tone(0.35, 784, 784, 0.12, 5.0)]))
+		# panel: tick macio de abertura (abrir painel/modal)
+		"panel":       return _pcm(_tone(0.05, 880, 1320, 0.14, 35.0))
 	return _pcm(_tone(0.05, 1000, 1000, 0.2, 40.0))
 
 # Pad ambiente escuro em Lá menor (loop seamless de 8s) — fallback de música
