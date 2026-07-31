@@ -5603,6 +5603,22 @@ func _maybe_show_advisor_alert() -> void:
 	if n.divida_publica > n.pib_bilhoes_usd * 0.9:
 		cands.append([2, "divida", "⚠ CONSELHEIRO: sua dívida passou de 90%% do PIB. Juros pesam no orçamento — evite novos empréstimos e reforce a receita."])
 
+	# ── OPORTUNIDADE: pesquisa (a alavanca de crescimento) ──
+	# O conselheiro não só apaga incêndios: quando o país está estável, ele cutuca
+	# a construir vantagem de LONGO PRAZO. Tech é o que faz a economia crescer de
+	# verdade ao longo do século — um país que nunca pesquisa estagna e é
+	# ultrapassado, mesmo sem nenhuma barra vermelha.
+	var pesquisando: bool = not n.pesquisa_por_ministerio.is_empty()
+	if not pesquisando and n.tesouro > 0.0:
+		cands.append([2, "pesquisa_ociosa", "🔬 CONSELHEIRO: nenhum ministério está pesquisando! A ciência (Educação 🎓 e os painéis de cada ministério) é o que faz sua economia CRESCER a longo prazo — quem não pesquisa é ultrapassado. Comece uma pesquisa neste turno."])
+	else:
+		# País com poucas techs para a época já vivida — lembra da alavanca.
+		# ~1 tech esperada a cada 30 turnos (2,5 anos) de jogo; muito abaixo disso = alerta leve.
+		var techs: int = n.tecnologias_concluidas.size()
+		var esperado: int = 3 + int(t / 30.0)
+		if techs < esperado and n.estabilidade_politica >= 48.0 and n.apoio_popular >= 48.0:
+			cands.append([1, "tech_atras", "💡 CONSELHEIRO: sua nação está estável — é a hora de olhar o futuro. Você tem só %d tecnologias; potências que pesquisam mais crescem mais rápido e assumem o topo. Educação 🎓 acelera a ciência." % techs])
+
 	if cands.is_empty():
 		return
 	# Ordena por severidade desc; dispara o 1º que não está em cooldown.
@@ -5619,6 +5635,8 @@ func _maybe_show_advisor_alert() -> void:
 # Toast do conselheiro — distinto da dica de tutorial (borda vermelha p/ grave,
 # âmbar p/ atenção). Aparece abaixo do topo por ~7s e some.
 func _show_advisor_toast(text: String, severity: int) -> void:
+	if OS.has_environment("PLAYTHROUGH_LOG"):
+		print("[CONSELHEIRO t%d] %s" % [GameEngine.current_turn, text])
 	var toast := PanelContainer.new()
 	toast.name = "AdvisorToast_%d" % Time.get_ticks_msec()
 	var st := StyleBoxFlat.new()

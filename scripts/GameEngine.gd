@@ -839,7 +839,7 @@ func generate_briefing(n) -> Dictionary:
 	if steps.size() < 3:
 		steps.append("🤝 Faça amigos: clique num vizinho no mapa → envie embaixada e considere aderir a um BLOCO (painel Diplomacia).")
 	if steps.size() < 3:
-		steps.append("🎓 Pense no futuro: painel Educação → a pesquisa científica destrava vantagens permanentes.")
+		steps.append("🎓 CRESÇA com ciência: comece uma pesquisa (Educação e cada ministério pesquisam em paralelo). Tecnologia é o que MAIS faz sua economia crescer ao longo do século — potências são feitas de tech.")
 	if steps.size() < 3:
 		steps.append("🏭 Agregue valor: painel Economia → Upgrade Industrial eleva seu ECS e faz cada exportação render mais.")
 	# Passo TERRITORIAL: nação com força militar decente é candidata natural a
