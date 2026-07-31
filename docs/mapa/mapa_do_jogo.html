@@ -1,0 +1,329 @@
+<title>Nations: New Dawn — Mapa do Jogo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --ground: #10192a;
+    --panel: #16223a;
+    --panel-2: #1c2b47;
+    --ink: #e9e4d6;
+    --ink-dim: #a9b4c6;
+    --line: #2b3c5c;
+    --brass: #cba14e;
+    --brass-soft: #e0c583;
+    /* cores por camada */
+    --c-engine: #e8a13c;
+    --c-model: #e0645a;
+    --c-ai: #b06fd6;
+    --c-system: #3fb0a5;
+    --c-ui: #5b8fd6;
+    --c-persist: #7d8aa0;
+    --c-test: #6a7488;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --ground: #efe9db;
+      --panel: #f6f1e6;
+      --panel-2: #ece4d2;
+      --ink: #23303f;
+      --ink-dim: #5a6577;
+      --line: #d8cdb6;
+      --brass: #9c7822;
+      --brass-soft: #7f6017;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #10192a; --panel: #16223a; --panel-2: #1c2b47; --ink: #e9e4d6;
+    --ink-dim: #a9b4c6; --line: #2b3c5c; --brass: #cba14e; --brass-soft: #e0c583;
+  }
+  :root[data-theme="light"] {
+    --ground: #efe9db; --panel: #f6f1e6; --panel-2: #ece4d2; --ink: #23303f;
+    --ink-dim: #5a6577; --line: #d8cdb6; --brass: #9c7822; --brass-soft: #7f6017;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+    line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: clamp(20px, 4vw, 52px) clamp(16px, 4vw, 40px) 80px; }
+
+  /* Cabeçalho */
+  header { border-bottom: 1px solid var(--line); padding-bottom: 26px; margin-bottom: 30px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--brass); font-weight: 700; margin: 0 0 10px;
+  }
+  h1 {
+    font-family: "Georgia", "Times New Roman", serif;
+    font-size: clamp(30px, 5vw, 50px); line-height: 1.05; margin: 0 0 12px;
+    font-weight: 700; letter-spacing: -.01em; text-wrap: balance;
+  }
+  h1 .dawn { color: var(--brass-soft); font-style: italic; }
+  .sub { color: var(--ink-dim); max-width: 62ch; font-size: 16px; margin: 0; }
+
+  /* Faixa de números */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin: 28px 0 8px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .stat .n {
+    font-size: 30px; font-weight: 800; letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums; color: var(--brass-soft);
+  }
+  .stat .l { font-size: 12.5px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+
+  h2 {
+    font-family: "Georgia", serif; font-size: 22px; margin: 46px 0 6px;
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  h2 .idx { font-size: 13px; color: var(--brass); font-family: -apple-system, sans-serif; font-weight: 700; letter-spacing: .1em; }
+  .lead { color: var(--ink-dim); margin: 0 0 20px; max-width: 70ch; font-size: 15px; }
+
+  /* Mapa canvas */
+  .mapcard { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .maptop { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .legend { display: flex; align-items: center; gap: 6px; color: var(--ink-dim); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .hint { margin-left: auto; color: var(--ink-dim); font-style: italic; }
+  #map { display: block; width: 100%; height: 560px; touch-action: none; cursor: grab; }
+  #map:active { cursor: grabbing; }
+
+  /* Camadas */
+  .layers { display: grid; gap: 16px; }
+  .layer { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; border-left: 4px solid var(--lc, var(--brass)); }
+  .layer h3 { margin: 0 0 3px; font-size: 16px; display: flex; align-items: center; gap: 9px; }
+  .layer h3 .tag { width: 11px; height: 11px; border-radius: 3px; background: var(--lc); flex: none; }
+  .layer .desc { color: var(--ink-dim); font-size: 13.5px; margin: 0 0 14px; max-width: 74ch; }
+  .files { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 8px; }
+  .file { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; display: flex; align-items: center; gap: 10px; }
+  .file .nm { font-weight: 600; font-size: 13.5px; }
+  .file .meta { margin-left: auto; font-size: 11.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .bar { height: 4px; border-radius: 2px; background: var(--lc); opacity: .55; margin-top: 6px; }
+
+  footer { margin-top: 48px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--ink-dim); font-size: 13px; }
+  code { background: var(--panel-2); padding: 1.5px 6px; border-radius: 5px; font-size: 12.5px; color: var(--brass-soft); }
+  a { color: var(--brass-soft); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Mapa de arquitetura · gerado do código real</p>
+    <h1>Nations: <span class="dawn">New Dawn</span></h1>
+    <p class="sub">Retrato dos sistemas do jogo extraído automaticamente dos scripts GDScript com o Graphify. Cada nó é um arquivo; cada linha, uma dependência real que o código declara. É a visão de cima do simulador — 195 nações, campanha 2000→2100.</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="n">43</div><div class="l">scripts GDScript</div></div>
+    <div class="stat"><div class="n">1.328</div><div class="l">símbolos mapeados</div></div>
+    <div class="stat"><div class="n">68</div><div class="l">dependências</div></div>
+    <div class="stat"><div class="n">7</div><div class="l">camadas</div></div>
+    <div class="stat"><div class="n">0</div><div class="l">tokens (100% local)</div></div>
+  </div>
+
+  <h2><span class="idx">01</span> O mapa vivo</h2>
+  <p class="lead">Arraste os nós, passe o mouse para destacar as conexões. O tamanho do nó reflete quantos símbolos (funções, sinais, constantes) o arquivo tem — os grandes são os pilares do jogo.</p>
+
+  <div class="mapcard">
+    <div class="maptop" id="legend"></div>
+    <canvas id="map"></canvas>
+  </div>
+
+  <h2><span class="idx">02</span> A arquitetura em 7 camadas</h2>
+  <p class="lead">O mesmo código, organizado por papel. Do coração (GameEngine) à casca (UI), passando pela IA que joga como o jogador e os subsistemas de diplomacia, tech e espionagem.</p>
+  <div class="layers" id="layers"></div>
+
+  <footer>
+    Mapa construído do commit <code>4cc5ffa</code> com <code>graphify update .</code> — extração AST local, sem custo de API.
+    Para atualizar após mexer no código: rode o comando de novo; o grafo, o <code>graph.html</code> e o relatório em <code>graphify-out/</code> se refazem sozinhos.
+  </footer>
+</div>
+
+<script>
+const ARCH = {
+  files: {"Accessibility.gd":{sym:19,func:14,sig:1},"AchievementManager.gd":{sym:15,func:10,sig:1},"AdvisorManager.gd":{sym:7,func:4,sig:0},"AudioManager.gd":{sym:28,func:24,sig:0},"BalanceSim.gd":{sym:18,func:13,sig:0},"BaseGameTest.gd":{sym:2,func:1,sig:0},"BotPlayer.gd":{sym:25,func:18,sig:4},"DiplomacyManager.gd":{sym:20,func:15,sig:0},"EspionageManager.gd":{sym:8,func:5,sig:0},"EventDensityTest.gd":{sym:3,func:1,sig:0},"EventTimeline.gd":{sym:24,func:20,sig:2},"FlagData.gd":{sym:17,func:1,sig:0},"GameEngine.gd":{sym:181,func:132,sig:9},"GameOverlay.gd":{sym:78,func:71,sig:0},"GameplayTest.gd":{sym:28,func:25,sig:0},"HegemonyTest.gd":{sym:2,func:1,sig:0},"LoadingSpinner.gd":{sym:3,func:2,sig:0},"MainMenu.gd":{sym:46,func:30,sig:0},"MassivePlaytest.gd":{sym:11,func:7,sig:0},"MegaSim.gd":{sym:19,func:14,sig:0},"MemoryTest.gd":{sym:3,func:1,sig:0},"MetaProgression.gd":{sym:16,func:9,sig:0},"Nation.gd":{sym:58,func:45,sig:0},"NewsManager.gd":{sym:10,func:5,sig:0},"OccupationTest.gd":{sym:2,func:1,sig:0},"PanelShot.gd":{sym:5,func:3,sig:0},"PlaytestSim.gd":{sym:7,func:5,sig:0},"PoliticsTest.gd":{sym:2,func:1,sig:0},"PortraitGen.gd":{sym:26,func:14,sig:0},"PortraitTour.gd":{sym:6,func:1,sig:0},"ProvinceConquestTest.gd":{sym:3,func:1,sig:0},"SaveSystem.gd":{sym:17,func:13,sig:0},"ScreenTour.gd":{sym:9,func:7,sig:0},"StorylineManager.gd":{sym:14,func:11,sig:1},"StrategyTest.gd":{sym:3,func:1,sig:0},"SystemsCheck.gd":{sym:7,func:5,sig:0},"TechManager.gd":{sym:18,func:16,sig:0},"TerritoryLiveTest.gd":{sym:3,func:1,sig:0},"TimelineTest.gd":{sym:2,func:1,sig:0},"UIAutoTest.gd":{sym:7,func:4,sig:0},"UIStyles.gd":{sym:24,func:7,sig:0},"WorldDramaTest.gd":{sym:3,func:1,sig:0},"WorldMap.gd":{sym:224,func:181,sig:0}},
+  deps: [["MainMenu.gd","Accessibility.gd"],["WorldMap.gd","Accessibility.gd"],["GameEngine.gd","AchievementManager.gd"],["AchievementManager.gd","GameEngine.gd"],["WorldMap.gd","AdvisorManager.gd"],["SystemsCheck.gd","AudioManager.gd"],["WorldMap.gd","AudioManager.gd"],["BalanceSim.gd","BotPlayer.gd"],["BalanceSim.gd","DiplomacyManager.gd"],["BalanceSim.gd","EspionageManager.gd"],["BalanceSim.gd","EventTimeline.gd"],["BalanceSim.gd","GameEngine.gd"],["BalanceSim.gd","Nation.gd"],["BalanceSim.gd","StorylineManager.gd"],["BalanceSim.gd","TechManager.gd"],["MegaSim.gd","BotPlayer.gd"],["SystemsCheck.gd","BotPlayer.gd"],["WorldMap.gd","BotPlayer.gd"],["BotPlayer.gd","GameEngine.gd"],["GameEngine.gd","DiplomacyManager.gd"],["MegaSim.gd","DiplomacyManager.gd"],["GameEngine.gd","EspionageManager.gd"],["MegaSim.gd","EspionageManager.gd"],["GameEngine.gd","EventTimeline.gd"],["MegaSim.gd","EventTimeline.gd"],["EventTimeline.gd","GameEngine.gd"],["WorldMap.gd","FlagData.gd"],["GameEngine.gd","MetaProgression.gd"],["GameEngine.gd","Nation.gd"],["GameEngine.gd","NewsManager.gd"],["GameEngine.gd","StorylineManager.gd"],["GameEngine.gd","TechManager.gd"],["GameOverlay.gd","GameEngine.gd"],["GameplayTest.gd","GameEngine.gd"],["MassivePlaytest.gd","GameEngine.gd"],["MegaSim.gd","GameEngine.gd"],["PlaytestSim.gd","GameEngine.gd"],["ScreenTour.gd","GameEngine.gd"],["StorylineManager.gd","GameEngine.gd"],["TimelineTest.gd","GameEngine.gd"],["UIAutoTest.gd","GameEngine.gd"],["WorldMap.gd","GameEngine.gd"],["GameOverlay.gd","SaveSystem.gd"],["GameOverlay.gd","UIStyles.gd"],["GameOverlay.gd","WorldMap.gd"],["GameplayTest.gd","MainMenu.gd"],["GameplayTest.gd","WorldMap.gd"],["WorldMap.gd","LoadingSpinner.gd"],["MainMenu.gd","SaveSystem.gd"],["MainMenu.gd","UIStyles.gd"],["MainMenu.gd","WorldMap.gd"],["ScreenTour.gd","MainMenu.gd"],["MassivePlaytest.gd","Nation.gd"],["MegaSim.gd","Nation.gd"],["MegaSim.gd","StorylineManager.gd"],["MegaSim.gd","TechManager.gd"],["MemoryTest.gd","SaveSystem.gd"],["PlaytestSim.gd","Nation.gd"],["SystemsCheck.gd","Nation.gd"],["PanelShot.gd","WorldMap.gd"],["SystemsCheck.gd","PortraitGen.gd"],["ProvinceConquestTest.gd","SaveSystem.gd"],["SystemsCheck.gd","SaveSystem.gd"],["UIAutoTest.gd","SaveSystem.gd"],["WorldMap.gd","SaveSystem.gd"],["ScreenTour.gd","WorldMap.gd"],["UIAutoTest.gd","WorldMap.gd"],["WorldMap.gd","UIStyles.gd"]]
+};
+
+// Classificação em camadas (papel de cada arquivo)
+const LAYERS = [
+  { key:'engine', name:'Coração — Motor de simulação', color:'#e8a13c',
+    desc:'O orquestrador do mundo: estado global, fim de turno, guerra, economia, FMI, corrupção e o catálogo central de ações que UI e IA compartilham.',
+    files:['GameEngine.gd'] },
+  { key:'model', name:'Modelo — A nação', color:'#e0645a',
+    desc:'Uma nação viva: economia (PIB, receita, dívida, rating), política, gabinete de 6 ministérios, tech, memória e rancor do Mundo Vivo.',
+    files:['Nation.gd'] },
+  { key:'ai', name:'IA — Quem joga contra você', color:'#b06fd6',
+    desc:'O cérebro dos oponentes: os bots usam a MESMA API do jogador. Personas, gestão de orçamento e dívida, metas estratégicas.',
+    files:['BotPlayer.gd'] },
+  { key:'system', name:'Subsistemas — Os mundos paralelos', color:'#3fb0a5',
+    desc:'Diplomacia, espionagem, tech (57 pesquisas), a linha do tempo de eventos, storylines, notícias, conquistas, meta-progressão e o conselheiro.',
+    files:['DiplomacyManager.gd','EspionageManager.gd','TechManager.gd','EventTimeline.gd','StorylineManager.gd','NewsManager.gd','AchievementManager.gd','MetaProgression.gd','AdvisorManager.gd'] },
+  { key:'ui', name:'Interface — A casca jogável', color:'#5b8fd6',
+    desc:'O que o jogador vê e toca: o mapa-mundi, os painéis de ministério, o menu, retratos procedurais, bandeiras, estilos e acessibilidade.',
+    files:['WorldMap.gd','GameOverlay.gd','MainMenu.gd','PortraitGen.gd','UIStyles.gd','FlagData.gd','Accessibility.gd','LoadingSpinner.gd'] },
+  { key:'persist', name:'Persistência', color:'#7d8aa0',
+    desc:'Serialização do save e áudio do jogo — o que sobrevive ao fechar o jogo.',
+    files:['SaveSystem.gd','AudioManager.gd'] },
+  { key:'test', name:'Testes & simulação de massa', color:'#6a7488',
+    desc:'Os harnesses headless que validam tudo: checagem de sistemas, teste de UI por clique, e as simulações que jogam campanhas inteiras das 195 nações.',
+    files:['SystemsCheck.gd','GameplayTest.gd','MegaSim.gd','BalanceSim.gd','MassivePlaytest.gd','PlaytestSim.gd','ScreenTour.gd','PanelShot.gd','PortraitTour.gd','UIAutoTest.gd','MemoryTest.gd','StrategyTest.gd','OccupationTest.gd','PoliticsTest.gd','BaseGameTest.gd','HegemonyTest.gd','TimelineTest.gd','EventDensityTest.gd','ProvinceConquestTest.gd','TerritoryLiveTest.gd','WorldDramaTest.gd'] },
+];
+
+const layerOf = {};
+LAYERS.forEach(L => L.files.forEach(f => layerOf[f] = L));
+const colorOf = f => (layerOf[f]?.color) || '#6a7488';
+
+// ---- Legenda ----
+const legend = document.getElementById('legend');
+LAYERS.forEach(L => {
+  const s = document.createElement('span'); s.className = 'legend';
+  s.innerHTML = `<span class="dot" style="background:${L.color}"></span>${L.name.split('—')[0].trim()}`;
+  legend.appendChild(s);
+});
+const hint = document.createElement('span'); hint.className='hint'; hint.textContent='arraste os nós · passe o mouse';
+legend.appendChild(hint);
+
+// ---- Camadas (lista) ----
+const layersEl = document.getElementById('layers');
+LAYERS.forEach(L => {
+  const maxSym = Math.max(...L.files.map(f => ARCH.files[f]?.sym || 1));
+  const card = document.createElement('div');
+  card.className = 'layer'; card.style.setProperty('--lc', L.color);
+  const fileRows = L.files
+    .filter(f => ARCH.files[f])
+    .sort((a,b)=> ARCH.files[b].sym - ARCH.files[a].sym)
+    .map(f => {
+      const d = ARCH.files[f];
+      const w = Math.max(6, Math.round(100 * d.sym / maxSym));
+      const sig = d.sig ? ` · ${d.sig} sinais` : '';
+      return `<div class="file"><div><div class="nm">${f}</div><div class="bar" style="width:${w}%"></div></div><div class="meta">${d.func} funções${sig}</div></div>`;
+    }).join('');
+  card.innerHTML = `<h3><span class="tag"></span>${L.name}</h3><p class="desc">${L.desc}</p><div class="files">${fileRows}</div>`;
+  layersEl.appendChild(card);
+});
+
+// ---- Grafo em canvas (force-directed leve) ----
+const canvas = document.getElementById('map');
+const ctx = canvas.getContext('2d');
+let W, H, DPR;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = canvas.clientWidth; H = canvas.clientHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+const names = Object.keys(ARCH.files);
+const idx = {}; names.forEach((n,i)=> idx[n]=i);
+const nodes = names.map((n,i) => ({
+  name:n, sym:ARCH.files[n].sym,
+  r: 5 + Math.sqrt(ARCH.files[n].sym) * 1.7,
+  x: 0, y: 0, vx:0, vy:0,
+  color: colorOf(n)
+}));
+const edges = ARCH.deps.map(([s,t]) => ({ s:idx[s], t:idx[t] })).filter(e=> e.s!=null && e.t!=null);
+const adj = new Set(edges.map(e=> e.s+'-'+e.t).concat(edges.map(e=> e.t+'-'+e.s)));
+
+// posições iniciais em anel por camada
+const layerOrder = LAYERS.map(l=>l.key);
+nodes.forEach((nd,i) => {
+  const lk = (layerOf[nd.name]?.key) || 'test';
+  const li = layerOrder.indexOf(lk);
+  const ang = (i / nodes.length) * Math.PI * 2;
+  const rad = 90 + li * 26;
+  nd.x = Math.cos(ang) * rad; nd.y = Math.sin(ang) * rad;
+});
+
+let hoverI = -1, dragI = -1, ox=0, oy=0, panx=0, pany=0, alpha=1;
+function tick() {
+  // repulsão
+  for (let i=0;i<nodes.length;i++){
+    for (let j=i+1;j<nodes.length;j++){
+      const a=nodes[i], b=nodes[j];
+      let dx=a.x-b.x, dy=a.y-b.y; let d2=dx*dx+dy*dy || 0.01;
+      const f = (900) / d2;
+      const d = Math.sqrt(d2);
+      const fx = (dx/d)*f, fy=(dy/d)*f;
+      a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
+    }
+  }
+  // molas (arestas)
+  edges.forEach(e=>{
+    const a=nodes[e.s], b=nodes[e.t];
+    let dx=b.x-a.x, dy=b.y-a.y; const d=Math.sqrt(dx*dx+dy*dy)||0.01;
+    const f = (d-96)*0.012;
+    const fx=(dx/d)*f, fy=(dy/d)*f;
+    a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
+  });
+  // gravidade ao centro
+  nodes.forEach(n=>{ n.vx += -n.x*0.002; n.vy += -n.y*0.002; });
+  nodes.forEach((n,i)=>{
+    if (i===dragI) { n.vx=0; n.vy=0; return; }
+    n.vx*=0.86; n.vy*=0.86;
+    n.x+=n.vx*alpha; n.y+=n.vy*alpha;
+  });
+  if (alpha>0.15) alpha*=0.996;
+}
+
+function draw() {
+  ctx.clearRect(0,0,W,H);
+  const cx = W/2 + panx, cy = H/2 + pany;
+  // arestas
+  edges.forEach(e=>{
+    const a=nodes[e.s], b=nodes[e.t];
+    const hot = hoverI>=0 && (e.s===hoverI || e.t===hoverI);
+    ctx.strokeStyle = hot ? 'rgba(203,161,78,0.75)' : 'rgba(120,140,175,0.16)';
+    ctx.lineWidth = hot ? 1.6 : 0.8;
+    ctx.beginPath(); ctx.moveTo(cx+a.x, cy+a.y); ctx.lineTo(cx+b.x, cy+b.y); ctx.stroke();
+  });
+  // nós
+  nodes.forEach((n,i)=>{
+    const dim = hoverI>=0 && i!==hoverI && !adj.has(hoverI+'-'+i);
+    ctx.globalAlpha = dim ? 0.28 : 1;
+    ctx.beginPath(); ctx.arc(cx+n.x, cy+n.y, n.r, 0, Math.PI*2);
+    ctx.fillStyle = n.color; ctx.fill();
+    if (i===hoverI){ ctx.lineWidth=2; ctx.strokeStyle='#fff'; ctx.stroke(); }
+    // rótulo só p/ nós grandes ou em hover
+    if (n.sym>=24 || i===hoverI){
+      ctx.globalAlpha = dim?0.3:1;
+      ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--ink');
+      ctx.font = (i===hoverI?'700 ':'600 ') + '12px system-ui';
+      ctx.textAlign='center';
+      ctx.fillText(n.name.replace('.gd',''), cx+n.x, cy+n.y - n.r - 5);
+    }
+  });
+  ctx.globalAlpha=1;
+}
+
+let running = true;
+function loop(){ if(!running) return; tick(); draw(); requestAnimationFrame(loop); }
+
+function nodeAt(mx,my){
+  const cx=W/2+panx, cy=H/2+pany;
+  for (let i=nodes.length-1;i>=0;i--){
+    const dx=mx-(cx+nodes[i].x), dy=my-(cy+nodes[i].y);
+    if (dx*dx+dy*dy <= (nodes[i].r+4)**2) return i;
+  }
+  return -1;
+}
+function pos(ev){ const r=canvas.getBoundingClientRect(); const t=ev.touches?ev.touches[0]:ev; return [t.clientX-r.left, t.clientY-r.top]; }
+
+canvas.addEventListener('mousemove', ev=>{
+  const [mx,my]=pos(ev);
+  if (dragI>=0){ const cx=W/2+panx, cy=H/2+pany; nodes[dragI].x=mx-cx-ox; nodes[dragI].y=my-cy-oy; alpha=Math.max(alpha,0.5); return; }
+  hoverI = nodeAt(mx,my);
+  canvas.style.cursor = hoverI>=0?'pointer':'grab';
+});
+canvas.addEventListener('mousedown', ev=>{
+  const [mx,my]=pos(ev); const i=nodeAt(mx,my);
+  if (i>=0){ dragI=i; const cx=W/2+panx, cy=H/2+pany; ox=mx-cx-nodes[i].x; oy=my-cy-nodes[i].y; }
+});
+window.addEventListener('mouseup', ()=> dragI=-1);
+canvas.addEventListener('touchstart', ev=>{ const [mx,my]=pos(ev); const i=nodeAt(mx,my); if(i>=0){dragI=i; hoverI=i; const cx=W/2+panx,cy=H/2+pany; ox=mx-cx-nodes[i].x; oy=my-cy-nodes[i].y; ev.preventDefault();} }, {passive:false});
+canvas.addEventListener('touchmove', ev=>{ if(dragI<0)return; const [mx,my]=pos(ev); const cx=W/2+panx,cy=H/2+pany; nodes[dragI].x=mx-cx-ox; nodes[dragI].y=my-cy-oy; alpha=Math.max(alpha,0.5); ev.preventDefault(); }, {passive:false});
+canvas.addEventListener('touchend', ()=>{ dragI=-1; hoverI=-1; });
+
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function start(){ resize(); if(reduce){ for(let k=0;k<220;k++) tick(); alpha=0; draw(); } else loop(); }
+window.addEventListener('resize', ()=>{ resize(); });
+start();
+</script>

@@ -507,6 +507,7 @@ func calc_balanca_comercial() -> float:
 # dívida/PIB (peso maior), estabilidade, saldo fiscal e histórico de calote.
 # Usado p/ definir o LIMITE e os JUROS de empréstimos proativos (Fase 2).
 var defaults_no_historico: int = 0  # nº de vezes que deu calote (dispara em process_turn_finances)
+var _reestruturacao_cooldown: int = 0  # turnos até poder reestruturar de novo (evita calote todo turno)
 
 func rating_credito() -> float:
 	var divida_ratio: float = divida_publica / maxf(1.0, pib_bilhoes_usd)  # 0..2.5+
@@ -747,6 +748,33 @@ func process_turn_finances() -> void:
 			tesouro -= pagamento
 			divida_publica = max(0.0, divida_publica - pagamento)
 		default_turnos = 0
+	# ── REESTRUTURAÇÃO SOBERANA (calote realista) ──
+	# Quando a dívida vira insustentável (>10× o PIB), a nação NÃO segue
+	# acumulando juros compostos ao infinito — ela dá um CALOTE, como Argentina
+	# ou Grécia na vida real: um "haircut" corta a maior parte da dívida, mas o
+	# país paga caro em rating (defaults_no_historico), estabilidade e confiança
+	# do investidor. Isto ENCERRA a espiral: mesmo reincidindo, a dívida é cortada
+	# de volta a um patamar finito em vez de chegar a milhões de % do PIB.
+	if _reestruturacao_cooldown > 0:
+		_reestruturacao_cooldown -= 1
+	if divida_publica > pib_bilhoes_usd * 5.0 and pib_bilhoes_usd > 0.0 and _reestruturacao_cooldown == 0:
+		# Dívida acima de 5× o PIB é insustentável: dá calote e corta o excedente
+		# de volta a ~1,5× o PIB (patamar de país muito endividado, mas FINITO).
+		# É o freio da espiral: entre um calote e outro a dívida cresce, mas nunca
+		# escala a milhões de % porque toda vez é cortada de volta a esse teto.
+		var alvo: float = pib_bilhoes_usd * 1.5
+		divida_publica = alvo
+		defaults_no_historico += 1                          # queima o rating (-12 cada)
+		estabilidade_politica = max(0.0, estabilidade_politica - 12.0)
+		apoio_popular         = max(0.0, apoio_popular         - 8.0)
+		confianca_investidor  = max(0.0, confianca_investidor  - 20.0)
+		inflacao += 6.0                                      # calote pressiona a moeda
+		_reestruturacao_cooldown = 36                        # ~3 anos até poder de novo
+	# Teto DURO de segurança: mesmo em déficit catastrófico dentro do cooldown, a
+	# dívida nunca ultrapassa 8× o PIB. Sem credor no mundo real emprestaria além
+	# disso — o país simplesmente não consegue rolar mais dívida (default técnico).
+	if pib_bilhoes_usd > 0.0:
+		divida_publica = min(divida_publica, pib_bilhoes_usd * 8.0)
 	# ── ROUBO DO TESOURO PELA CORRUPÇÃO ──
 	# Acima de 50% de corrupção, uma fração do tesouro é DESVIADA a cada turno.
 	# Escala de ~0% (aos 50%) até ~4%/turno (aos 100%). Reversível: baixar a

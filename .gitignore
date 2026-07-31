@@ -55,3 +55,6 @@ npm-debug.log*
 
 # Graphify (mapa de arquitetura gerado — recriar com: graphify update .)
 graphify-out/
+
+# Godot AI plugin (ferramenta de dev — reinstalar de ~/tools/godot-ai-higodot)
+addons/godot_ai/

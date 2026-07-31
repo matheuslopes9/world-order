@@ -299,6 +299,7 @@ static func _serialize_nations(nations: Dictionary) -> Dictionary:
 			"revolucao_turnos": n.revolucao_turnos,
 			"falencia_turnos": n.falencia_turnos,
 			"default_turnos": n.default_turnos,
+			"_reestruturacao_cooldown": n._reestruturacao_cooldown,
 			"tier_dificuldade": n.tier_dificuldade,
 			# Liderança (Fase 2): muda durante o jogo, precisa persistir
 			"personalidade": n.personalidade,
