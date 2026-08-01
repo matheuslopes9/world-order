@@ -4916,8 +4916,13 @@ func _show_treaty_picker_modal(target_code: String) -> void:
 		btn.custom_minimum_size = Vector2(0, 50)
 		btn.add_theme_font_size_override("font_size", 11)
 		btn.pressed.connect(func():
-			GameEngine.player_propose_treaty(target_code, tt_id)
-			_log_ticker("📜 DIPLOMACIA", "Proposta de %s enviada a %s" % [meta["nome"], target.nome], Color(0.7, 0.5, 1))
+			var res: Dictionary = GameEngine.player_propose_treaty(target_code, tt_id)
+			if res.get("ok", false):
+				AudioManager.play("peace", -4.0)  # acorde de paz: tratado proposto
+				_log_ticker("📜 DIPLOMACIA", "Proposta de %s enviada a %s" % [meta["nome"], target.nome], Color(0.7, 0.5, 1))
+			else:
+				AudioManager.play("deny", -3.0)
+				_log_ticker("⚠ DIPLOMACIA", String(res.get("reason", "Não foi possível propor")), Color(1, 0.6, 0.4))
 			modal.queue_free())
 		v.add_child(btn)
 	v.add_child(HSeparator.new())

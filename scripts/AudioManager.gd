@@ -48,6 +48,19 @@ var _last_defcon: int = 5
 var _sfx_bus: int = -1
 var _music_bus: int = -1
 
+# ── Ducking: SFX importantes abaixam a música por um instante e ela volta ──
+# Só sons de "peso" fazem duck (não o click/hover, que seria um pisca-pisca).
+const DUCK_SFX := ["conquest", "coup", "war", "achievement", "money", "peace", "alert"]
+const DUCK_AMOUNT_DB := -9.0     # quanto a música abaixa no pico do duck
+const DUCK_ATTACK := 0.08        # tempo p/ abaixar
+const DUCK_RELEASE := 0.9        # tempo p/ voltar
+var _duck_tween: Tween = null
+
+# ── Música adaptativa: intensidade acompanha a tensão global (DEFCON) ──
+# 0.0 = paz (música cheia) … 1.0 = guerra iminente (mais grave/tenso).
+var _music_tension: float = 0.0
+var _tension_tween: Tween = null
+
 func _ready() -> void:
 	_load_cfg()
 	_setup_buses()
@@ -74,6 +87,31 @@ func play(name: String, volume_db: float = 0.0) -> void:
 	p.stream = stream
 	p.volume_db = volume_db
 	p.play()
+	if name in DUCK_SFX:
+		_duck_music()
+
+# Abaixa a música rapidinho e devolve — dá destaque ao SFX importante sem cortar
+# a trilha. Age no bus Music (sobre o volume-base definido por music_tension).
+func _duck_music() -> void:
+	if _music_bus < 0:
+		return
+	if _duck_tween != null and _duck_tween.is_valid():
+		_duck_tween.kill()
+	var base_db: float = _music_base_db()
+	_duck_tween = create_tween()
+	_duck_tween.tween_method(_set_music_bus_db, base_db, base_db + DUCK_AMOUNT_DB, DUCK_ATTACK)
+	_duck_tween.tween_method(_set_music_bus_db, base_db + DUCK_AMOUNT_DB, base_db, DUCK_RELEASE).set_trans(Tween.TRANS_SINE)
+
+func _set_music_bus_db(db: float) -> void:
+	if _music_bus >= 0:
+		AudioServer.set_bus_volume_db(_music_bus, db)
+
+# Volume-base da música (sem duck): volume do usuário − offset fixo − penalidade
+# de tensão (música fica um pouco mais discreta quando o mundo esquenta, deixando
+# espaço pros SFX de guerra/plantão respirarem).
+func _music_base_db() -> float:
+	var tension_cut: float = _music_tension * 4.0  # até -4 dB na tensão máxima
+	return linear_to_db(max(0.0001, music_volume)) - 10.0 - tension_cut
 
 func set_sfx_volume(v: float) -> void:
 	sfx_volume = clamp(v, 0.0, 1.0)
@@ -84,7 +122,7 @@ func set_sfx_volume(v: float) -> void:
 func set_music_volume(v: float) -> void:
 	music_volume = clamp(v, 0.0, 1.0)
 	if _music_bus >= 0:
-		AudioServer.set_bus_volume_db(_music_bus, linear_to_db(max(0.0001, music_volume)) - 10.0)
+		AudioServer.set_bus_volume_db(_music_bus, _music_base_db())
 	_save_cfg()
 
 func set_muted(m: bool) -> void:
@@ -106,7 +144,7 @@ func _setup_buses() -> void:
 	_music_bus = AudioServer.bus_count
 	AudioServer.add_bus(_music_bus)
 	AudioServer.set_bus_name(_music_bus, "Music")
-	AudioServer.set_bus_volume_db(_music_bus, linear_to_db(max(0.0001, music_volume)) - 10.0)
+	AudioServer.set_bus_volume_db(_music_bus, _music_base_db())
 
 func _setup_players() -> void:
 	for i in 8:
@@ -186,6 +224,22 @@ func _on_turn_advanced(_turn: int) -> void:
 	if d < _last_defcon:
 		play("war", -2.0)
 	_last_defcon = d
+	# Música adaptativa: DEFCON 5 (paz) → tensão 0; DEFCON 1 (guerra) → tensão 1.
+	_set_music_tension((5.0 - clampf(d, 1.0, 5.0)) / 4.0)
+
+# Transição SUAVE da intensidade musical (evita "pulo" de volume ao mudar DEFCON).
+func _set_music_tension(target: float) -> void:
+	target = clampf(target, 0.0, 1.0)
+	if is_equal_approx(target, _music_tension):
+		return
+	if _tension_tween != null and _tension_tween.is_valid():
+		_tension_tween.kill()
+	_tension_tween = create_tween()
+	_tension_tween.tween_method(func(v):
+		_music_tension = v
+		# só reescreve o volume-base quando NÃO há duck ativo (o duck controla o bus)
+		if _duck_tween == null or not _duck_tween.is_valid():
+			_set_music_bus_db(_music_base_db()), _music_tension, target, 2.0)
 
 # Hook global de botões: qualquer BaseButton que entrar na árvore ganha SFX
 func _on_node_added(node: Node) -> void:

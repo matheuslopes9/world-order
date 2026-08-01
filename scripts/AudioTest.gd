@@ -42,5 +42,30 @@ func _ready() -> void:
 	A.set_muted(false)
 	_t.call("muted não quebra o play()", true)
 
+	# 6. DUCKING: um SFX de peso abaixa o bus Music e depois ele volta ao base
+	A._music_tension = 0.0
+	var base_db: float = A._music_base_db()
+	A.play("conquest")   # está em DUCK_SFX → dispara o duck
+	await get_tree().process_frame
+	await get_tree().create_timer(0.1).timeout
+	var ducked_db: float = AudioServer.get_bus_volume_db(A._music_bus)
+	_t.call("ducking abaixa a música (%.1f < %.1f dB)" % [ducked_db, base_db], ducked_db < base_db - 1.0)
+	# espera o release e confirma que voltou perto do base
+	await get_tree().create_timer(1.1).timeout
+	var back_db: float = AudioServer.get_bus_volume_db(A._music_bus)
+	_t.call("música volta ao base após o duck (%.1f ~ %.1f)" % [back_db, base_db], abs(back_db - base_db) < 0.5)
+
+	# 7. click/hover NÃO fazem duck (evita pisca-pisca)
+	_t.call("click não está na lista de duck", not ("click" in A.DUCK_SFX))
+	_t.call("hover não está na lista de duck", not ("hover" in A.DUCK_SFX))
+
+	# 8. MÚSICA ADAPTATIVA: mais tensão (DEFCON baixo) = música mais discreta
+	A._music_tension = 0.0
+	var paz_db: float = A._music_base_db()
+	A._music_tension = 1.0
+	var guerra_db: float = A._music_base_db()
+	_t.call("tensão máxima deixa a música mais baixa que na paz (%.1f < %.1f)" % [guerra_db, paz_db], guerra_db < paz_db)
+	A._music_tension = 0.0
+
 	print("\n║  RESULTADO: %d PASS / %d FAIL" % [tally[0], tally[1]])
 	get_tree().quit(0 if tally[1] == 0 else 1)
