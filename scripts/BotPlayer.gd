@@ -122,6 +122,7 @@ func _choose_best_action() -> Dictionary:
 	candidates.append_array(_generate_diplomacy_actions(n))
 	candidates.append_array(_generate_military_actions(n))
 	candidates.append_array(_generate_trade_actions(n))
+	candidates.append_array(_generate_era_actions(n))
 
 	if candidates.is_empty(): return {}
 
@@ -146,6 +147,31 @@ func _choose_best_action() -> Dictionary:
 
 # ── Geração de candidatos ─────────────────────────────────────────
 # IDs de ação = catálogo GameEngine.PANEL_ACTIONS (custos reais do jogo).
+
+# Ações de ERA (economia_digital, programa_espacial, etc.) — só as JÁ destravadas
+# aparecem em get_panel_actions (o gate de década/tech filtra). Assim o MUNDO
+# evolui junto com o jogador: os bots modernizam quando a época chega.
+func _generate_era_actions(n) -> Array:
+	var out: Array = []
+	var tesouro: float = float(n.tesouro)
+	var ERA_IDS := {
+		"economia_digital": 44.0, "transicao_energetica": 40.0, "renda_basica": 38.0,
+		"telemedicina": 36.0, "ensino_imersivo": 42.0, "drones_autonomos": 40.0,
+		"programa_espacial": 46.0,
+	}
+	for panel in ["economia", "governo", "saude", "educacao", "seguranca"]:
+		for a in _engine.get_panel_actions(panel):
+			var aid: String = String(a.get("id", ""))
+			if not ERA_IDS.has(aid):
+				continue
+			if tesouro < float(a.get("cost", 0)) * 1.4:  # só com folga (não estoura o caixa)
+				continue
+			out.append({
+				"type": "panel_action", "action": aid,
+				"score": ERA_IDS[aid], "category": "era",
+				"reason": "Modernização: %s" % String(a.get("label", aid))
+			})
+	return out
 
 func _generate_economy_actions(n) -> Array:
 	var out: Array = []

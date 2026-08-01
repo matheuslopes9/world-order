@@ -3626,6 +3626,16 @@ const PANEL_ACTIONS := {
 	"recrutar_navios":      {"panel": "seguranca","min": "seguranca",  "cost": 30,  "label": "⚓ RECRUTAR NAVIOS",     "desc": "+5 navios"},
 	"construir_base":       {"panel": "seguranca","min": "seguranca",  "cost": 40,  "label": "🏗 CONSTRUIR BASE",      "desc": "Poder +10"},
 	"aumentar_orcamento":   {"panel": "seguranca","min": "seguranca",  "cost": 20,  "label": "💰 +20% ORÇAMENTO MIL.", "desc": "Orçamento permanente +20%"},
+	# ── AÇÕES DE ERA (destravam por década/tech — o loop de 2060 ≠ o de 2005) ──
+	# Cada uma tem trade-off real e só aparece quando o mundo/nação amadurece,
+	# dando sabor de época ao meio e fim do século (antes idêntico ao começo).
+	"economia_digital":     {"panel": "economia", "min": "fazenda",   "cost": 90,  "label": "💻 ECONOMIA DIGITAL",    "desc": "PIB +2.5%, Complexidade +6 — mas Emprego pressiona: Apoio -2", "unlock": {"year": 2015}},
+	"transicao_energetica": {"panel": "economia", "min": "fazenda",   "cost": 120, "label": "🌱 TRANSIÇÃO ENERGÉTICA","desc": "PIB +1.5%, Felic +6 — custo alto de transição: Estab -2", "unlock": {"year": 2030, "techs": 8}},
+	"renda_basica":         {"panel": "governo",  "min": "casa_civil","cost": 100, "label": "🤝 RENDA BÁSICA UNIVERSAL","desc": "Apoio +12, Felic +8 — pesa no caixa: Inflação +3", "unlock": {"year": 2035}},
+	"telemedicina":         {"panel": "saude",    "min": "saude",     "cost": 55,  "label": "🩺 TELEMEDICINA / IA CLÍNICA","desc": "Felic +7, População +0.5% — requer infra digital", "unlock": {"year": 2025, "techs": 6}},
+	"ensino_imersivo":      {"panel": "educacao", "min": "educacao",  "cost": 60,  "label": "🕶 ENSINO IMERSIVO (VR/IA)","desc": "Pesquisa +14% — mas custo social: Felic -2", "unlock": {"year": 2028, "techs": 6}},
+	"drones_autonomos":     {"panel": "seguranca","min": "seguranca", "cost": 65,  "label": "🛰 ENXAME DE DRONES",     "desc": "Poder +18 — corrida armamentista: Relações -3 com vizinhos", "unlock": {"year": 2025, "techs": 8}},
+	"programa_espacial":    {"panel": "seguranca","min": "seguranca", "cost": 150, "label": "🚀 PROGRAMA ESPACIAL",    "desc": "Poder +25, Pesquisa +8% — investimento pesado: PIB -1%", "unlock": {"year": 2040, "techs": 14}},
 }
 
 # Categoria de tech (tech.json) → ministério dono da trilha de pesquisa.
@@ -3715,10 +3725,38 @@ func get_panel_actions(panel_id: String) -> Array:
 	for id in PANEL_ACTIONS:
 		var meta: Dictionary = PANEL_ACTIONS[id]
 		if meta.get("panel", "") == panel_id:
+			# Ações gateadas por era (campo "unlock") só aparecem quando destravadas —
+			# o loop de 2060 fica diferente do de 2005. Sem "unlock" = sempre visível.
+			if not _action_unlocked(meta, player_nation):
+				continue
 			var entry: Dictionary = meta.duplicate()
 			entry["id"] = id
 			out.append(entry)
 	return out
+
+# Uma ação está destravada para a nação `n`? Condições opcionais em meta["unlock"]:
+#   "year"  → ano do jogo >= X (destrava por década/era)
+#   "techs" → nº de tecnologias concluídas >= X (destrava por avanço científico)
+# Sem "unlock", ou n == null (menus/preview), a ação está sempre disponível.
+func _action_unlocked(meta: Dictionary, n) -> bool:
+	var unlock = meta.get("unlock", null)
+	if unlock == null or not (unlock is Dictionary):
+		return true
+	if unlock.has("year") and date_year < int(unlock["year"]):
+		return false
+	if n != null and unlock.has("techs"):
+		if n.tecnologias_concluidas.size() < int(unlock["techs"]):
+			return false
+	return true
+
+# Texto explicativo de por que a ação está bloqueada (mostrado se o jogador tentar).
+func _action_lock_reason(meta: Dictionary) -> String:
+	var unlock = meta.get("unlock", {})
+	if unlock is Dictionary and unlock.has("year"):
+		return "Disponível a partir de %d." % int(unlock["year"])
+	if unlock is Dictionary and unlock.has("techs"):
+		return "Requer %d tecnologias concluídas." % int(unlock["techs"])
+	return "Ação ainda não disponível."
 
 # Executa uma ação de painel para o JOGADOR.
 # Valida custo/ações ANTES de consumir. Retorna {ok, msg|reason, cost}.
@@ -3730,6 +3768,8 @@ func player_panel_action(action_id: String) -> Dictionary:
 	if not PANEL_ACTIONS.has(action_id):
 		return {"ok": false, "reason": "Ação desconhecida: %s" % action_id}
 	var meta: Dictionary = PANEL_ACTIONS[action_id]
+	if not _action_unlocked(meta, n):
+		return {"ok": false, "reason": _action_lock_reason(meta)}
 	var cost: int = int(meta.get("cost", 0))
 	if n.tesouro < cost:
 		return {"ok": false, "reason": "Fundos insuficientes: $%dB necessários, $%dB disponíveis" % [cost, int(n.tesouro)]}
@@ -3873,6 +3913,43 @@ func _apply_panel_action(n, action_id: String) -> String:
 		"aumentar_orcamento":
 			n.militar["orcamento_militar_bilhoes"] = float(n.militar.get("orcamento_militar_bilhoes", 0)) * 1.2
 			return "Orçamento militar +20%"
+		# ── AÇÕES DE ERA (destravam por década/tech) ──
+		"economia_digital":
+			n.apply_pib_multiplier(1.025)
+			n.complexidade_economica = min(100.0, n.complexidade_economica + 6.0)
+			n.apoio_popular = max(0.0, n.apoio_popular - 2.0)  # disrupção de empregos
+			return "PIB +2.5%, Complexidade +6, Apoio -2"
+		"transicao_energetica":
+			n.apply_pib_multiplier(1.015)
+			n.felicidade = min(100.0, n.felicidade + 6.0 * mult)
+			n.estabilidade_politica = max(0.0, n.estabilidade_politica - 2.0)  # custo de transição
+			return "PIB +1.5%, Felic +6, Estab -2"
+		"renda_basica":
+			n.apoio_popular = min(100.0, n.apoio_popular + 12.0 * mult)
+			n.felicidade = min(100.0, n.felicidade + 8.0 * mult)
+			n.inflacao = n.inflacao + 3.0  # pressão fiscal/monetária
+			return "Apoio +%d, Felic +%d, Inflação +3" % [int(12.0 * mult), int(8.0 * mult)]
+		"telemedicina":
+			n.felicidade = min(100.0, n.felicidade + 7.0 * mult)
+			if n.populacao > 0:
+				n.populacao = int(n.populacao * 1.005)
+			return "Felic +%d, População +0.5%%" % int(7.0 * mult)
+		"ensino_imersivo":
+			n.velocidade_pesquisa = min(3.0, n.velocidade_pesquisa + 0.14 * mult)
+			n.felicidade = max(0.0, n.felicidade - 2.0)  # custo social do isolamento
+			return "Pesquisa +14%, Felic -2"
+		"drones_autonomos":
+			n.militar["poder_militar_global"] = float(n.militar.get("poder_militar_global", 0)) + 18
+			# corrida armamentista: vizinhos ficam nervosos
+			for c in n.relacoes:
+				n.relacoes[c] = clampf(float(n.relacoes[c]) - 3.0, -100.0, 100.0)
+			return "Poder +18, Relações -3"
+		"programa_espacial":
+			n.militar["poder_militar_global"] = float(n.militar.get("poder_militar_global", 0)) + 25
+			n.velocidade_pesquisa = min(3.0, n.velocidade_pesquisa + 0.08 * mult)
+			n.apply_pib_multiplier(0.99)  # investimento pesado hoje
+			n.confianca_investidor = min(100.0, n.confianca_investidor + 5.0)  # prestígio
+			return "Poder +25, Pesquisa +8%, PIB -1%"
 		# ── ECONOMIA ──
 		"infra_basica":
 			n.apply_pib_multiplier(1.01)
